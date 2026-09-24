@@ -10,6 +10,9 @@ cd /root/tb322fc-build
 export LC_ALL=C.UTF-8
 JOBS=${JOBS:-$(nproc)}
 
+# Disable CheckSpace in chroot where cachedir mount point cannot be probed via /proc/mounts.
+sed -i 's/^[[:space:]]*CheckSpace/#CheckSpace/' /etc/pacman.conf
+
 # Keep package signatures enabled. The authenticated bootstrap contains the
 # distro keyring; update it before the full rolling-release upgrade.
 pacman-key --init
