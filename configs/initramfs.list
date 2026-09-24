@@ -27,8 +27,6 @@ file /lib/firmware/ath12k/PEACH/hw2.0/board.bin ${FIRMWARE_DIR}/ath12k/PEACH/hw2
 file /lib/firmware/ath12k/PEACH/hw2.0/m3.bin ${FIRMWARE_DIR}/ath12k/PEACH/hw2.0/m3.bin 0444 0 0
 file /lib/firmware/ath12k/PEACH/hw2.0/aux_ucode.bin ${FIRMWARE_DIR}/ath12k/PEACH/hw2.0/aux_ucode.bin 0444 0 0
 file /lib/firmware/ath12k/PEACH/hw2.0/qdss_trace_config.bin ${FIRMWARE_DIR}/ath12k/PEACH/hw2.0/qdss_trace_config.bin 0444 0 0
-file /lib/firmware/qca/brhbtfw20.tlv ${FIRMWARE_DIR}/qca/brhbtfw20.tlv 0444 0 0
-file /lib/firmware/qca/brhbtnv20.bin ${FIRMWARE_DIR}/qca/brhbtnv20.bin 0444 0 0
 dir /dev 0755 0 0
 dir /dev/pts 0755 0 0
 dir /proc 0555 0 0
@@ -45,6 +43,11 @@ nod /dev/tty 0666 0 0 c 5 0
 nod /dev/tty0 0600 0 0 c 4 0
 nod /dev/ptmx 0666 0 0 c 5 2
 file /lib/firmware/novatek_ts_csot_3k_fw.bin ${FIRMWARE_DIR}/novatek_ts_csot_3k_fw.bin 0444 0 0
+file /lib/firmware/qca/brhbtfw20.tlv ${FIRMWARE_DIR}/qca/brhbtfw20.tlv 0444 0 0
+file /lib/firmware/qca/brhbtnv20.bin ${FIRMWARE_DIR}/qca/brhbtnv20.bin 0444 0 0
+file /lib/firmware/qca/brhperifw20.tlv ${FIRMWARE_DIR}/qca/brhperifw20.tlv 0444 0 0
+file /lib/firmware/qca/brhperinv20.bin ${FIRMWARE_DIR}/qca/brhperinv20.bin 0444 0 0
+file /lib/firmware/qca/tmel_peach_20.elf ${FIRMWARE_DIR}/qca/tmel_peach_20.elf 0444 0 0
 file /lib/firmware/qcom/sm8750/adsp.b00 ${FIRMWARE_DIR}/qcom/sm8750/adsp.b00 0444 0 0
 file /lib/firmware/qcom/sm8750/adsp.b01 ${FIRMWARE_DIR}/qcom/sm8750/adsp.b01 0444 0 0
 file /lib/firmware/qcom/sm8750/adsp.b02 ${FIRMWARE_DIR}/qcom/sm8750/adsp.b02 0444 0 0
@@ -74,7 +77,7 @@ file /lib/firmware/qcom/sm8750/adsp.b25 ${FIRMWARE_DIR}/qcom/sm8750/adsp.b25 044
 file /lib/firmware/qcom/sm8750/adsp.b26 ${FIRMWARE_DIR}/qcom/sm8750/adsp.b26 0444 0 0
 file /lib/firmware/qcom/sm8750/adsp.b27 ${FIRMWARE_DIR}/qcom/sm8750/adsp.b27 0444 0 0
 file /lib/firmware/qcom/sm8750/adsp.b28 ${FIRMWARE_DIR}/qcom/sm8750/adsp.b28 0444 0 0
-file /lib/firmware/qcom/sm8750/adsp.b29 ${FIRMWARE_DIR}/qcom/sm8750/adsp.b29 0444 0 0
+file /lib/firmware/qcom/sm8750/adsp.b30 ${FIRMWARE_DIR}/qcom/sm8750/adsp.b30 0444 0 0
 file /lib/firmware/qcom/sm8750/adsp.b31 ${FIRMWARE_DIR}/qcom/sm8750/adsp.b31 0444 0 0
 file /lib/firmware/qcom/sm8750/adsp.b32 ${FIRMWARE_DIR}/qcom/sm8750/adsp.b32 0444 0 0
 file /lib/firmware/qcom/sm8750/adsp.b33 ${FIRMWARE_DIR}/qcom/sm8750/adsp.b33 0444 0 0
@@ -98,7 +101,8 @@ file /lib/firmware/qcom/sm8750/adsp.b50 ${FIRMWARE_DIR}/qcom/sm8750/adsp.b50 044
 file /lib/firmware/qcom/sm8750/adsp.b51 ${FIRMWARE_DIR}/qcom/sm8750/adsp.b51 0444 0 0
 file /lib/firmware/qcom/sm8750/adsp.b52 ${FIRMWARE_DIR}/qcom/sm8750/adsp.b52 0444 0 0
 file /lib/firmware/qcom/sm8750/adsp.b53 ${FIRMWARE_DIR}/qcom/sm8750/adsp.b53 0444 0 0
-file /lib/firmware/qcom/sm8750/adsp.b55 ${FIRMWARE_DIR}/qcom/sm8750/adsp.b55 0444 0 0
+file /lib/firmware/qcom/sm8750/adsp.b54 ${FIRMWARE_DIR}/qcom/sm8750/adsp.b54 0444 0 0
+file /lib/firmware/qcom/sm8750/adsp.b56 ${FIRMWARE_DIR}/qcom/sm8750/adsp.b56 0444 0 0
 file /lib/firmware/qcom/sm8750/adsp.mdt ${FIRMWARE_DIR}/qcom/sm8750/adsp.mdt 0444 0 0
 file /lib/firmware/qcom/sm8750/adsp_dtb.b00 ${FIRMWARE_DIR}/qcom/sm8750/adsp_dtb.b00 0444 0 0
 file /lib/firmware/qcom/sm8750/adsp_dtb.b01 ${FIRMWARE_DIR}/qcom/sm8750/adsp_dtb.b01 0444 0 0
