@@ -1,6 +1,10 @@
 # Hardware support
 
 Status reflects actual Y700 Gen4 testing, not just enabled kernel options.
+These are historical baseline results recorded in [validation.json](../validation.json),
+not validation of the newer CI kernel pin. Its WCN7861 Bluetooth setup requires
+[three additional firmware files](firmware.md#newer-kernel-bluetooth-firmware)
+absent from the original firmware bundle.
 
 | Area | Working | Remaining limits |
 | --- | --- | --- |

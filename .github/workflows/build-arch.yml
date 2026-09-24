@@ -1,0 +1,93 @@
+name: Build Arch Linux ARM images
+
+on:
+  workflow_dispatch:
+    inputs:
+      firmware_url:
+        description: 'HTTPS firmware bundle URL (or use FIRMWARE_URL secret; see docs/ci.md)'
+        type: string
+        required: false
+      firmware_sha256:
+        description: 'Firmware bundle SHA256 (or use FIRMWARE_SHA256 repository variable)'
+        type: string
+        required: false
+      arch_rootfs_url:
+        description: 'Arch Linux ARM generic AArch64 archive (verified with its .sig)'
+        type: string
+        default: https://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
+      arch_rootfs_sha256:
+        description: 'Optional exact archive SHA256 instead of OpenPGP verification'
+        type: string
+        required: false
+      rootfs_size:
+        description: 'Raw ext4 image size; must fit the existing rootfs partition'
+        type: string
+        default: 12G
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arch-images-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 360
+    env:
+      ARCH_ROOTFS_URL: ${{ inputs.arch_rootfs_url }}
+      ARCH_ROOTFS_SHA256: ${{ inputs.arch_rootfs_sha256 }}
+      ROOTFS_SIZE: ${{ inputs.rootfs_size }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check firmware input before installing or building
+        env:
+          FIRMWARE_URL: ${{ secrets.FIRMWARE_URL || inputs.firmware_url }}
+          FIRMWARE_SHA256: ${{ inputs.firmware_sha256 || vars.FIRMWARE_SHA256 }}
+        run: bash scripts/ci/prepare-inputs.sh
+      - name: Install host build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential git python3 curl bzip2 flex bison bc \
+            pkg-config libssl-dev libelf-dev gcc-aarch64-linux-gnu libc6-dev-arm64-cross \
+            clang lld llvm mkbootimg kmod cpio rsync libarchive-tools e2fsprogs \
+            zstd xz-utils gnupg ca-certificates
+      - name: Fetch and verify pinned sources
+        run: python3 scripts/fetch-sources.py
+      - name: Download and authenticate Arch Linux ARM
+        run: bash scripts/ci/fetch-arch.sh
+      - name: Build kernel, embedded initramfs, Android boot image and modules
+        run: JOBS=$(nproc) bash scripts/ci/build-kernel.sh
+      - name: Reclaim kernel build space for rootfs
+        run: |
+          rm -rf build/kernel build/busybox sources/kernel sources/busybox
+          df -h .
+      - name: Build Arch rootfs and native device userspace
+        run: |
+          sudo env ARCH_ROOTFS_ARCHIVE="$PWD/build/ArchLinuxARM-aarch64.tar.gz" \
+            ARCH_ROOTFS_SHA256="$(cut -d ' ' -f 1 build/ArchLinuxARM-aarch64.sha256)" \
+            ROOTFS_SIZE="$ROOTFS_SIZE" JOBS="$(nproc)" bash scripts/ci/build-rootfs.sh
+      - name: Compress images and collect provenance
+        run: bash scripts/ci/package.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tb322fc-arch-${{ github.run_id }}
+          path: artifacts/release/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tb322fc-build-info-${{ github.run_id }}
+          path: |
+            artifacts/*.txt
+            artifacts/*.packages
+            artifacts/kernel.config
+            artifacts/kernel.release
+          if-no-files-found: ignore
+          retention-days: 14

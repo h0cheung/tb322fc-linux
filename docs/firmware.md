@@ -1,8 +1,28 @@
 # Firmware
 
-`firmware.json` lists the 78 files used by the supported hardware configuration.
+`firmware.json` lists the 78 files from the original validated hardware configuration.
 Paths are relative to the Linux firmware directory. Firmware must be available
 before rootfs mounts because several drivers are built into the kernel.
+
+## Newer kernel Bluetooth firmware
+
+The current kernel pin `ba28ec16f01f59ba8f5099e8af9e95b061fc5c78` adds WCN7861
+peripheral setup. A cold Bluetooth initialization additionally requests:
+
+- `qca/brhperifw20.tlv`
+- `qca/brhperinv20.bin`
+- `qca/tmel_peach_20.elf`
+
+These files and their verified hashes are not supplied by the original umbrella
+repository or its 78-file manifest. The existing bundle remains sufficient for
+the declared build inputs, but it must not be described as complete Bluetooth
+firmware for the new kernel. Missing peripheral firmware can make Bluetooth
+initialization fail; it is not a dependency of the rootfs handoff.
+
+Once matching stock files are available, record their real sizes and SHA256s in
+`firmware.json`, add their paths to `configs/initramfs.list`, and regenerate the
+firmware bundle. The CI rootfs installer already follows the manifest. Do not
+invent hashes or substitute another board's NVM to satisfy the build.
 
 ## Stock inputs
 

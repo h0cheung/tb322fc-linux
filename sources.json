@@ -1,8 +1,8 @@
 {
   "kernel": {
-    "url": "https://github.com/GEEKiDoS/linux.git",
-    "commit": "b0c05eb72e10140f87efd0e499ad840e6c3e6975",
-    "tree": "abb1b30a2ef5c0a7fc5e3e4ed35bbefb02462da4"
+    "url": "https://github.com/h0cheung/tb322fc-linux-kernel.git",
+    "commit": "ba28ec16f01f59ba8f5099e8af9e95b061fc5c78",
+    "tree": "248980d8b9a41f2ee8c66d8317ba1f1348d35ee8"
   },
   "libcamera": {
     "url": "https://gitlab.freedesktop.org/camera/libcamera.git",

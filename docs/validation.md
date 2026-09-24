@@ -1,5 +1,11 @@
 # Validation
 
+This page and `validation.json` preserve upstream's historical device results
+for kernel `b0c05eb72e10140f87efd0e499ad840e6c3e6975`. The current source pin is
+`ba28ec16f01f59ba8f5099e8af9e95b061fc5c78`; those results do not validate the
+updated kernel or the new CI rootfs. A firmware-backed build and device test
+remain outstanding. See [new Bluetooth firmware requirements](firmware.md#newer-kernel-bluetooth-firmware).
+
 ## Repository and build
 
 - All pinned source revisions have been fetched from their public remotes.

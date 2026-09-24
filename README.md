@@ -5,10 +5,15 @@ Mainline Linux for the Lenovo Legion Tab Y700 Gen4, based on Qualcomm SM8750
 
 This repository provides the kernel configuration, boot-image builder, rootfs
 integration, firmware inventory and hardware support status. Kernel development
-lives in [GEEKiDoS/linux](https://github.com/GEEKiDoS/linux/tree/v7.2-elden).
+lives in [tb322fc-linux-kernel](https://github.com/h0cheung/tb322fc-linux-kernel),
+forked from [GEEKiDoS/linux](https://github.com/GEEKiDoS/linux/tree/v7.2-elden).
 Userspace changes are included as patches against pinned public sources.
 
 ## Hardware support
+
+The results below describe the original device-tested baseline. The CI now pins
+the newer kernel revision `ba28ec16`, which still needs build/device validation;
+its Bluetooth setup also needs [three additional firmware files](docs/firmware.md#newer-kernel-bluetooth-firmware).
 
 | Component | Status | Notes |
 | --- | --- | --- |
@@ -29,6 +34,18 @@ See the [support matrix](docs/hardware.md) for test scope and unverified feature
 
 ## Build and use
 
+### Automated Arch Linux ARM images
+
+The **Build Arch Linux ARM images** Actions workflow builds a direct Android
+`boot.img` and an Arch Linux ARM Plasma `rootfs.img` from pinned device sources.
+It requires a matching firmware bundle; no GRUB or Debian device packages are
+used. See the [CI setup and image guide](docs/ci.md) for input preparation,
+artifact verification and first boot. This new pipeline still needs a full
+firmware-backed build and device validation before its images can be called
+tested releases.
+
+### Manual boot image build
+
 1. [Install the build dependencies](docs/build.md#host-dependencies).
 2. Fetch the pinned source trees with `python3 scripts/fetch-sources.py`.
 3. [Extract and import matching firmware](docs/firmware.md).
@@ -39,7 +56,8 @@ See the [support matrix](docs/hardware.md) for test scope and unverified feature
 The build produces `boot.img`, `Image`, `sm8750-lenovo-elden.dtb`,
 `kernel.config` and `SHA256SUMS` under `artifacts/`. Images and firmware binaries
 are not stored in Git. The firmware comes from your own matching stock system;
-sensor calibration stays with your device. No prebuilt rootfs release is supplied.
+sensor calibration stays with your device. Rootfs artifacts can be built through
+the workflow; no prebuilt tested rootfs release is supplied.
 
 ## Project files
 
