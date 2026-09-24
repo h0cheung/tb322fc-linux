@@ -55,6 +55,10 @@ jobs:
             pkg-config libssl-dev libelf-dev gcc-aarch64-linux-gnu libc6-dev-arm64-cross \
             clang lld llvm mkbootimg kmod cpio rsync libarchive-tools e2fsprogs \
             zstd xz-utils gnupg ca-certificates
+          # Workaround Ubuntu 24.04 mkbootimg missing gki module (LP: #2058228)
+          sudo sed -i 's/from gki.generate_gki_certificate import generate_gki_certificate/generate_gki_certificate = None/' /usr/bin/mkbootimg || true
+          sudo python3 -c "import pathlib; p = pathlib.Path('/usr/lib/python3/dist-packages/gki'); p.mkdir(exist_ok=True); (p/'__init__.py').touch(); (p/'generate_gki_certificate.py').write_text('def generate_gki_certificate(*args, **kwargs):\n    pass\n')" || true
+          mkbootimg --help >/dev/null
       - name: Fetch and verify pinned sources
         run: python3 scripts/fetch-sources.py
       - name: Download and authenticate Arch Linux ARM
