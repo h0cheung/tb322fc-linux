@@ -34,9 +34,10 @@ mounts=()
 cleanup() {
     local status=$? target
     trap - EXIT
+    chroot "$ROOTFS" /usr/bin/gpgconf --homedir /etc/pacman.d/gnupg --kill all 2>/dev/null || true
     for (( index=${#mounts[@]}-1; index>=0; index-- )); do
         target=${mounts[index]}
-        if ! umount "$target"; then
+        if ! umount "$target" 2>/dev/null && ! umount -l "$target" 2>/dev/null; then
             echo "Cannot unmount $target; retaining staging tree." >&2
             status=1
         fi
