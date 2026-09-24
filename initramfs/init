@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Mount only the dedicated rootfs partition, then hand off to its init.
 export PATH=/bin:/sbin
 BB=/bin/busybox

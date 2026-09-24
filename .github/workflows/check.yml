@@ -1,0 +1,24 @@
+name: Check build scripts
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: python3 scripts/check.py
+      - run: python3 -m unittest discover -s tests -v
+      - name: Check all shell scripts
+        run: |
+          find scripts -name '*.sh' -print0 | xargs -0 -n1 bash -n
+          shellcheck scripts/ci/*.sh
+      - name: Validate Actions workflow syntax
+        run: |
+          python3 -m pip install actionlint-py==1.7.12.25
+          actionlint
