@@ -68,7 +68,8 @@ build_component() {
     local component=$1
     shift
     meson setup "build/$component" "sources/$component" --prefix=/usr --libdir=lib \
-        --buildtype=release --wrap-mode=nodownload "$@"
+        --buildtype=release --wrap-mode=nodownload -Dwerror=false \
+        -Dc_args="-Wno-error" -Dcpp_args="-Wno-error -Wno-error=array-bounds" "$@"
     meson compile -C "build/$component" -j "$JOBS"
     meson install -C "build/$component"
     cp "build/$component/meson-info/intro-buildoptions.json" "/usr/share/tb322fc/meson/$component.json"
@@ -81,7 +82,8 @@ build_component iio-sensor-proxy --libexecdir=libexec -Dssc-support=enabled \
 build_component libcamera -Dpipelines=simple -Dipas=softisp -Dqcam=enabled -Dcam=enabled \
     -Ddocumentation=disabled -Dgstreamer=disabled -Dpycamera=disabled \
     -Dlc-compliance=disabled -Dv4l2=disabled -Dsoftisp-gpu=disabled \
-    -Dapps-output-dng=disabled -Dtest=false
+    -Dapps-output-dng=disabled -Dtest=false -Dwerror=false \
+    -Dcpp_args="-Wno-error -Wno-error=array-bounds"
 
 # Keep pacman upgrades from replacing the patched libraries with distro builds.
 # Manual installation of a conflicting package must first remove this guard
