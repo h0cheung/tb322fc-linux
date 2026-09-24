@@ -14,7 +14,7 @@ on:
       arch_rootfs_url:
         description: 'Arch Linux ARM generic AArch64 archive (verified with its .sig)'
         type: string
-        default: https://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
+        default: http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
       arch_rootfs_sha256:
         description: 'Optional exact archive SHA256 instead of OpenPGP verification'
         type: string

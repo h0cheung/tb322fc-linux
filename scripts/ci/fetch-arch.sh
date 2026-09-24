@@ -3,10 +3,10 @@
 set -euo pipefail
 cd -- "$(dirname -- "$0")/../.."
 mkdir -p build artifacts
-url=${ARCH_ROOTFS_URL:-https://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz}
+url=${ARCH_ROOTFS_URL:-http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz}
 archive=build/ArchLinuxARM-aarch64.tar.gz
-[[ "$url" == https://* ]] || { echo 'ARCH_ROOTFS_URL must use HTTPS' >&2; exit 1; }
-curl --fail --location --retry 5 --proto '=https' --proto-redir '=https' \
+[[ "$url" == http://* || "$url" == https://* ]] || { echo 'ARCH_ROOTFS_URL must use HTTP or HTTPS' >&2; exit 1; }
+curl --fail --location --retry 5 --proto '=http,https' --proto-redir '=http,https' \
     --output "$archive.part" "$url"
 mv "$archive.part" "$archive"
 if [[ -n ${ARCH_ROOTFS_SHA256:-} ]]; then
@@ -19,7 +19,7 @@ else
     gnupg_home=$(mktemp -d)
     trap 'rm -rf "$gnupg_home"' EXIT
     chmod 700 "$gnupg_home"
-    curl --fail --location --retry 5 --proto '=https' --proto-redir '=https' \
+    curl --fail --location --retry 5 --proto '=http,https' --proto-redir '=http,https' \
         --output "$archive.sig" "$url.sig"
     curl --fail --location --retry 5 --proto '=https' --proto-redir '=https' \
         --output "$gnupg_home/signer.asc" \
