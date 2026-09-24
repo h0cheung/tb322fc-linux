@@ -2,13 +2,13 @@
   "files": [
     {
       "path": "awinic/y700-gen4-haptic.bin",
-      "size": 1065,
-      "sha256": "64e86edba26029de2954e6ea23315b44ad6d5f53c1782be7eeef5d58f97d6ff1"
+      "size": 1436,
+      "sha256": "84598d2a5130f7fe6bccba5cfbcafa1341d2d5bfe2f7d1361142cb78783ce79d"
     },
     {
       "path": "awinic/y700-gen4-speakers.bin",
       "size": 1792,
-      "sha256": "02c416da58c4de9353559be3f77de45041357f4d1d9693067497dbfe3b0a8a07"
+      "sha256": "9f2a14b4148c7dc4bc54f3a38d859a4939101e0e32387a626d62237b88074bb4"
     },
     {
       "path": "qcom/sm8750/Lenovo-Y700-Gen4-tplg.bin",
@@ -17,23 +17,23 @@
     },
     {
       "path": "qcom/gen80000_gmu.bin",
-      "size": 88892,
-      "sha256": "baf17185c08c130afa962388a391544f78e7601d19a1b82acb5fcd67da44ef3b"
+      "size": 88896,
+      "sha256": "1ad8175e6cd01ea76c64d20b83600038c52dd29844b48d57b11b769b038863a5"
     },
     {
       "path": "qcom/gen80000_sqe.fw",
-      "size": 110580,
-      "sha256": "0f2e4bf9319c96cc292689ff3e786786af4e616582817f05d2f39f1bcbd1c7a7"
+      "size": 111892,
+      "sha256": "9c8f009bea112d7c06dd2ccb67e889999459e53b92f0f4859f5ea0db067ad6b5"
     },
     {
       "path": "qcom/gen80000_aqe.fw",
-      "size": 25044,
-      "sha256": "67562ad5baae3a133c92a6e48a9d1b1a9a867fe2f85b49324e244e963f3b89c5"
+      "size": 25340,
+      "sha256": "f04cb97e1e629b9003a26c5670b8f7e5b7bfeca95d35b2abd581fd8672efed20"
     },
     {
       "path": "qcom/sm8750/gen80000_zap.mbn",
       "size": 12088,
-      "sha256": "967dc38178a3640027610a9ecf703f043f95a2373bd8fb7bcd274bb494bce57f"
+      "sha256": "8cf4191428da972095df365f1d3b171f45bbed806d6c0f3310cfc4dee00e04ae"
     },
     {
       "path": "regulatory.db",
@@ -91,14 +91,29 @@
       "sha256": "f91354b0872f1f7680142df6852b2c8e67e3151ee2ad406b3d183a2fb539702e"
     },
     {
+      "path": "qca/brhperifw20.tlv",
+      "size": 19884,
+      "sha256": "9a8de09a127a5943f8c23d4ee6005531b900f085740a292c9ab5a20e76db6cb5"
+    },
+    {
+      "path": "qca/brhperinv20.bin",
+      "size": 741,
+      "sha256": "3c73215352ba6422a9f2639124d27f64ec83a4d2aa91b388439ca88ea31098d0"
+    },
+    {
+      "path": "qca/tmel_peach_20.elf",
+      "size": 56752,
+      "sha256": "a175c8d9d0e6b38b5ae23ff0175da795b14b8268919463d2b6e1cb2bfeebc9f8"
+    },
+    {
       "path": "novatek_ts_csot_3k_fw.bin",
       "size": 253952,
-      "sha256": "2816dba47ed7dc695622b548305408dbf1b671d341074f138e9c65b0de6384c7"
+      "sha256": "413216d0e8738078414fa681262439ab6d1c181f02974215e0394f102fcc08dc"
     },
     {
       "path": "qcom/sm8750/adsp.b00",
-      "size": 1844,
-      "sha256": "9b2665d0bc2da7b0ad97c7f79ce1cab0b9e42730d2aab4536b431901157ad059"
+      "size": 1876,
+      "sha256": "26f10010d676eaf80d7dfe708b62bab6c3627eb06b0255b7926209f1b1b8db1e"
     },
     {
       "path": "qcom/sm8750/adsp.b01",
@@ -108,7 +123,7 @@
     {
       "path": "qcom/sm8750/adsp.b02",
       "size": 38924,
-      "sha256": "a8b81e75e9e6fbc65a9fec888f9ef8997aaa7590eec82d55cef340681dca03e3"
+      "sha256": "4f982903ba109648cb4dfd2123250be93ed1c3a1d37f05a321b356af039f2528"
     },
     {
       "path": "qcom/sm8750/adsp.b03",
@@ -128,7 +143,7 @@
     {
       "path": "qcom/sm8750/adsp.b06",
       "size": 196608,
-      "sha256": "67504154a93ea7401f084ebbc40f6fd84fbae005e623e41fa7981af3fc9e3253"
+      "sha256": "669e6a1ceafa0b891f8a984c38ffdd2c4ff2e58967ead153cd7e33124e8ead5a"
     },
     {
       "path": "qcom/sm8750/adsp.b07",
@@ -142,13 +157,13 @@
     },
     {
       "path": "qcom/sm8750/adsp.b09",
-      "size": 3106260,
-      "sha256": "84e55473d8aa5db5325b99d96dd7d720ae6b0c4a44bed7657962af953786ce3a"
+      "size": 3106196,
+      "sha256": "39ab7884b8527426031eb6b828c26b525d56ce1f923f97dd4ac84f60f23842cc"
     },
     {
       "path": "qcom/sm8750/adsp.b10",
-      "size": 264116,
-      "sha256": "42cd3528471a06053964c21a51b6088ed8940b31124cfa52f5688c6bc6a29010"
+      "size": 264108,
+      "sha256": "f81a8df744149562b67374b2449aec5c914f8322b48ad41926d48b9d811c3e79"
     },
     {
       "path": "qcom/sm8750/adsp.b11",
@@ -168,52 +183,52 @@
     {
       "path": "qcom/sm8750/adsp.b14",
       "size": 250024,
-      "sha256": "8e51767bb9f55b8d0af46873e2f31d2f713f9edf6d699588492f55105245459b"
+      "sha256": "ab7c46f9b7010e2c92dd3a8c2014daa28e5041587451e90d810ea9c9f58b3dcc"
     },
     {
       "path": "qcom/sm8750/adsp.b15",
       "size": 162048,
-      "sha256": "ecb4016d77027526500f35029f4c0505b5d7009e249cd074707de1addf824194"
+      "sha256": "07903ff1d0361699990d4f25ac872481c0a68a58d8d7cb23187da8b9fddcf71d"
     },
     {
       "path": "qcom/sm8750/adsp.b16",
       "size": 479232,
-      "sha256": "616fd27c4368d516656da75c9f8c3ca7ea9f822b7f7371b479919ad3ca5254b4"
+      "sha256": "de1a08ad24034e5c96e5b63679c4d02d5208b10863b327e7d40401ab5e42c873"
     },
     {
       "path": "qcom/sm8750/adsp.b17",
-      "size": 2778308,
-      "sha256": "5d34a312b9725878a14847bcebdbd43c197c3e31559ad27efca7baa33051e8f5"
+      "size": 2782788,
+      "sha256": "154f977e0a1379702ed357e66c5866b7f5d3dfc5063a8946299318535ac97a2c"
     },
     {
       "path": "qcom/sm8750/adsp.b18",
       "size": 27536,
-      "sha256": "77a6642aa9ae0cede1e35e1a4b01076d36feb34e3d17e05eeead9044125fa60e"
+      "sha256": "313edfcb1d4464f44e65e15508a057b83a9520571609b912cd227c28680dcdaf"
     },
     {
       "path": "qcom/sm8750/adsp.b19",
       "size": 272,
-      "sha256": "8c53de4e118f3d2984b51095fc521df2a9f6db511bf36f757cf36741c60cbd3a"
+      "sha256": "8583f9ae1cce3938c6ea265d564ae65419d6125b016baee4fbb52630e6b9fb2f"
     },
     {
       "path": "qcom/sm8750/adsp.b20",
-      "size": 383733,
-      "sha256": "6223f0c8d86d7e22e8be416a3756fb15b27451feb061e65f224f7b0da356cad4"
+      "size": 384125,
+      "sha256": "86227c516241285825ecddc9080c2e8ec9571b3909eb712ccfb2faa44d7b63bb"
     },
     {
       "path": "qcom/sm8750/adsp.b21",
-      "size": 1024000,
-      "sha256": "c3eda2c95b4c8e528a85538706ffe23c3ee74399e6028d1b34648d4012ff7242"
+      "size": 1019904,
+      "sha256": "edd98cf85520fc59fdd047b6d18bf62d2dac11fa17b4bfd2743a474af510cadc"
     },
     {
       "path": "qcom/sm8750/adsp.b22",
       "size": 1358684,
-      "sha256": "c30ceb56cebdd324a9dedbade1f251d893ecf066bf7dc5e8987975c8b0bd7d8d"
+      "sha256": "4b5698e52bd1c5492454120beea144c601291eb9f72397af54a0d105c1d91c8f"
     },
     {
       "path": "qcom/sm8750/adsp.b23",
       "size": 30049,
-      "sha256": "afd9c22a4b636ccef40ecdeae559e2807ecbb6a5a58a7e13779796070883bce2"
+      "sha256": "b2d544483023c92b31b3a3b1f7a778c7d7d103f1af0a05926442adbfeb4281d7"
     },
     {
       "path": "qcom/sm8750/adsp.b24",
@@ -227,93 +242,93 @@
     },
     {
       "path": "qcom/sm8750/adsp.b26",
-      "size": 82,
-      "sha256": "673ae1418e8fc325bc5cd0322014d549976fbc0e0f2df9e37ecf8f4faad2095a"
+      "size": 131072,
+      "sha256": "8eaf73463de4a2b786e5844c5cb9187fe3d35d466cc3b3a5d34cabe930435802"
     },
     {
       "path": "qcom/sm8750/adsp.b27",
-      "size": 67864,
-      "sha256": "c2b80f7c8107b12289bf4bf7a3e0c5f98f9f3dd735826e46c5f92a044025cc54"
+      "size": 2703128,
+      "sha256": "5ac7c4cbfcd62b3d6c31a186a534fef275d2656133f7962d017d07d495fa0277"
     },
     {
       "path": "qcom/sm8750/adsp.b28",
-      "size": 2658616,
-      "sha256": "3bcc4a908a328e8248c2ec062b1cfab9c6c5179aab312de2dd03b728aa8ce451"
-    },
-    {
-      "path": "qcom/sm8750/adsp.b29",
       "size": 475140,
-      "sha256": "892e99c57b50b67f9e2ea2297b16f07f9d717c8add9bc3511258bcc9dabfd1eb"
+      "sha256": "42cc927ba8fddce7eeeb7b0fce1063bf0e960617e7a16fcc7fbabdb9eed5bfca"
     },
     {
-      "path": "qcom/sm8750/adsp.b31",
+      "path": "qcom/sm8750/adsp.b30",
       "size": 592,
       "sha256": "436cdafe2ba672d46d7661c1376a7cffc99b0e85c69ed2e7ad857c1ab3a7d283"
     },
     {
-      "path": "qcom/sm8750/adsp.b32",
+      "path": "qcom/sm8750/adsp.b31",
       "size": 13592,
       "sha256": "cd74aa06a904e086702a012a3bf7b1c1dd47ca1d180ab98e5109e7f762c39a02"
     },
     {
-      "path": "qcom/sm8750/adsp.b33",
+      "path": "qcom/sm8750/adsp.b32",
       "size": 36312,
-      "sha256": "4fbf95e899ee39b7e7481ccaef6ddd4944885f57492082cfcb6516139090036c"
+      "sha256": "efeda5a7d5563be7e707e78ce17c56b907ec6cb32b903c4143fe305a72062c02"
+    },
+    {
+      "path": "qcom/sm8750/adsp.b33",
+      "size": 475028,
+      "sha256": "ab3e672f6e8a2c447e7992be35c581a14706f196d84ef690150791a9cbbccc50"
     },
     {
       "path": "qcom/sm8750/adsp.b34",
-      "size": 419756,
-      "sha256": "691077e770d8c8d971b53f8d1c040404d1bb9be58666b22010d5042c47aa030b"
+      "size": 172677,
+      "sha256": "88912694bb006034cf77f87246960d62938b732626e31813db9563494bdbe0ec"
     },
     {
       "path": "qcom/sm8750/adsp.b35",
-      "size": 172677,
-      "sha256": "6670abd6c08bdd162841028e9a095d7579aa5e678dd2c91796da84cc412cf108"
+      "size": 154044,
+      "sha256": "1c69196abdc06478d188558c7190a653e9545d4c1e5332318791bae65010726d"
     },
     {
       "path": "qcom/sm8750/adsp.b36",
-      "size": 154044,
-      "sha256": "223282d471f55cfdd6fa3d50d10c77fd55b1ada990b87bba671f443cfa254b35"
+      "size": 170656,
+      "sha256": "58f0851567674364fc99a3c70364c94e269a140c374dffe74c6ecae00d2a003e"
     },
     {
       "path": "qcom/sm8750/adsp.b37",
-      "size": 170656,
-      "sha256": "0d8cf089f0b260b568c60e3690b165044171d87e17537a60bfcc32a4005f61d5"
+      "size": 16796,
+      "sha256": "f5d975419b94a6a16b4473838591c44f208ad93bf44a670e786b669d3fcc529e"
     },
     {
       "path": "qcom/sm8750/adsp.b38",
-      "size": 16796,
-      "sha256": "a5d3d06dc1bb53e576331239e4a79da89f28ca2dd041d35640151db97b45160d"
+      "size": 9144,
+      "sha256": "13bab2425aa7039a54ee5b7be1fffd847ff8646328d2c3ac79f6604c038cb024"
     },
     {
       "path": "qcom/sm8750/adsp.b39",
-      "size": 8960,
-      "sha256": "3b8f80262ddac3ffcdeb33c1ffe4956fc034b7181ca7f626eb3fad6e4775a291"
+      "size": 15556,
+      "sha256": "7f77aac58794e1936309eb8ad29aad4fb825e4ec32056adce91281a629885bdd"
     },
     {
       "path": "qcom/sm8750/adsp.b40",
-      "size": 15556,
-      "sha256": "bb58f42cb5137fc30d79b2993bdf82a57915a7a4de21736db177224d3e41b496"
+      "size": 55504,
+      "sha256": "4ff8352ecc0b89c4373a1e82c12dc2e0090b648cb8b3b19fd366c08dd5baf1c4"
     },
     {
       "path": "qcom/sm8750/adsp.b41",
-      "size": 55504,
-      "sha256": "103f6acdf60596b928e4164523da4bc277af1018bfe43dbf32e315d745af4c9e"
+      "size": 298068,
+      "sha256": "620eddc0a15130fe004c67c80ddee442c5d1ec7e87876d4d80deb0c73c4ff739"
     },
     {
       "path": "qcom/sm8750/adsp.b42",
-      "size": 298068,
-      "sha256": "247d9809eaabcbc3bba316fc3e793a6b747561c7da4a48d763fe08491460bd9a"
+      "size": 5176,
+      "sha256": "974fcc6baddfa017bfe4f518140aa8afbb5930f73286117cdf345a29281b820f"
     },
     {
       "path": "qcom/sm8750/adsp.b43",
-      "size": 6634368,
-      "sha256": "801928090e759cc1c11472314b03b6d480cbd2c5349e6657b302d84e9e55ee2b"
+      "size": 6700992,
+      "sha256": "9bb3645637536031f729f4997fd0a2dcd04181080838574a724db7707fe97b84"
     },
     {
       "path": "qcom/sm8750/adsp.b44",
-      "size": 266248,
-      "sha256": "d8d9b1e129a378e1f85464aaa77273daf901753db10ee6ed54eecf353f6773b0"
+      "size": 270344,
+      "sha256": "ed933f8ac25101d3f6915ef11874693518056a3dae7c270bc6f51943574c4b58"
     },
     {
       "path": "qcom/sm8750/adsp.b45",
@@ -322,53 +337,58 @@
     },
     {
       "path": "qcom/sm8750/adsp.b46",
-      "size": 8748,
-      "sha256": "3c6ec19d82077084cb72fc07946d77d333ef165791a67bc466cc435c85f97805"
+      "size": 23868,
+      "sha256": "1c1c8e2e0d1a0fbf66fb4c8316d3ceff5bd3bcf15c58385e67341fd274b40eb8"
     },
     {
       "path": "qcom/sm8750/adsp.b47",
-      "size": 2036,
-      "sha256": "e18485148b199b8ca90db53845c84f6ebe9fbac3f5d77c6d7eee29848bd08db6"
+      "size": 25888,
+      "sha256": "c219dca1f6c3f819b44ea8aba57463f10c4d1d0d6d212207f9d3c250fbe5a57b"
     },
     {
       "path": "qcom/sm8750/adsp.b48",
       "size": 30328,
-      "sha256": "2cc6312be5bf1ffb48a1cad10fe59e9578f95c40a616354872e6c729aa952fce"
+      "sha256": "c9e28917eb7aaaab579eca7a7935ca933c5a51596718debc707e20df546659cd"
     },
     {
       "path": "qcom/sm8750/adsp.b49",
-      "size": 384020,
-      "sha256": "6649b7805a8e80f1aa91f9877bd4b06dd68f12e8c3c3a4b9d7ce66be1beabec7"
+      "size": 469684,
+      "sha256": "8671b2536d880c058ad74cae5aafb4436f250115c832162c28ad5730064672ee"
     },
     {
       "path": "qcom/sm8750/adsp.b50",
       "size": 10052,
-      "sha256": "8ccc958c8b779912ab77385dc9772450b77ad352d487b9d0baf2598f7316313a"
+      "sha256": "93df04cc75d439735a85ba7e4305381492e620646f8ddb58cfabe49f85b0ca0a"
     },
     {
       "path": "qcom/sm8750/adsp.b51",
-      "size": 19600,
-      "sha256": "03e41643018f980d6e196f1cb8f4b4a0b7ccfe8638bffde053b52090f6f17071"
+      "size": 73824,
+      "sha256": "7d3778bd879274b5beacb3a25095c92ff66474920667e035d3b9e2be2bdd7746"
     },
     {
       "path": "qcom/sm8750/adsp.b52",
-      "size": 84735,
-      "sha256": "154c0bcb282bd00bbb109ad505cab0a6efb5df123a6afe1a8a05ad0f0932e6fa"
+      "size": 82,
+      "sha256": "94464e9bb84450d284e13360d2057f25985991fb7e7bb1ed1bab151833e8fcb6"
     },
     {
       "path": "qcom/sm8750/adsp.b53",
+      "size": 84735,
+      "sha256": "48a8b6250e9a65529d8cd5dfaa03c892e6a2d3545417462fd4f8412efab9d650"
+    },
+    {
+      "path": "qcom/sm8750/adsp.b54",
       "size": 53248,
       "sha256": "1a18413ad8c0e4ec9f47488745f08310898e52140f3d3b24862b5fcbd03e6b0d"
     },
     {
-      "path": "qcom/sm8750/adsp.b55",
-      "size": 6440,
-      "sha256": "2913b80e7bf0eb0c4ec7f7a2140764318906b3ebbd04d1a3741f563f28da8a0c"
+      "path": "qcom/sm8750/adsp.b56",
+      "size": 6488,
+      "sha256": "c94f6914f338a84835066be8699e9e0503a4c221e9559624996e291ab190f35d"
     },
     {
       "path": "qcom/sm8750/adsp.mdt",
-      "size": 8284,
-      "sha256": "13db2aff1cfe6b5fcd449b225f88fb7815f6d4a00c0e9e346b473b103bac44ad"
+      "size": 8364,
+      "sha256": "383300e05673e661838774e3e8f1acca118abc5b0452cccdc41612c7360eaa25"
     },
     {
       "path": "qcom/sm8750/adsp_dtb.b00",
@@ -378,17 +398,17 @@
     {
       "path": "qcom/sm8750/adsp_dtb.b01",
       "size": 159900,
-      "sha256": "9af42749afca0db7cbad24eb62678dac22ae7930d116eed82185f5d16e4e5fcf"
+      "sha256": "d83c49f65aac50d3f1de6bceccfaa7b53a89a77dbd69c9689f8cfe9333eb603d"
     },
     {
       "path": "qcom/sm8750/adsp_dtb.b02",
       "size": 3896,
-      "sha256": "38e4e8cbae6b35be50c118696658082b40cbd54b7b5fa6914eadd765ea53bc2b"
+      "sha256": "b6f7d9664876e8d0fc8caaf8f55eef9f97e33c571d3f46f1b01077e34954514e"
     },
     {
       "path": "qcom/sm8750/adsp_dtb.mdt",
       "size": 4044,
-      "sha256": "e09169764ce954e888316ff5b3a3de3c0db916673f312baf00ae0c12b9e6db63"
+      "sha256": "51e1996d83ae8e1eed07d5feeca20151cd5a5d495f924a16e1d9d5f40b6f2d60"
     }
   ]
 }
