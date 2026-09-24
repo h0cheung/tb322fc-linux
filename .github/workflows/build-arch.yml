@@ -63,8 +63,46 @@ jobs:
         run: python3 scripts/fetch-sources.py
       - name: Download and authenticate Arch Linux ARM
         run: bash scripts/ci/fetch-arch.sh
+      - name: Restore kernel build cache
+        id: restore-kernel-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            artifacts/boot.img
+            artifacts/Image
+            artifacts/sm8750-lenovo-elden.dtb
+            artifacts/kernel.config
+            artifacts/kernel.release
+            artifacts/kernel-modules.tar.gz
+            artifacts/SHA256SUMS
+          key: kernel-${{ hashFiles('sources.json', 'firmware.json', 'configs/kernel.config', 'configs/busybox.config', 'configs/initramfs.list', 'scripts/build-boot.sh', 'scripts/ci/build-kernel.sh') }}
+
       - name: Build kernel, embedded initramfs, Android boot image and modules
+        if: steps.restore-kernel-cache.outputs.cache-hit != 'true'
         run: JOBS=$(nproc) bash scripts/ci/build-kernel.sh
+
+      - name: Save kernel build cache
+        if: steps.restore-kernel-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            artifacts/boot.img
+            artifacts/Image
+            artifacts/sm8750-lenovo-elden.dtb
+            artifacts/kernel.config
+            artifacts/kernel.release
+            artifacts/kernel-modules.tar.gz
+            artifacts/SHA256SUMS
+          key: ${{ steps.restore-kernel-cache.outputs.cache-primary-key }}
+
+      - name: Verify kernel build artifacts
+        run: |
+          for file in boot.img Image sm8750-lenovo-elden.dtb kernel.config kernel.release kernel-modules.tar.gz; do
+            [[ -s "artifacts/$file" ]] || { echo "Missing artifacts/$file" >&2; exit 1; }
+          done
+          echo "Kernel artifacts present and verified:"
+          ls -lh artifacts/
+
       - name: Reclaim kernel build space for rootfs
         run: |
           rm -rf build/kernel build/busybox sources/kernel sources/busybox
