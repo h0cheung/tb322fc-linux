@@ -69,7 +69,18 @@ with Path('artifacts/boot.img').open('rb') as stream:
         remaining -= len(chunk)
     if digest.digest() != expected:
         raise SystemExit('boot.img kernel payload differs from Image')
-print('Verified Android v4 boot.img, empty external ramdisk and ARM64 Image payload.')
+    stream.seek(0, 2)
+    boot_size = stream.tell()
+    if boot_size != 100663296:
+        raise SystemExit(f'boot.img size is {boot_size}, expected exactly 100663296 (96MB)')
+    stream.seek(boot_size - 64)
+    magic, maj, min, orig_sz, vb_off, vb_sz = struct.unpack('!4s2LQQQ28x', stream.read(64))
+    if magic != b'AVBf':
+        raise SystemExit('boot.img lacks valid AVB footer (magic AVBf)')
+    stream.seek(vb_off)
+    if stream.read(4) != b'AVB0':
+        raise SystemExit('boot.img lacks valid VBMeta header (magic AVB0)')
+print('Verified Android v4 boot.img and signed AVB0 footer (96MB).')
 PY
 
 kernel_make=(make -C sources/kernel O="$PROJECT/build/kernel" ARCH=arm64 LLVM=1)

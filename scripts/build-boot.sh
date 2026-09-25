@@ -67,5 +67,20 @@ cp build/kernel/.config artifacts/kernel.config
 mkbootimg --header_version 4 --kernel artifacts/Image --ramdisk build/empty-ramdisk \
     --os_version 15.0.0 --os_patch_level 2026-08 \
     --cmdline "$(cat configs/cmdline.txt)" --output artifacts/boot.img
+AVBTOOL=${AVBTOOL:-}
+if [[ -z "$AVBTOOL" ]]; then
+    if command -v avbtool >/dev/null 2>&1; then
+        AVBTOOL="avbtool"
+    else
+        AVBTOOL="python3 $PROJECT/tools/avbtool"
+    fi
+fi
+$AVBTOOL add_hash_footer \
+    --image artifacts/boot.img \
+    --partition_size 100663296 \
+    --partition_name boot \
+    --rollback_index 1738713600 \
+    --algorithm SHA256_RSA4096 \
+    --key configs/testkey_rsa4096.pem
 (cd artifacts && sha256sum Image sm8750-lenovo-elden.dtb kernel.config boot.img > SHA256SUMS)
-echo "Built artifacts/boot.img. Test only with fastboot boot; do not flash it."
+echo "Built artifacts/boot.img with AVB footer (96MB)."
