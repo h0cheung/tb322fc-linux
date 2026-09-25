@@ -15,7 +15,9 @@ for name in boot.img rootfs.img; do
         rm "artifacts/release/$name.zst"
     fi
 done
-(cd artifacts && sha256sum boot.img rootfs.img) > artifacts/release/RAW-SHA256SUMS
+[[ -s artifacts/kernel-modules.tar.gz ]] || { echo "Missing artifacts/kernel-modules.tar.gz" >&2; exit 1; }
+cp artifacts/kernel-modules.tar.gz artifacts/release/
+(cd artifacts && sha256sum boot.img rootfs.img kernel-modules.tar.gz) > artifacts/release/RAW-SHA256SUMS
 cp sources.json firmware.json artifacts/release/
 cp artifacts/{kernel.release,kernel.config,arch-bootstrap.txt,firmware-input.txt} artifacts/release/
 cp artifacts/{rootfs.packages,userspace-build.txt} artifacts/release/

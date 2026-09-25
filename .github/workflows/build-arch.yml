@@ -75,7 +75,7 @@ jobs:
             artifacts/kernel.release
             artifacts/kernel-modules.tar.gz
             artifacts/SHA256SUMS
-          key: kernel-${{ hashFiles('sources.json', 'firmware.json', 'configs/kernel.config', 'configs/busybox.config', 'configs/initramfs.list', 'scripts/build-boot.sh', 'scripts/ci/build-kernel.sh') }}
+          key: kernel-${{ hashFiles('sources.json', 'firmware.json', 'configs/**', 'scripts/build-boot.sh', 'scripts/ci/build-kernel.sh', 'tools/avbtool') }}
 
       - name: Build kernel, embedded initramfs, Android boot image and modules
         if: steps.restore-kernel-cache.outputs.cache-hit != 'true'
@@ -114,10 +114,37 @@ jobs:
             ROOTFS_SIZE="$ROOTFS_SIZE" JOBS="$(nproc)" bash scripts/ci/build-rootfs.sh
       - name: Compress images and collect provenance
         run: bash scripts/ci/package.sh
-      - uses: actions/upload-artifact@v4
+      - name: Upload Boot Image
+        uses: actions/upload-artifact@v4
         with:
-          name: tb322fc-arch-${{ github.run_id }}
-          path: artifacts/release/
+          name: tb322fc-boot-${{ github.run_id }}
+          path: |
+            artifacts/release/boot.img.zst
+            artifacts/release/SHA256SUMS
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Upload Kernel Modules (for upgrade)
+        uses: actions/upload-artifact@v4
+        with:
+          name: tb322fc-kernel-modules-${{ github.run_id }}
+          path: |
+            artifacts/release/kernel-modules.tar.gz
+            artifacts/release/kernel.release
+            artifacts/release/SHA256SUMS
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Upload Rootfs Image (for fresh install)
+        uses: actions/upload-artifact@v4
+        with:
+          name: tb322fc-rootfs-${{ github.run_id }}
+          path: |
+            artifacts/release/rootfs.img.zst*
+            artifacts/release/SHA256SUMS
+            artifacts/release/BUILD-INFO.txt
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
