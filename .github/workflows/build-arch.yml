@@ -25,7 +25,7 @@ on:
         default: 12G
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: arch-images-${{ github.ref }}
@@ -160,3 +160,97 @@ jobs:
             artifacts/kernel.release
           if-no-files-found: ignore
           retention-days: 14
+
+      - name: Publish GitHub Pre-Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v$(date -u +'%Y%m%d%H%M%S')"
+          KERNEL_RELEASE="$(cat artifacts/release/kernel.release 2>/dev/null || echo '7.2.0-y700+')"
+          cat << 'EOF' > artifacts/release/RELEASE-NOTES.md
+          # Lenovo Legion Y700 Gen 4 (TB322FC) - Arch Linux ARM Pre-Release
+
+          **Release Tag:** `__TAG__`  
+          **Kernel Version:** `__KERNEL_RELEASE__`  
+          **Build Date:** __BUILD_DATE__
+
+          ---
+
+          ## 📦 资产下载与说明
+          - **首次刷机（全新安装）**：下载 `boot.img.zst` 和 `rootfs.img.zst`（若分卷则下载所有分卷后合并）。
+          - **老用户仅升级内核**：仅需下载 `boot.img.zst` 和 `kernel-modules.tar.gz`，**无需重刷 rootfs，个人数据、游戏及配置完全保留**。
+
+          ---
+
+          ## 🚀 首次全新安装指南
+
+          ### 1. 准备 rootfs 分区
+          请确保内部存储中存在 GPT 标签为 `rootfs` 的分区：
+          ```bash
+          lsblk -o NAME,SIZE,PARTLABEL,MOUNTPOINTS
+          ```
+
+          ### 2. 解压并写入 rootfs
+          ```bash
+          # 若文件存在分卷，请先合并：cat rootfs.img.zst.* > rootfs.img.zst
+          zstd -d rootfs.img.zst -o rootfs.img
+
+          # 写入平板的 rootfs 分区（请确认目标分区对应设备节点）：
+          sudo dd if=rootfs.img of=/dev/disk/by-partlabel/rootfs bs=4M status=progress conv=fsync
+          ```
+
+          ### 3. 引导系统
+          ```bash
+          zstd -d boot.img.zst -o boot.img
+          fastboot boot boot.img
+          ```
+
+          ---
+
+          ## 🔄 老用户增量升级内核指南
+
+          > [!NOTE]
+          > 升级内核不需要重新下载和刷入 `rootfs.img`，所有桌面应用与配置保持原样。
+
+          ### 1. 更新内核模块（在平板系统开机状态下）
+          将下载的 `kernel-modules.tar.gz` 传入平板，在终端执行：
+          ```bash
+          sudo tar -xzf kernel-modules.tar.gz -C /
+          sudo depmod -a __KERNEL_RELEASE__
+          ```
+
+          ### 2. 引导/固化新内核
+          将平板重启至 Fastboot 模式，接电脑执行：
+          ```bash
+          zstd -d boot.img.zst -o boot.img
+
+          # 临时测试启动：
+          fastboot boot boot.img
+
+          # 确认正常开机后固化至当前启动槽位（如 boot_a）：
+          fastboot flash boot_a boot.img
+          ```
+          EOF
+
+          sed -i "s/__TAG__/${TAG}/g" artifacts/release/RELEASE-NOTES.md
+          sed -i "s/__KERNEL_RELEASE__/${KERNEL_RELEASE}/g" artifacts/release/RELEASE-NOTES.md
+          sed -i "s/__BUILD_DATE__/$(date -u +'%Y-%m-%d %H:%M:%S UTC')/g" artifacts/release/RELEASE-NOTES.md
+
+          echo "Publishing pre-release ${TAG} with assets..."
+          assets=()
+          for f in artifacts/release/boot.img.zst \
+                   artifacts/release/kernel-modules.tar.gz \
+                   artifacts/release/rootfs.img.zst* \
+                   artifacts/release/SHA256SUMS \
+                   artifacts/release/RAW-SHA256SUMS \
+                   artifacts/release/BUILD-INFO.txt \
+                   artifacts/release/kernel.config \
+                   artifacts/release/kernel.release; do
+            [[ -e "$f" ]] && assets+=("$f")
+          done
+
+          gh release create "${TAG}" \
+            --title "Arch Linux ARM Pre-Release (${TAG})" \
+            --notes-file artifacts/release/RELEASE-NOTES.md \
+            --prerelease \
+            "${assets[@]}"
