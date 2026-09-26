@@ -94,6 +94,9 @@ for component in hexagonrpc libssc iio-sensor-proxy libcamera; do
         tar -C "$STAGE/sources/$component" -xf -
 done
 cp -a rootfs "$STAGE/overlay"
+if [[ -d packages ]]; then
+    cp -a packages "$STAGE/packages"
+fi
 cp scripts/ci/configure-rootfs.sh "$STAGE/configure-rootfs.sh"
 cp sources.json firmware.json artifacts/kernel.release "$ROOTFS/usr/share/tb322fc/"
 cp artifacts/kernel-modules.tar.gz "$STAGE/kernel-modules.tar.gz"

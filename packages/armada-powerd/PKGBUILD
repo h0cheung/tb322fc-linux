@@ -1,0 +1,72 @@
+# Maintainer: h0cheung <hcheunh@gmail.com>
+pkgname=armada-powerd
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="ArmadaOS power policy daemon with PowerProfiles D-Bus support for Lenovo Y700 Gen 4"
+arch=('any')
+license=('MIT')
+depends=('python' 'python-gobject' 'glib2')
+provides=(
+    'power-profiles-daemon=0.30'
+    'powerprofilesctl=0.30'
+)
+conflicts=(
+    'power-profiles-daemon'
+    'powerprofilesctl'
+    'tlp-pd'
+    'tuned-ppd'
+)
+source=(
+    'armada-powerd'
+    'device-env'
+    'powerprofilesctl'
+    'armada_perf.py'
+    'power-profiles.conf'
+    'armada-powerd.service'
+    'lenovo-y700-gen4.conf'
+    'defaults.conf'
+    'org.armada.Power.conf'
+    'net.hadess.PowerProfiles.conf'
+    'org.freedesktop.UPower.PowerProfiles.conf'
+    'org.armada.Power.service'
+    'net.hadess.PowerProfiles.service'
+    'org.freedesktop.UPower.PowerProfiles.service'
+)
+sha256sums=(
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+)
+
+package() {
+    install -Dm755 "$srcdir/armada-powerd" "$pkgdir/usr/libexec/armada/armada-powerd"
+    install -Dm755 "$srcdir/device-env" "$pkgdir/usr/libexec/armada/device-env"
+    install -Dm755 "$srcdir/powerprofilesctl" "$pkgdir/usr/bin/powerprofilesctl"
+
+    install -Dm644 "$srcdir/armada_perf.py" "$pkgdir/usr/lib/armada/armada_perf.py"
+    install -Dm644 "$srcdir/power-profiles.conf" "$pkgdir/usr/share/armada/power-profiles.conf"
+
+    install -Dm644 "$srcdir/lenovo-y700-gen4.conf" "$pkgdir/usr/lib/armada/devices/lenovo-y700-gen4.conf"
+    install -Dm644 "$srcdir/defaults.conf" "$pkgdir/usr/lib/armada/devices/defaults.conf"
+
+    install -Dm644 "$srcdir/armada-powerd.service" "$pkgdir/usr/lib/systemd/system/armada-powerd.service"
+
+    install -Dm644 "$srcdir/org.armada.Power.service" "$pkgdir/usr/share/dbus-1/system-services/org.armada.Power.service"
+    install -Dm644 "$srcdir/net.hadess.PowerProfiles.service" "$pkgdir/usr/share/dbus-1/system-services/net.hadess.PowerProfiles.service"
+    install -Dm644 "$srcdir/org.freedesktop.UPower.PowerProfiles.service" "$pkgdir/usr/share/dbus-1/system-services/org.freedesktop.UPower.PowerProfiles.service"
+
+    install -Dm644 "$srcdir/org.armada.Power.conf" "$pkgdir/usr/share/dbus-1/system.d/org.armada.Power.conf"
+    install -Dm644 "$srcdir/net.hadess.PowerProfiles.conf" "$pkgdir/usr/share/dbus-1/system.d/net.hadess.PowerProfiles.conf"
+    install -Dm644 "$srcdir/org.freedesktop.UPower.PowerProfiles.conf" "$pkgdir/usr/share/dbus-1/system.d/org.freedesktop.UPower.PowerProfiles.conf"
+}

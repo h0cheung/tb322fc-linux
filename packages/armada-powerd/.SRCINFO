@@ -1,0 +1,45 @@
+pkgbase = armada-powerd
+	pkgdesc = ArmadaOS power policy daemon with PowerProfiles D-Bus support for Lenovo Y700 Gen 4
+	pkgver = 1.0.0
+	pkgrel = 1
+	arch = any
+	license = MIT
+	depends = python
+	depends = python-gobject
+	depends = glib2
+	provides = power-profiles-daemon=0.30
+	provides = powerprofilesctl=0.30
+	conflicts = power-profiles-daemon
+	conflicts = powerprofilesctl
+	conflicts = tlp-pd
+	conflicts = tuned-ppd
+	source = armada-powerd
+	source = device-env
+	source = powerprofilesctl
+	source = armada_perf.py
+	source = power-profiles.conf
+	source = armada-powerd.service
+	source = lenovo-y700-gen4.conf
+	source = defaults.conf
+	source = org.armada.Power.conf
+	source = net.hadess.PowerProfiles.conf
+	source = org.freedesktop.UPower.PowerProfiles.conf
+	source = org.armada.Power.service
+	source = net.hadess.PowerProfiles.service
+	source = org.freedesktop.UPower.PowerProfiles.service
+	sha256sums = SKIP
+	sha256sums = SKIP
+	sha256sums = SKIP
+	sha256sums = SKIP
+	sha256sums = SKIP
+	sha256sums = SKIP
+	sha256sums = SKIP
+	sha256sums = SKIP
+	sha256sums = SKIP
+	sha256sums = SKIP
+	sha256sums = SKIP
+	sha256sums = SKIP
+	sha256sums = SKIP
+	sha256sums = SKIP
+
+pkgname = armada-powerd
