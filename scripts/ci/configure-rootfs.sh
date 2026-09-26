@@ -28,7 +28,7 @@ runtime_packages=(
     mesa vulkan-freedreno vulkan-icd-loader mesa-utils vulkan-tools
     alsa-ucm-conf alsa-utils pipewire pipewire-audio pipewire-alsa pipewire-pulse wireplumber
     noto-fonts noto-fonts-cjk fcitx5 fcitx5-chinese-addons fcitx5-configtool fcitx5-qt fcitx5-gtk
-    libqmi protobuf-c glib2 libgudev polkit libyaml libevent qt6-base
+    libqmi protobuf-c glib2 libgudev polkit libyaml libevent qt6-base python python-gobject
 )
 build_packages=(
     base-devel linux-api-headers meson ninja git python pkgconf
@@ -121,6 +121,21 @@ ConditionPathExists=/var/lib/hexagonrpc/sensors/sns_reg.conf
 EOF
 done
 
+if [[ -d overlay/power ]]; then
+    install -d /usr/libexec/armada /usr/lib/armada/devices /usr/share/armada /usr/share/dbus-1/system-services /usr/share/dbus-1/system.d /etc/dbus-1/system.d
+    install -Dm755 overlay/power/armada-powerd /usr/libexec/armada/armada-powerd
+    install -Dm755 overlay/power/device-env /usr/libexec/armada/device-env
+    install -Dm755 overlay/power/powerprofilesctl /usr/bin/powerprofilesctl
+    install -Dm644 overlay/power/armada_perf.py /usr/lib/armada/armada_perf.py
+    install -Dm644 overlay/power/power-profiles.conf /usr/share/armada/power-profiles.conf
+    cp -a overlay/power/devices/. /usr/lib/armada/devices/
+    install -Dm644 overlay/power/armada-powerd.service /usr/lib/systemd/system/armada-powerd.service
+    install -Dm644 overlay/power/org.armada.Power.service /usr/share/dbus-1/system-services/org.armada.Power.service
+    install -Dm644 overlay/power/org.armada.Power.conf /usr/share/dbus-1/system.d/org.armada.Power.conf
+    install -Dm644 overlay/power/net.hadess.PowerProfiles.conf /etc/dbus-1/system.d/net.hadess.PowerProfiles.conf
+    install -Dm644 overlay/power/org.freedesktop.UPower.PowerProfiles.conf /etc/dbus-1/system.d/org.freedesktop.UPower.PowerProfiles.conf
+fi
+
 # Turnip (Vulkan) plus Zink (OpenGL) is the tested A830 graphics path.
 shopt -s nullglob
 icds=(/usr/share/vulkan/icd.d/freedreno_icd*.json)
@@ -191,7 +206,7 @@ for service in systemd-networkd.service systemd-networkd.socket systemd-networkd
         systemctl disable "$service"
     fi
 done
-systemctl enable NetworkManager.service bluetooth.service sddm.service hexagonrpcd-sensors.service
+systemctl enable NetworkManager.service bluetooth.service sddm.service hexagonrpcd-sensors.service armada-powerd.service
 systemctl set-default graphical.target
 systemctl --global enable pipewire.socket pipewire-pulse.socket wireplumber.service
 

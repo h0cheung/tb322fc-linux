@@ -1,0 +1,17 @@
+[Unit]
+Description=armada power policy daemon
+StartLimitIntervalSec=0
+Before=display-manager.service
+
+[Service]
+Type=dbus
+BusName=org.armada.Power
+NotifyAccess=main
+ExecStart=/usr/libexec/armada/armada-powerd
+ExecStopPost=/usr/libexec/armada/armada-powerd --fan-safe
+Restart=always
+RestartSec=1
+WatchdogSec=15
+
+[Install]
+WantedBy=multi-user.target
