@@ -90,6 +90,9 @@ build_component libcamera -Dpipelines=simple -Dipas=softisp -Dqcam=enabled -Dcam
 # and rebuild the device support; these builds are recorded in sources.json.
 sed -i '/^\[options\]$/a IgnorePkg = hexagonrpc libssc iio-sensor-proxy libcamera libcamera-ipa libcamera-tools' /etc/pacman.conf
 
+# Allow building AUR/local packages that only specify x86_64 in PKGBUILD arch array.
+echo 'IGNOREARCH=1' >> /etc/makepkg.conf
+
 release=$(cat /usr/share/tb322fc/kernel.release)
 [[ $release =~ ^[a-zA-Z0-9._+-]+$ ]] || { echo 'Invalid kernel release' >&2; exit 1; }
 # The archive uses usr/lib/modules; do not overwrite Arch's /lib symlink.
