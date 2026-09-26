@@ -121,20 +121,6 @@ ConditionPathExists=/var/lib/hexagonrpc/sensors/sns_reg.conf
 EOF
 done
 
-if [[ -d overlay/power ]]; then
-    install -d /usr/libexec/armada /usr/lib/armada/devices /usr/share/armada /usr/share/dbus-1/system-services /usr/share/dbus-1/system.d /etc/dbus-1/system.d
-    install -Dm755 overlay/power/armada-powerd /usr/libexec/armada/armada-powerd
-    install -Dm755 overlay/power/device-env /usr/libexec/armada/device-env
-    install -Dm755 overlay/power/powerprofilesctl /usr/bin/powerprofilesctl
-    install -Dm644 overlay/power/armada_perf.py /usr/lib/armada/armada_perf.py
-    install -Dm644 overlay/power/power-profiles.conf /usr/share/armada/power-profiles.conf
-    cp -a overlay/power/devices/. /usr/lib/armada/devices/
-    install -Dm644 overlay/power/armada-powerd.service /usr/lib/systemd/system/armada-powerd.service
-    install -Dm644 overlay/power/org.armada.Power.service /usr/share/dbus-1/system-services/org.armada.Power.service
-    install -Dm644 overlay/power/org.armada.Power.conf /usr/share/dbus-1/system.d/org.armada.Power.conf
-    install -Dm644 overlay/power/net.hadess.PowerProfiles.conf /etc/dbus-1/system.d/net.hadess.PowerProfiles.conf
-    install -Dm644 overlay/power/org.freedesktop.UPower.PowerProfiles.conf /etc/dbus-1/system.d/org.freedesktop.UPower.PowerProfiles.conf
-fi
 
 # Turnip (Vulkan) plus Zink (OpenGL) is the tested A830 graphics path.
 shopt -s nullglob
@@ -195,6 +181,15 @@ install -d -m 750 /etc/sudoers.d
 echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/10-wheel
 chmod 440 /etc/sudoers.d/10-wheel
 visudo -cf /etc/sudoers.d/10-wheel
+
+if [[ -d packages/armada-powerd ]]; then
+    pkg_workdir=$(mktemp -d -p /home/alarm pkg-armada-powerd.XXXXXX)
+    cp -a packages/armada-powerd/. "$pkg_workdir/"
+    chown -R alarm:alarm "$pkg_workdir"
+    sudo -u alarm bash -c "cd '$pkg_workdir' && makepkg -f --nodeps"
+    pacman -U --noconfirm "$pkg_workdir"/armada-powerd-*.pkg.tar.*
+    rm -rf "$pkg_workdir"
+fi
 cat > /etc/issue <<'EOF'
 Arch Linux ARM on Lenovo Y700 Gen 4 (TB322FC)
 Initial login: alarm / alarm. Change the password at first login.
