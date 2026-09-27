@@ -1,0 +1,34 @@
+# Maintainer: h0cheung <hcheunh@gmail.com>
+# The privileged settings daemon behind the armada-control Decky plugin,
+# ported from ArmadaOS system_files (usr/libexec/armada/armada-control +
+# device-env, usr/lib/armada/{armada_game_tweaks,armada_perf}.py, device
+# profiles, usr/share/armada data). Note: device-env, armada_perf.py and the device profiles are owned by
+# armada-powerd (shipped there first); this package only adds what it needs.
+pkgname=armada-control
+pkgver=20260927
+pkgrel=1
+pkgdesc="Armada privileged settings daemon for the armada-control Decky plugin"
+arch=('aarch64')
+url="https://gitlab.com/armadaproject"
+license=('MIT')
+depends=('python' 'python-gobject')
+makedepends=()
+backup=('etc/armada/game-tweaks.json')
+
+package() {
+    cd "$startdir"
+    install -Dm755 armada-control "$pkgdir/usr/libexec/armada/armada-control"
+    install -Dm755 armada-game-launch "$pkgdir/usr/libexec/armada/armada-game-launch"
+    install -Dm755 armada-power "$pkgdir/usr/bin/armada-power"
+    install -Dm644 armada_game_tweaks.py "$pkgdir/usr/lib/armada/armada_game_tweaks.py"
+    install -Dm644 armada-control.service \
+        "$pkgdir/usr/lib/systemd/system/armada-control.service"
+
+    # Data the plugin backend and daemon read (game tweak defaults, FEX
+    # contract, env presets).
+    install -d "$pkgdir/usr/share/armada"
+    install -m644 usr-share/game-tweaks.json "$pkgdir/usr/share/armada/game-tweaks.json"
+    install -m644 usr-share/fex-profiles.json "$pkgdir/usr/share/armada/fex-profiles.json"
+
+    install -d "$pkgdir/etc/armada"
+}

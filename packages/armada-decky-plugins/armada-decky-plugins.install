@@ -1,0 +1,10 @@
+post_install() {
+    echo "enable and start the per-user loader with:"
+    echo "  systemctl enable --now armada-decky-sync.service decky-loader@<user>.service"
+}
+
+post_upgrade() {
+    # The plugin tree is re-seeded into the homebrew folder on the next boot
+    # or loader restart by armada-decky-sync.
+    systemctl try-restart armada-decky-sync.service 2>/dev/null || true
+}
