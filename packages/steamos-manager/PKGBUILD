@@ -1,0 +1,115 @@
+# Maintainer: h0cheung <hcheunh@gmail.com>
+pkgname=steamos-manager
+pkgver=26.4.1
+pkgrel=1
+pkgdesc="Valve SteamOS daemon abstracting Steam's interactions with the OS (Armada patchset; hardware interfaces delegated to armada-powerd)"
+arch=('aarch64')
+url="https://gitlab.steamos.cloud/holo/steamos-manager"
+license=('MIT')
+depends=('glib2' 'systemd-libs' 'speech-dispatcher')
+makedepends=('rust' 'clang' 'git' 'pkgconf')
+# Fixed upstream commit; identical to the one ArmadaOS pins in packages/steamos-manager/BASE.env.
+_commit=8e2883d0d7e2fc3994e822ca9853c03561ca6eec
+source=(
+    "git+$url.git#commit=$_commit"
+    'platform.toml'
+    'sm8750.toml'
+    'remotes.d-armada.toml'
+    '0001-Initial-support-for-Steam-Frame.patch'
+    '0002-Factor-out-platform-profiles-into-its-own-manager.patch'
+    '0003-Add-a-custom-platform-profile-mechanism.patch'
+    '0004-Explicitly-track-state-in-devfreq-gpu-driver.patch'
+    '0005-Add-instructions-to-resolve-common-build-issues.patch'
+    '0006-Add-gpufreq_limit-to-custom-profiles.patch'
+    '0007-Fix-a-bug-where-UI-could-latch-a-bad-manual-clock-va.patch'
+    '0008-Add-GPU-manual-clock-minimum-value.patch'
+    '0009-Rename-minfreq-field-to-min_freq-for-consistency.patch'
+    '0010-Allow-CpuScaling1-to-be-served-by-a-remote-interface.patch'
+    '0011-inputplumber-Only-manage-target-devices-when-configu.patch'
+    '0012-wifi-Always-write-wpa_supplicant-as-the-backend.patch'
+)
+sha256sums=(
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+)
+
+prepare() {
+    cd "$pkgname"
+    local patch
+    for patch in "$srcdir"/0*.patch; do
+        patch -Np1 -i "$patch"
+    done
+    # Armada replaces upstream's platform.toml with an empty one on purpose:
+    # every key left out disables that upstream hardware interface, and none
+    # of upstream's are ours to serve. Our hardware side is served by
+    # armada-powerd and relayed through /etc/steamos-manager/remotes.d/.
+    install -m644 "$srcdir/platform.toml" data/platform.toml
+    install -m644 "$srcdir/sm8750.toml" data/devices/sm8750.toml
+}
+
+build() {
+    cd "$pkgname"
+    export CARGO_TARGET_DIR=target
+    cargo build --release --locked
+}
+
+package() {
+    cd "$pkgname"
+
+    # Mirror the upstream Makefile's install rules, including its install -d
+    # stanza: the plain install -m644 lines below rely on these directories.
+    install -d -m0755 "$pkgdir/usr/share/dbus-1/interfaces/" \
+                      "$pkgdir/usr/share/dbus-1/services/" \
+                      "$pkgdir/usr/share/dbus-1/system-services/" \
+                      "$pkgdir/usr/share/dbus-1/system.d/" \
+                      "$pkgdir/usr/share/steamos-manager/remotes.d/" \
+                      "$pkgdir/usr/lib/systemd/system/" \
+                      "$pkgdir/usr/lib/systemd/system/sddm.service.d/" \
+                      "$pkgdir/usr/lib/systemd/user/" \
+                      "$pkgdir/etc/steamos-manager/remotes.d/"
+
+    install -Dm755 target/release/steamos-manager "$pkgdir/usr/lib/steamos-manager"
+    install -Dm755 target/release/steamosctl "$pkgdir/usr/bin/steamosctl"
+
+    install -d "$pkgdir/usr/share/steamos-manager/devices"
+    install -m644 data/devices/* "$pkgdir/usr/share/steamos-manager/devices/"
+    install -m644 data/platform.toml "$pkgdir/usr/share/steamos-manager/"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/steamos-manager/LICENSE"
+
+    install -Dm644 -t "$pkgdir/usr/share/dbus-1/interfaces" data/interfaces/*
+
+    install -m644 data/system/com.steampowered.SteamOSManager1.service \
+        "$pkgdir/usr/share/dbus-1/system-services/"
+    install -m644 data/system/com.steampowered.SteamOSManager1.conf \
+        "$pkgdir/usr/share/dbus-1/system.d/"
+    install -m644 data/system/steamos-manager.service "$pkgdir/usr/lib/systemd/system/"
+    install -Dm644 data/system/reset-oneshot-boot.conf \
+        "$pkgdir/usr/lib/systemd/system/sddm.service.d/"
+
+    install -m644 data/user/com.steampowered.SteamOSManager1.service \
+        "$pkgdir/usr/share/dbus-1/services/"
+    for unit in steamos-manager steamos-manager-session-cleanup \
+                steamos-manager-configure-cecd orca; do
+        install -m644 "data/user/$unit.service" "$pkgdir/usr/lib/systemd/user/"
+    done
+
+    # Our remotes.d relay hands PerformanceProfile1, GpuPerformanceLevel1 and
+    # CpuScaling1 to armada-powerd, which owns the actual hardware policy.
+    install -Dm644 "$srcdir/remotes.d-armada.toml" \
+        "$pkgdir/etc/steamos-manager/remotes.d/armada.toml"
+    install -d "$pkgdir/usr/share/steamos-manager/remotes.d"
+}
