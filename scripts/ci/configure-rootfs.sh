@@ -279,7 +279,7 @@ for _pass in 1 2 3; do
         fi
         pkg_log=$(mktemp -p /home/alarm "mk-$pkg_name.XXXXXX")
         if sudo -u alarm bash -c "cd '$pkg_workdir' && makepkg -f" >"$pkg_log" 2>&1 \
-            && pacman -U --noconfirm "$pkg_workdir"/"$pkg_name"*.pkg.tar.* ; then
+            && pacman -U --noconfirm --ask 6 "$pkg_workdir"/"$pkg_name"*.pkg.tar.* ; then
             rm -rf "$pkg_workdir" "$pkg_log"
         else
             echo "Deferring $pkg_name; last makepkg output:" >&2
