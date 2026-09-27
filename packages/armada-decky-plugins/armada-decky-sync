@@ -1,0 +1,31 @@
+#!/bin/bash
+set -euo pipefail
+
+user_name=alarm
+homebrew="/home/${user_name}/.local/var/opt/decky-loader"
+src=/usr/share/decky-plugins
+
+install -d -m 0755 "${homebrew}/services"
+install -d -m 0755 "${homebrew}/plugins"
+install -d -m 0755 "${homebrew}/settings"
+
+if [[ ! -f "${homebrew}/settings/loader.json" ]]; then
+    # Default new installs to Decky's prerelease channel for current Steam-on-ARM fixes.
+    printf '{\n  "branch": 1\n}\n' >"${homebrew}/settings/loader.json"
+fi
+
+# OS-shipped plugins are re-seeded on every boot; the loader owns everything
+# else in the plugins folder (installed from the plugin store or self-updated).
+if [[ -d "$src" ]]; then
+    for plugin in "$src"/*/; do
+        [[ -d "$plugin" ]] || continue
+        name=$(basename "$plugin")
+        rm -rf "${homebrew}/plugins/${name}"
+        cp -a "$plugin" "${homebrew}/plugins/${name}"
+    done
+fi
+
+chown "${user_name}:${user_name}" "${homebrew}"
+chown -R "${user_name}:${user_name}" "${homebrew}/services"
+chown -R "${user_name}:${user_name}" "${homebrew}/plugins"
+chown -R "${user_name}:${user_name}" "${homebrew}/settings"

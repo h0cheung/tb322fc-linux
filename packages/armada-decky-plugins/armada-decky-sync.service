@@ -1,0 +1,11 @@
+[Unit]
+Description=Seed Decky Loader plugins into homebrew
+After=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/decky-loader/armada-decky-sync
+
+[Install]
+WantedBy=multi-user.target

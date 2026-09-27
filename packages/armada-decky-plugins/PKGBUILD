@@ -1,0 +1,40 @@
+# Maintainer: h0cheung <hcheunh@gmail.com>
+# The ArmadaOS armada-control Decky plugin, built from the vendored sources in
+# this repo (copied from gitlab.com/armadaproject decky/armada-control). One
+# patch against upstream: steam.py's STEAM_ROOT is derived from $HOME instead
+# of the hardcoded /var/home/armada. The plugin's privileged writes go through
+# the armada-control daemon (packages/armada-control).
+pkgname=armada-decky-plugins
+pkgver=20260927
+pkgrel=1
+pkgdesc="ArmadaOS Decky plugins (armada-control) for the Steam Deck UI"
+arch=('aarch64')
+url="https://gitlab.com/armadaproject"
+license=('MIT')
+depends=('armada-control' 'decky-loader' 'python')
+makedepends=('nodejs' 'npm')
+install=armada-decky-plugins.install
+
+build() {
+    cd "$startdir/armada-control"
+    npm ci --ignore-scripts
+    npm run build
+}
+
+package() {
+    dest="$pkgdir/usr/share/decky-plugins/armada-control"
+    install -d -m0755 "$dest"
+    cd "$startdir/armada-control"
+    install -m644 plugin.json package.json "$dest/"
+    install -m755 main.py "$dest/"
+    cp -a py_modules "$dest/"
+    cp -a dist "$dest/"
+    rm -f "$dest/dist/"*.map
+    find "$dest" -name __pycache__ -type d -prune -exec rm -rf {} +
+
+    install -Dm755 ../armada-decky-sync "$pkgdir/usr/lib/decky-loader/armada-decky-sync"
+    install -Dm644 ../armada-decky-sync.service \
+        "$pkgdir/usr/lib/systemd/system/armada-decky-sync.service"
+    install -Dm644 ../decky-loader@.service.d/armada-sync.conf \
+        "$pkgdir/usr/lib/systemd/system/decky-loader@.service.d/armada-sync.conf"
+}
