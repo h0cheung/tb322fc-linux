@@ -205,6 +205,87 @@ monitor.alsa.rules = [
   }
 ]
 EOF
+
+# UCM2 for the builtin sound card: exposes the WCD9395 DMIC capture path
+# (MultiMedia3 Capture) that ACP cannot discover on its own, and applies the
+# codec TX routing (DMIC1/2 -> DEC0/1 -> AIF1 CAP) for the internal mics.
+mkdir -p /usr/share/alsa/ucm2/Lenovo/Y700-Gen4 "/usr/share/alsa/ucm2/conf.d/sm8750"
+cat > "/usr/share/alsa/ucm2/conf.d/sm8750/Lenovo-Y700-Gen4.conf" <<'EOF'
+# Use case configuration for Lenovo Y700 Gen4
+
+Syntax 4
+
+SectionUseCase."HiFi" {
+	File "/Lenovo/Y700-Gen4/HiFi.conf"
+	Comment "HiFi quality Music."
+}
+EOF
+cat > /usr/share/alsa/ucm2/Lenovo/Y700-Gen4/HiFi.conf <<'EOF'
+# HiFi use case for Lenovo Y700 Gen4 (sm8750 + AW88461 speakers + WCD9395 mics)
+
+SectionVerb {
+	EnableSequence [
+		cset "name='SECONDARY_MI2S_RX Audio Mixer MultiMedia1' 1"
+		cset "name='MultiMedia3 Mixer TX_CODEC_DMA_TX_3' 1"
+	]
+	DisableSequence [
+		cset "name='SECONDARY_MI2S_RX Audio Mixer MultiMedia1' 0"
+		cset "name='MultiMedia3 Mixer TX_CODEC_DMA_TX_3' 0"
+	]
+	Value {
+		TQ "HiFi"
+	}
+}
+
+SectionDevice."Speaker" {
+	Comment "Speakers"
+
+	Value {
+		PlaybackPCM "hw:${CardId},0"
+		PlaybackChannels 2
+		PlaybackPriority 150
+	}
+}
+
+SectionDevice."Mic" {
+	Comment "Internal Microphone"
+
+	EnableSequence [
+		cset "name='TX DEC0 MUX' SWR_MIC"
+		cset "name='TX SMIC MUX0' SWR_MIC5"
+		cset "name='DMIC1 Switch' 1"
+		cset "name='DMIC1_MIXER Switch' 1"
+		cset "name='TX DEC1 MUX' SWR_MIC"
+		cset "name='TX SMIC MUX1' SWR_MIC6"
+		cset "name='DMIC2 Switch' 1"
+		cset "name='DMIC2_MIXER Switch' 1"
+		cset "name='TX_AIF1_CAP Mixer DEC0' 1"
+		cset "name='TX_AIF1_CAP Mixer DEC1' 1"
+		cset "name='DEC0 MODE' ADC_DEFAULT"
+		cset "name='DEC1 MODE' ADC_DEFAULT"
+		cset "name='TX_DEC0 Volume' 100"
+		cset "name='TX_DEC1 Volume' 100"
+	]
+
+	DisableSequence [
+		cset "name='TX_AIF1_CAP Mixer DEC0' 0"
+		cset "name='TX_AIF1_CAP Mixer DEC1' 0"
+		cset "name='DMIC1 Switch' 0"
+		cset "name='DMIC1_MIXER Switch' 0"
+		cset "name='DMIC2 Switch' 0"
+		cset "name='DMIC2_MIXER Switch' 0"
+		cset "name='TX SMIC MUX0' ZERO"
+		cset "name='TX SMIC MUX1' ZERO"
+	]
+
+	Value {
+		CapturePCM "hw:${CardId},2"
+		CaptureChannels 2
+		CapturePriority 200
+	}
+}
+EOF
+
 cat > /etc/fstab <<'EOF'
 # The initramfs already mounts the existing partition named rootfs.
 PARTLABEL=rootfs / ext4 defaults,noatime 0 1
