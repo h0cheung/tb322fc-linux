@@ -209,6 +209,24 @@ cat > /etc/fstab <<'EOF'
 # The initramfs already mounts the existing partition named rootfs.
 PARTLABEL=rootfs / ext4 defaults,noatime 0 1
 EOF
+
+# gamescope from the Arch repo ships without the filecap SteamOS bakes into
+# its own package; without CAP_SYS_NICE it cannot use realtime scheduling and
+# logs a perf warning. A libalpm path hook re-applies the cap on every
+# install/upgrade transaction that touches the binary.
+mkdir -p /usr/share/libalpm/hooks
+cat > /usr/share/libalpm/hooks/gamescope-cap-sys-nice.hook <<'EOF'
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Path
+Target = usr/bin/gamescope
+
+[Action]
+Description = Applying CAP_SYS_NICE filecap to gamescope
+When = PostTransaction
+Exec = /usr/bin/setcap cap_sys_nice+ep /usr/bin/gamescope
+EOF
 if ! id alarm >/dev/null 2>&1; then
     useradd -m -s /bin/bash alarm
 fi
@@ -273,6 +291,7 @@ for _pass in 1 2 3; do
     pending=("${deferred[@]}")
 done
 (( ${#pending[@]} == 0 )) || { echo "Packages failed to build: ${pending[*]}" >&2; exit 1; }
+
 cat > /etc/issue <<'EOF'
 Arch Linux ARM on Lenovo Y700 Gen 4 (TB322FC)
 Initial login: alarm / alarm. Change the password at first login.
