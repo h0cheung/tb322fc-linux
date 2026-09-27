@@ -1,0 +1,28 @@
+# Maintainer: tb322fc-linux CI
+# ArmadaOS's trimmed steamos-polkit-helpers: Steam client privileged actions
+# that would otherwise degrade silently (GPU clock/perf-level writes, backlight
+# steering, timezone picker). GPU writes are translated into armada-power
+# commands instead of raw sysfs (freedreno exposes no amdgpu-style nodes).
+
+pkgname=steamos-polkit-helpers
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="SteamOS pkexec helpers (priv-write, set-timezone) with armada-power translation"
+arch=('aarch64')
+url="https://github.com/h0cheung/tb322fc-linux"
+license=('MIT')
+depends=('polkit' 'armada-control' 'armada-powerd')
+
+package() {
+    cd "$startdir"
+
+    install -Dm755 steamos-priv-write \
+        "$pkgdir/usr/bin/steamos-polkit-helpers/steamos-priv-write"
+    install -Dm755 steamos-set-timezone \
+        "$pkgdir/usr/bin/steamos-polkit-helpers/steamos-set-timezone"
+
+    install -Dm644 50-armada-priv-write.rules \
+        "$pkgdir/usr/share/polkit-1/rules.d/50-armada-priv-write.rules"
+    install -Dm644 50-armada-timezone.rules \
+        "$pkgdir/usr/share/polkit-1/rules.d/50-armada-timezone.rules"
+}
