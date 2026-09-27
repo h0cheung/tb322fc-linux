@@ -1,0 +1,24 @@
+# Maintainer: h0cheung <hcheunh@gmail.com>
+pkgname=gamescope-session
+pkgver=20260920
+pkgrel=1
+pkgdesc="Base gamescope session machinery (gamescope-session-plus) used by the Steam gaming session"
+arch=('any')
+url="https://github.com/OpenGamingCollective/gamescope-session"
+license=('MIT')
+depends=('gamescope')
+makedepends=('git')
+_commit=0232e0c0410b051b0c679c99c55bf34f5aaf9f78
+source=("git+$url.git#commit=$_commit")
+sha256sums=('SKIP')
+
+package() {
+    cd "$pkgname"
+    install -Dm755 usr/bin/export-gpu "$pkgdir/usr/bin/export-gpu"
+    install -Dm755 usr/bin/gamescope-session-plus "$pkgdir/usr/bin/gamescope-session-plus"
+    install -Dm644 usr/lib/systemd/user/gamescope-session-plus@.service         "$pkgdir/usr/lib/systemd/user/gamescope-session-plus@.service"
+    install -Dm644 usr/lib/systemd/user/gamescope-session.target         "$pkgdir/usr/lib/systemd/user/gamescope-session.target"
+    install -Dm644 usr/share/gamescope-session-plus/device-quirks         "$pkgdir/usr/share/gamescope-session-plus/device-quirks"
+    install -Dm755 usr/share/gamescope-session-plus/gamescope-session-plus         "$pkgdir/usr/share/gamescope-session-plus/gamescope-session-plus"
+    install -Dm644 usr/share/gamescope/scripts/50-custom/50-disable-explicit-sync.lua         "$pkgdir/usr/share/gamescope/scripts/50-custom/50-disable-explicit-sync.lua"
+}

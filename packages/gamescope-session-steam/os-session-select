@@ -1,0 +1,14 @@
+#!/usr/bin/bash
+# Hook exec'd by OGC's steamos-session-select ("Switch to Desktop" from the
+# Steam power menu, and the return-to-gamemode launcher from the KDE side).
+# steamosctl talks to steamos-manager over the caller's own session bus, so
+# this needs no sudo/root escalation.
+set -euo pipefail
+
+steamosctl=${STEAMOSCTL:-/usr/bin/steamosctl}
+
+case "${1:-gamescope}" in
+    desktop|plasma) exec "${steamosctl}" switch-to-desktop-mode ;;
+    gamescope)      exec "${steamosctl}" switch-to-game-mode ;;
+    *) echo "unrecognised session: ${1}" >&2 ; exit 1 ;;
+esac
