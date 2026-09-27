@@ -147,6 +147,14 @@ CompositorCommand=kwin_wayland --drm --no-lockscreen --no-global-shortcuts --loc
 [Theme]
 Current=breeze
 EOF
+# The autologin user lives in its own drop-in (separate from the package-shipped
+# holo.conf, which only sets the session) so changing the username means editing
+# this one file. steamos-manager's session switcher rewrites its zz-holo-*
+# drop-ins on every mode switch and those sort last, so they always win.
+cat > /etc/sddm.conf.d/20-autologin-user.conf <<'EOF'
+[Autologin]
+User=alarm
+EOF
 install -d /etc/xdg
 cat > /etc/xdg/kwinrc <<'EOF'
 [Wayland]
@@ -185,14 +193,58 @@ echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/10-wheel
 chmod 440 /etc/sudoers.d/10-wheel
 visudo -cf /etc/sudoers.d/10-wheel
 
-if [[ -d packages/armada-powerd ]]; then
-    pkg_workdir=$(mktemp -d -p /home/alarm pkg-armada-powerd.XXXXXX)
-    cp -a packages/armada-powerd/. "$pkg_workdir/"
-    chown -R alarm:alarm "$pkg_workdir"
-    sudo -u alarm bash -c "cd '$pkg_workdir' && makepkg -f --nodeps"
-    pacman -U --noconfirm "$pkg_workdir"/armada-powerd-*.pkg.tar.*
-    rm -rf "$pkg_workdir"
-fi
+# Build and install this repo's own packages inside the target rootfs.
+#
+# The PKGBUILDs are the single source of truth for dependencies: they are read
+# out of each PKGBUILD, and anything pacman can resolve is installed before
+# the build (pacman -T limits this to what is not already satisfied). Names
+# that belong to this repo are deliberately skipped here and provided by the
+# loop itself, which therefore has to be order-independent: packages whose
+# dependencies are not met yet are deferred to a later pass, and a package
+# that still fails after the last pass aborts the build loudly.
+declare -A pkg_paths=()
+declare -A pkg_deps=()
+for pkg_dir in packages/*/; do
+    [[ -f "$pkg_dir/PKGBUILD" ]] || continue
+    mapfile -t info < <(sudo -u alarm bash -c \
+        "source '$pkg_dir/PKGBUILD' && printf '%s\n%s\n' \"\$pkgname\" \"\${depends[*]} \${makedepends[*]}\"")
+    pkg_paths[${info[0]}]=$pkg_dir
+    pkg_deps[${info[0]}]=${info[1]:-}
+done
+
+pending=("${!pkg_paths[@]}")
+for _pass in 1 2 3; do
+    (( ${#pending[@]} )) || break
+    deferred=()
+    for pkg_name in "${pending[@]}"; do
+        pkg_dir=${pkg_paths[$pkg_name]}
+        pkg_workdir=$(mktemp -d -p /home/alarm "pkg-$pkg_name.XXXXXX")
+        cp -a "$pkg_dir/." "$pkg_workdir/"
+        chown -R alarm:alarm "$pkg_workdir"
+        read -ra deps_list <<< "${pkg_deps[$pkg_name]}"
+        mapfile -t pkg_missing < <(pacman -T "${deps_list[@]}" || true)
+        install_list=()
+        for dep in "${pkg_missing[@]}"; do
+            [[ -n "${pkg_paths[$dep]:-}" ]] && continue
+            install_list+=("$dep")
+        done
+        if (( ${#install_list[@]} )); then
+            pacman -S --needed --noconfirm "${install_list[@]}"
+        fi
+        pkg_log=$(mktemp -p /home/alarm "mk-$pkg_name.XXXXXX")
+        if sudo -u alarm bash -c "cd '$pkg_workdir' && makepkg -f" >"$pkg_log" 2>&1 \
+            && pacman -U --noconfirm "$pkg_workdir"/"$pkg_name"*.pkg.tar.* ; then
+            rm -rf "$pkg_workdir" "$pkg_log"
+        else
+            echo "Deferring $pkg_name; last makepkg output:" >&2
+            tail -20 "$pkg_log" >&2
+            deferred+=("$pkg_name")
+            rm -rf "$pkg_workdir" "$pkg_log"
+        fi
+    done
+    pending=("${deferred[@]}")
+done
+(( ${#pending[@]} == 0 )) || { echo "Packages failed to build: ${pending[*]}" >&2; exit 1; }
 cat > /etc/issue <<'EOF'
 Arch Linux ARM on Lenovo Y700 Gen 4 (TB322FC)
 Initial login: alarm / alarm. Change the password at first login.
@@ -204,7 +256,7 @@ for service in systemd-networkd.service systemd-networkd.socket systemd-networkd
         systemctl disable "$service"
     fi
 done
-systemctl enable NetworkManager.service bluetooth.service sddm.service hexagonrpcd-sensors.service armada-powerd.service
+systemctl enable NetworkManager.service bluetooth.service sddm.service hexagonrpcd-sensors.service armada-powerd.service steamos-manager.service
 systemctl set-default graphical.target
 systemctl --global enable pipewire.socket pipewire-pulse.socket wireplumber.service
 
