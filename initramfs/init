@@ -75,7 +75,11 @@ done
 echo /run/firmware > /sys/module/firmware_class/parameters/path || fail "set firmware path"
 
 "$BB" mkdir -p /newroot/dev /newroot/proc /newroot/sys /newroot/run
-for filesystem in dev proc sys run; do
+# Keep /run/firmware reachable from both roots while switch_root deletes
+# the old /lib/firmware. Moving /run would leave asynchronous firmware
+# requests without either search path until the final chroot completes.
+"$BB" mount --bind /run /newroot/run || fail "bind run"
+for filesystem in dev proc sys; do
     "$BB" mount --move "/$filesystem" "/newroot/$filesystem" || fail "move $filesystem"
 done
 exec "$BB" switch_root /newroot /sbin/init
