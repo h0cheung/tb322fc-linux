@@ -1,0 +1,71 @@
+# Maintainer: h0cheung <hcheunh@gmail.com>
+pkgname=gamescope-session-steam
+pkgver=20260919
+pkgrel=1
+pkgdesc="Steam gaming session for gamescope (SDDM session entry, mode switching and helpers)"
+arch=('any')
+url="https://github.com/OpenGamingCollective/gamescope-session-steam"
+license=('MIT')
+depends=('gamescope-session' 'gamescope')
+makedepends=('git')
+# Matches the commit ArmadaOS's gamescope-session-steam build pins via Terra.
+_commit=82c45fc112775e3fa927d5c326c39b21f1761cc1
+source=(
+    "git+$url.git#commit=$_commit"
+    'os-session-select'
+    'return-to-gamemode.desktop'
+    'holo.conf'
+    'gamescope-wayland.desktop'
+    'steam.png'
+)
+sha256sums=(
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+)
+
+package() {
+    cd "$pkgname"
+    for helper in steam-http-loader steamos-select-branch steamos-session-select \
+                  steamos-update jupiter-biosupdate; do
+        install -Dm755 "usr/bin/$helper" "$pkgdir/usr/bin/$helper"
+    done
+    install -d "$pkgdir/usr/bin/steamos-polkit-helpers"
+    for helper in jupiter-biosupdate steamos-select-branch steamos-update; do
+        install -m755 "usr/bin/steamos-polkit-helpers/$helper" \
+            "$pkgdir/usr/bin/steamos-polkit-helpers/"
+    done
+
+    install -Dm644 usr/share/applications/gamescope-mimeapps.list \
+        "$pkgdir/usr/share/applications/gamescope-mimeapps.list"
+    install -Dm644 usr/share/applications/steam_http_loader.desktop \
+        "$pkgdir/usr/share/applications/steam_http_loader.desktop"
+    install -Dm755 usr/share/gamescope-session-plus/sessions.d/steam \
+        "$pkgdir/usr/share/gamescope-session-plus/sessions.d/steam"
+    install -Dm644 usr/share/polkit-1/actions/org.chimeraos.update.policy \
+        "$pkgdir/usr/share/polkit-1/actions/org.chimeraos.update.policy"
+    install -Dm644 usr/share/wayland-sessions/gamescope-session-steam.desktop \
+        "$pkgdir/usr/share/wayland-sessions/gamescope-session-steam.desktop"
+    # SwitchToGameMode hardcodes the SteamOS session name gamescope-wayland.desktop;
+    # without this hidden twin SDDM drops to the greeter on every mode switch.
+    install -Dm644 "$srcdir/gamescope-wayland.desktop" \
+        "$pkgdir/usr/share/wayland-sessions/gamescope-wayland.desktop"
+    install -Dm644 "$srcdir/steam.png" \
+        "$pkgdir/usr/share/icons/hicolor/48x48/apps/steam.png"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+
+    # Session switch plumbing: OGC's steamos-session-select execs this hook
+    # (Steam power menu "Switch to Desktop", and the KDE-side launcher), and
+    # the hook drives the mode switch through steamos-manager's steamosctl.
+    install -Dm755 "$srcdir/os-session-select" "$pkgdir/usr/libexec/os-session-select"
+    install -Dm644 "$srcdir/return-to-gamemode.desktop" \
+        "$pkgdir/usr/share/applications/return-to-gamemode.desktop"
+
+    # The session-managed marker: steamos-manager only serves SessionManagement1
+    # (the mode-switch API) when this SDDM config exists, and SDDM autologins
+    # into the Steam session per its [Autologin] section.
+    install -Dm644 "$srcdir/holo.conf" "$pkgdir/usr/lib/sddm/sddm.conf.d/holo.conf"
+}
