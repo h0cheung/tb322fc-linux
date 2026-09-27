@@ -181,6 +181,30 @@ cat > /etc/hosts <<'EOF'
 # through DNS (a TUN/fake-ip resolver hijacks it and the UI stays black).
 127.0.0.1 steamloopback.host
 EOF
+# The G9 (PS5 mode) emulates a DualSense, and alsa-ucm-conf ships a DualSense
+# UCM profile that maps its stereo UAC playback to an Internal Mono Speaker
+# node - mono data on a stereo DAC plays as static. Its jack-detection
+# kcontrols never update either, so the Headphones routes are always marked
+# unavailable and wireplumber refuses to default to them. Use the raw
+# pro-audio profile for this card: plain stereo nodes, always available.
+mkdir -p /etc/wireplumber/wireplumber.conf.d
+cat > /etc/wireplumber/wireplumber.conf.d/51-g9-alsa.conf <<'EOF'
+monitor.alsa.rules = [
+  {
+    matches = [
+      { device.name = "~alsa_card.usb-Sony_Interactive_Entertainment_Legion_Gaming_Controller_G9*" }
+    ]
+    actions = {
+      update-props = {
+        device.profile = "pro-audio"
+        api.alsa.split-enable = false
+        alsa.use-ucm = false
+        api.alsa.use-acp = false
+      }
+    }
+  }
+]
+EOF
 cat > /etc/fstab <<'EOF'
 # The initramfs already mounts the existing partition named rootfs.
 PARTLABEL=rootfs / ext4 defaults,noatime 0 1
