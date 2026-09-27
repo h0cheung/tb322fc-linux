@@ -1,0 +1,130 @@
+{
+  "apps": [
+    {
+      "id": "retroarch",
+      "name": "RetroArch",
+      "summary": "Multi-system (libretro cores)",
+      "category": "emulators",
+      "icon": "https://dl.flathub.org/media/org/libretro/RetroArch/608ad8984f80cbcf61daf07ab00ee716/icons/128x128/org.libretro.RetroArch.png",
+      "note": "Install via pacman: retroarch",
+      "install": { "type": "system", "exec": "/usr/bin/retroarch" }
+    },
+    {
+      "id": "dolphin",
+      "name": "Dolphin",
+      "summary": "GameCube and Wii",
+      "category": "emulators",
+      "icon": "https://dl.flathub.org/media/org/dolphinemu/dolphin-emu/ce769d4ecef73c615cc31b263a193a6c/icons/128x128/org.DolphinEmu.dolphin-emu.png",
+      "note": "Install via pacman: dolphin",
+      "install": { "type": "system", "exec": "/usr/bin/dolphin-emu" }
+    },
+    {
+      "id": "ppsspp",
+      "name": "PPSSPP",
+      "summary": "PlayStation Portable",
+      "category": "emulators",
+      "icon": "https://dl.flathub.org/media/org/ppsspp/PPSSPP/38b2798efcaad131e5a694a9edbccf53/icons/128x128/org.ppsspp.PPSSPP.png",
+      "note": "Install via pacman: ppsspp",
+      "install": { "type": "system", "exec": "/usr/bin/PPSSPP" }
+    },
+    {
+      "id": "duckstation",
+      "name": "DuckStation",
+      "summary": "PlayStation 1",
+      "category": "emulators",
+      "icon": "https://dl.flathub.org/media/org/duckstation/DuckStation/090ec9de83aac22d040b24d0ed04f728/icons/128x128/org.duckstation.DuckStation.png",
+      "note": "Install via AUR: duckstation",
+      "install": { "type": "system", "exec": "/usr/bin/duckstation-qt" }
+    },
+    {
+      "id": "melonds",
+      "name": "melonDS",
+      "summary": "Nintendo DS",
+      "category": "emulators",
+      "icon": "https://dl.flathub.org/media/net/kuribo64/melonDS/81b115ecef228fbc787c03d4808282f4/icons/128x128/net.kuribo64.melonDS.png",
+      "note": "Install via AUR: melonds",
+      "install": { "type": "system", "exec": "/usr/bin/melonDS" }
+    },
+    {
+      "id": "azahar",
+      "name": "Azahar",
+      "summary": "Nintendo 3DS",
+      "category": "emulators",
+      "icon": "https://dl.flathub.org/media/org/azahar_emu/Azahar/dc321b338585729e498afdf244f0f09b/icons/128x128/org.azahar_emu.Azahar.png",
+      "note": "Install via AUR: azahar",
+      "install": { "type": "system", "exec": "/usr/bin/azahar-qt" }
+    },
+    {
+      "id": "flycast",
+      "name": "Flycast",
+      "summary": "Dreamcast",
+      "category": "emulators",
+      "icon": "https://dl.flathub.org/media/org/flycast/Flycast/bee247a9effec8fe563f3abb8a888af4/icons/128x128/org.flycast.Flycast.png",
+      "note": "Install via AUR: flycast",
+      "install": { "type": "system", "exec": "/usr/bin/flycast" }
+    },
+    {
+      "id": "scummvm",
+      "name": "ScummVM",
+      "summary": "Classic adventure games",
+      "category": "emulators",
+      "icon": "https://dl.flathub.org/media/org/scummvm/ScummVM/6dd9a15ee7a79e82bea13a4d1d4d12d9/icons/128x128/org.scummvm.ScummVM.png",
+      "note": "Install via pacman: scummvm",
+      "install": { "type": "system", "exec": "/usr/bin/scummvm" }
+    },
+    {
+      "id": "mame",
+      "name": "MAME",
+      "summary": "Multiple Arcade Machine Emulator",
+      "category": "emulators",
+      "icon": "https://dl.flathub.org/media/org/mamedev/MAME/2f148eb3399537f36adeb744dddcb778/icons/128x128/org.mamedev.MAME.png",
+      "note": "Install via pacman: mame",
+      "install": { "type": "system", "exec": "/usr/bin/mame" }
+    },
+    {
+      "id": "moonlight",
+      "name": "Moonlight",
+      "summary": "PC game streaming",
+      "category": "applications",
+      "icon": "https://dl.flathub.org/media/com/moonlight_stream/Moonlight/f8be001ec73b9d6ffd16ff8382a82de3/icons/128x128/com.moonlight_stream.Moonlight.png",
+      "note": "Install via pacman: moonlight-qt",
+      "install": { "type": "system", "exec": "/usr/bin/moonlight" }
+    },
+    {
+      "id": "chiaki",
+      "name": "chiaki-ng",
+      "summary": "PlayStation remote play",
+      "category": "applications",
+      "icon": "https://dl.flathub.org/media/io/github/streetpea.Chiaki4deck/2fe7226c5e12e88e3292b17832669572/icons/128x128/io.github.streetpea.Chiaki4deck.png",
+      "note": "Install via AUR: chiaki-ng",
+      "install": { "type": "system", "exec": "/usr/bin/chiaki-ng" }
+    },
+    {
+      "id": "es-de",
+      "name": "ES-DE",
+      "summary": "Emulation frontend for ROM collections",
+      "category": "applications",
+      "icon": "https://gitlab.com/uploads/-/system/project/avatar/18817634/emulationstation_1024x1024.png",
+      "note": "Install via AUR: es-de",
+      "install": { "type": "system", "exec": "/usr/bin/es-de" }
+    },
+    {
+      "id": "prism-launcher",
+      "name": "Prism Launcher",
+      "summary": "Minecraft",
+      "category": "applications",
+      "icon": "https://dl.flathub.org/media/org/prismlauncher/PrismLauncher/2cc36c7257fc4073cbc74a5e312caee1/icons/128x128/org.prismlauncher.PrismLauncher.png",
+      "note": "Install via AUR: prismlauncher",
+      "install": { "type": "system", "exec": "/usr/bin/prismlauncher" }
+    },
+    {
+      "id": "firefox",
+      "name": "Firefox",
+      "summary": "Web browser",
+      "category": "applications",
+      "icon": "https://dl.flathub.org/media/icons/128x128/org.mozilla.firefox.png",
+      "note": "Install via pacman: firefox",
+      "install": { "type": "system", "exec": "/usr/bin/firefox" }
+    }
+  ]
+}
