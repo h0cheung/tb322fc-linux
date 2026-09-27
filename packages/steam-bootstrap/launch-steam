@@ -1,0 +1,57 @@
+#!/usr/bin/bash
+# Launch the native ARM64 Steam client bootstrapped into ~/.local/share/Steam.
+#
+# Port of ArmadaOS /usr/libexec/armada/launch-steam. The client is not on PATH;
+# everything that launches Steam (the gamescope session's `steam -gamepadui ...`,
+# Steam's own generated game shortcuts, steam:// handlers) goes through here so
+# it picks up the client's library shims and runtime PATH.
+set -euo pipefail
+
+steam_args=()
+if [[ ${1:-} == "--desktop" ]]; then
+    shift
+    steam_args=(-steamdeck)
+fi
+
+steam_root="${STEAM_ROOT:-${HOME}/.local/share/Steam}"
+steam_arm_dir="${steam_root}/steamrtarm64"
+steam_arm="${steam_arm_dir}/steam"
+steam_shim_dir="${steam_root}/lib/aarch64-linux-gnu"
+steam_runtime_bin="${steam_root}/steam-runtime-steamrt-arm64/bin"
+
+if [[ ! -x "${steam_arm}" ]]; then
+    echo "ERROR: native ARM Steam is missing or not executable: ${steam_arm}" >&2
+    echo "       run \`steam-bootstrap\` to install it" >&2
+    exit 127
+fi
+
+steam_ld_path="${steam_arm_dir}"
+if [[ -d "${steam_shim_dir}" ]]; then
+    steam_ld_path="${steam_ld_path}:${steam_shim_dir}"
+fi
+export LD_LIBRARY_PATH="${steam_ld_path}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+if [[ -d "${steam_runtime_bin}" ]]; then
+    export PATH="${steam_runtime_bin}:${PATH}"
+fi
+# ArmadaOS resolves this through its /run/host bind mount; on a plain rootfs
+# the setuid helper lives at its normal place. Only needed for drive mounting.
+if [[ -x /run/host/usr/bin/fusermount3 ]]; then
+    export FUSERMOUNT_PROG=/run/host/usr/bin/fusermount3
+elif command -v fusermount3 >/dev/null; then
+    export FUSERMOUNT_PROG="$(command -v fusermount3)"
+fi
+
+# Prune the Proton 11 registration earlier releases wrote; the internal-name
+# match keeps user-created tool dirs safe. No-op unless it was ever created.
+proton11_reg="${steam_root}/compatibilitytools.d/proton-11-arm64"
+if grep -q '"proton11_arm64"' "${proton11_reg}/compatibilitytool.vdf" 2>/dev/null; then
+    rm -f "${proton11_reg}/compatibilitytool.vdf"
+    rmdir "${proton11_reg}" 2>/dev/null || true
+fi
+
+# CEF remote debugging endpoint for the client, as SteamOS does.
+touch "${steam_root}/.cef-enable-remote-debugging"
+cd "${steam_arm_dir}"
+exec "${steam_arm}" \
+    "${steam_args[@]}" \
+    "$@"

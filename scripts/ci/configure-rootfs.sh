@@ -176,6 +176,10 @@ cat > /etc/hosts <<'EOF'
 127.0.0.1 localhost
 ::1 localhost
 127.0.1.1 y700-gen4
+# The Steam UI's render transport (steamui <-> steamwebhelper websocket) is
+# served from https://steamloopback.host; it must resolve to loopback, not
+# through DNS (a TUN/fake-ip resolver hijacks it and the UI stays black).
+127.0.0.1 steamloopback.host
 EOF
 cat > /etc/fstab <<'EOF'
 # The initramfs already mounts the existing partition named rootfs.

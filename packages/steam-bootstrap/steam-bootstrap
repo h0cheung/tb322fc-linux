@@ -1,0 +1,201 @@
+#!/bin/bash
+# Bootstraps Valve's official ARM64 Steam client into $HOME/.local/share/Steam.
+#
+# Ported from ArmadaOS packages/steam-bootstrap/generate.sh: the client is
+# fetched from Valve's own CDN against a pinned, SHA256-verified manifest,
+# served back to Steam's own updater through a local feed so the pinned state
+# is what lands on disk, and the result is verified against the manifest.
+#
+# Runs as the invoking user - everything lands in that user's home. Re-running
+# after a completed bootstrap is a no-op.
+set -euo pipefail
+
+if [[ "$(uname -m)" != "aarch64" ]]; then
+    echo "ERROR: the ARM64 Steam client can only be bootstrapped on aarch64" >&2
+    exit 1
+fi
+
+PKG_DIR=$(cd "$(dirname "$(readlink -f "$0")")" && pwd)
+source "$PKG_DIR/steam-bootstrap.env"
+
+WORK="${XDG_CACHE_HOME:-$HOME/.cache}/steam-bootstrap"
+FEED="$WORK/feed"
+STEAM="${HOME}/.local/share/Steam"
+DOT_STEAM="${HOME}/.steam"
+STEAM_ARM_CHANNEL="steamdeck_publicbeta"
+STEAM_ARM_MANIFEST_NAME="steam_client_${STEAM_ARM_CHANNEL}_linuxarm64"
+STEAM_ARM_CDN="http://127.0.0.1:8080"
+STEAM_BOOTSTRAP_TIMEOUT="${STEAM_BOOTSTRAP_TIMEOUT:-900}"
+
+if [[ -x "${STEAM}/steamrtarm64/steam" ]]; then
+    echo "Steam is already bootstrapped at ${STEAM} (remove it to re-bootstrap)" >&2
+    exit 0
+fi
+
+# fetch.py prefers our pinned manifest over the live CDN one, so the state that
+# lands on disk is exactly the version this package was validated against.
+mkdir -p "$WORK/manifests" "$STEAM/package" "$DOT_STEAM"
+cp "$PKG_DIR/manifest-${STEAM_CLIENT_VERSION}" "$WORK/manifests/${STEAM_CLIENT_VERSION}"
+
+cd "$WORK"
+python3 "$PKG_DIR/fetch.py" "$STEAM_CLIENT_VERSION" "$STEAM_RUNTIME_VERSION" "$STEAM_RUNTIME_SHA256"
+echo "All packages fetched and verified."
+
+python3 -m http.server 8080 --bind 127.0.0.1 --directory "$WORK/work/feed" >/dev/null 2>&1 &
+feed_pid=$!
+trap 'kill "${feed_pid:-}" "${xvfb_pid:-}" 2>/dev/null || true' EXIT
+for _attempt in {1..50}; do
+    curl -fsS "${STEAM_ARM_CDN}/" >/dev/null 2>&1 && break
+    sleep 0.1
+done
+curl -fsS "${STEAM_ARM_CDN}/" >/dev/null 2>&1 || { echo "ERROR: Steam feed server did not start" >&2; exit 1; }
+STEAM_ARM_MANIFEST_URL="${STEAM_ARM_CDN}/${STEAM_ARM_MANIFEST_NAME}"
+
+echo "${STEAM_ARM_CHANNEL}" > "${STEAM}/package/beta"
+ln -sfn ../.local/share/Steam "${DOT_STEAM}/steam"
+ln -sfn ../.local/share/Steam "${DOT_STEAM}/root"
+ln -sfn ../.local/share/Steam/linux32 "${DOT_STEAM}/sdk32"
+ln -sfn ../.local/share/Steam/linux64 "${DOT_STEAM}/sdk64"
+ln -sfn ../.local/share/Steam/linuxarm64 "${DOT_STEAM}/sdkarm64"
+ln -sfn ../.local/share/Steam/ubuntu12_32 "${DOT_STEAM}/bin32"
+ln -sfn ../.local/share/Steam/ubuntu12_64 "${DOT_STEAM}/bin64"
+
+steam_manifest="${STEAM}/package/${STEAM_ARM_MANIFEST_NAME}.manifest"
+curl -fsSL -o "${steam_manifest}" "${STEAM_ARM_MANIFEST_URL}"
+
+python3 "$PKG_DIR/verify.py" --version "${STEAM_CLIENT_VERSION}" "${steam_manifest}"
+
+steam_seed_package=$(
+    python3 - "${steam_manifest}" <<'PY'
+import pathlib
+import re
+import sys
+
+manifest = pathlib.Path(sys.argv[1]).read_text(errors="ignore")
+match = re.search(r'bins_linuxarm64_linuxarm64\.zip\.(?!vz\.)[^"\s]+', manifest)
+if not match:
+    raise SystemExit("failed to find ARM64 Steam seed package")
+print(match.group(0))
+PY
+)
+
+curl -fsSL -o "${STEAM}/package/${steam_seed_package}" \
+    "${STEAM_ARM_CDN}/${steam_seed_package}"
+unzip -q -o "${STEAM}/package/${steam_seed_package}" -d "${STEAM}"
+
+python3 - "${STEAM}/package/${steam_seed_package}" "${STEAM}" <<'PY'
+import os
+import pathlib
+import stat
+import subprocess
+import sys
+import zipfile
+
+archive = pathlib.Path(sys.argv[1])
+steam = pathlib.Path(sys.argv[2])
+
+with zipfile.ZipFile(archive) as zf:
+    names = [info.filename for info in zf.infolist() if not info.is_dir()]
+
+for name in names:
+    path = (steam / name).resolve()
+    if not path.is_relative_to(steam.resolve()) or not path.is_file():
+        continue
+    result = subprocess.run(
+        ["file", "-b", str(path)],
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+    )
+    if "interpreter /lib/ld-linux" not in result.stdout and not result.stdout.startswith(
+        ("POSIX shell script", "Python script")
+    ):
+        continue
+    mode = path.stat().st_mode
+    os.chmod(path, mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+PY
+
+tar -xJf "$WORK/work/runtime.tar.xz" -C "${STEAM}"
+
+steam_arm_ibus=$(
+    find "${STEAM}/steam-runtime-steamrt-arm64" \
+        -path '*/files/lib/aarch64-linux-gnu/libibus-1.0.so.5.*' \
+        -type f |
+        sort |
+        tail -n1
+)
+if [[ -z "${steam_arm_ibus}" ]]; then
+    echo "ERROR: failed to find ARM64 Steam runtime libibus shim" >&2
+    exit 1
+fi
+mkdir -p "${STEAM}/lib/aarch64-linux-gnu"
+ln -sfn \
+    "../../${steam_arm_ibus#"${STEAM}/"}" \
+    "${STEAM}/lib/aarch64-linux-gnu/libibus-1.0.so.5"
+
+if [[ ! -f "${STEAM}/steamrtarm64/steam" ]]; then
+    echo "ERROR: ARM64 Steam seed did not install steamrtarm64/steam" >&2
+    exit 1
+fi
+
+Xvfb :99 -screen 0 1280x800x24 >"$WORK/xvfb.log" 2>&1 &
+xvfb_pid=$!
+sleep 1
+
+export DISPLAY=:99
+export LD_LIBRARY_PATH="${STEAM}/steamrtarm64:${STEAM}/lib/aarch64-linux-gnu"
+
+installed_manifest="${STEAM}/package/${STEAM_ARM_MANIFEST_NAME}.installed"
+
+steam_verified=false
+bootstrap_deadline=$((SECONDS + STEAM_BOOTSTRAP_TIMEOUT))
+for attempt in {1..3}; do
+    remaining_timeout=$((bootstrap_deadline - SECONDS))
+    if ((remaining_timeout <= 0)); then
+        break
+    fi
+    set +e
+    timeout "${remaining_timeout}" env HOME="${HOME}" \
+        "${STEAM}/steamrtarm64/steam" \
+        -overridepackageurl "${STEAM_ARM_CDN}" \
+        -steamdeck \
+        -exitsteam \
+        >"$WORK/bootstrap.stdout" 2>"$WORK/bootstrap.stderr"
+    steam_rc=$?
+    set -e
+
+    if [[ "${steam_rc}" == "124" ]]; then
+        echo "ERROR: Steam bootstrap exhausted its ${STEAM_BOOTSTRAP_TIMEOUT}-second timeout" >&2
+        break
+    fi
+
+    if [[ -x "${STEAM}/steamrtarm64/steam" \
+        && -f "${STEAM}/steamrtarm64/steamui.so" \
+        && -f "${installed_manifest}" ]] \
+        && python3 "$PKG_DIR/verify.py" "${installed_manifest}" "${STEAM}"; then
+        steam_verified=true
+        break
+    fi
+    echo "Steam bootstrap attempt ${attempt} was incomplete (rc ${steam_rc})" >&2
+done
+
+if [[ "${steam_verified}" != "true" ]]; then
+    echo "ERROR: Steam bootstrap did not produce a complete ARM64 Steam tree" >&2
+    echo "--- last bootstrap stdout (tail) ---" >&2
+    tail -n 30 "$WORK/bootstrap.stdout" >&2 || true
+    echo "--- last bootstrap stderr (tail) ---" >&2
+    tail -n 30 "$WORK/bootstrap.stderr" >&2 || true
+    exit 1
+fi
+
+rm -rf "${STEAM}/logs" "${STEAM}/appcache/httpcache" "${STEAM}/appcache/cefdata" \
+       "${STEAM}/config/htmlcache"
+
+package_count=$(find "${STEAM}/package" -maxdepth 1 -type f | wc -l)
+zipvz_count=$(find "${STEAM}/package" -maxdepth 1 -type f -name '*.zip.vz.*' | wc -l)
+echo "ARM64 Steam bootstrapped: ${package_count} package files, ${zipvz_count} compressed payloads, manifest verified"
+
+# Steam updates itself from Valve from here on; this pin only covers the
+# bootstrap, so re-pinning means bumping steam-bootstrap.env.
+printf '%s\n' "${STEAM_CLIENT_VERSION}" > "$WORK/version"
+echo "Done. Launch with: gamescope-session-plus steam (session) or ${STEAM}/steamrtarm64/steam"

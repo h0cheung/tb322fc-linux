@@ -1,0 +1,51 @@
+# Maintainer: h0cheung <hcheunh@gmail.com>
+pkgname=steam-bootstrap
+pkgver=1788652215
+pkgrel=5
+pkgdesc="Fetch and bootstrap Valve's official ARM64 Steam client into the user's home"
+arch=('aarch64')
+url="https://github.com/ArmadaOS/armada"
+license=('MIT')
+depends=('python' 'curl' 'unzip' 'xorg-server-xvfb' 'file' 'gtk2' 'openal' 'lsof')
+# The manifest pins every client package by SHA256, so the bootstrap state is
+# reproducible; the client self-updates from Valve afterwards. Bump pkgver (and
+# steam-bootstrap.env) to re-pin.
+source=(
+    'steam-bootstrap'
+    'fetch.py'
+    'verify.py'
+    'steam-bootstrap.env'
+    'manifest-1788652215'
+    'launch-steam'
+    'steam'
+    'steam.desktop'
+)
+sha256sums=(
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+)
+
+package() {
+    install -d "$pkgdir/usr/lib/steam-bootstrap/manifests"
+    install -m755 "$srcdir/steam-bootstrap" "$pkgdir/usr/lib/steam-bootstrap/steam-bootstrap"
+    install -m644 "$srcdir/fetch.py" "$pkgdir/usr/lib/steam-bootstrap/fetch.py"
+    install -m644 "$srcdir/verify.py" "$pkgdir/usr/lib/steam-bootstrap/verify.py"
+    install -m644 "$srcdir/steam-bootstrap.env" "$pkgdir/usr/lib/steam-bootstrap/steam-bootstrap.env"
+    install -m644 "$srcdir/manifest-1788652215" \
+        "$pkgdir/usr/lib/steam-bootstrap/manifest-1788652215"
+    install -d "$pkgdir/usr/bin"
+    ln -s /usr/lib/steam-bootstrap/steam-bootstrap "$pkgdir/usr/bin/steam-bootstrap"
+    # The launcher the gamescope session, Steam's generated shortcuts and
+    # steam:// handlers all resolve `steam` to.
+    install -d "$pkgdir/usr/share/applications"
+    install -m755 "$srcdir/launch-steam" "$pkgdir/usr/lib/steam-bootstrap/launch-steam"
+    install -m755 "$srcdir/steam" "$pkgdir/usr/bin/steam"
+    install -m644 "$srcdir/steam.desktop" \
+        "$pkgdir/usr/share/applications/steam.desktop"
+}
