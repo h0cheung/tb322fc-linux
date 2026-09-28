@@ -17,9 +17,12 @@ def digest(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directories", nargs="+", type=Path,
-                        help="Extracted Android firmware and generated audio topology")
+                        help="Extracted Android firmware trees to search")
     args = parser.parse_args()
-    rows = json.loads((ROOT / "firmware.json").read_text())["files"]
+    # Generated files are rebuilt from tracked source (scripts/build-topology.sh),
+    # not imported from a stock firmware tree.
+    rows = [row for row in json.loads((ROOT / "firmware.json").read_text())["files"]
+            if not row.get("generated")]
     sizes = {row["size"] for row in rows}
     required = {row["sha256"] for row in rows}
     found = {}

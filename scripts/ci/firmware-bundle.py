@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Pack/verify/unpack only the firmware named and hashed in firmware.json."""
+"""Pack/verify/unpack only the firmware named and hashed in firmware.json.
+
+Rows marked ``"generated": true`` are rebuilt from tracked source after unpack,
+so their bundle copies are ignored on unpack and never required to be present.
+"""
 import argparse
 import gzip
 import hashlib
@@ -59,6 +63,11 @@ def unpack(archive, directory, rows):
                 if not entry.isfile() or entry.name not in rows or entry.name in seen:
                     raise ValueError(f'Unexpected or duplicate firmware archive member: {entry.name}')
                 row = rows[entry.name]
+                if row.get('generated'):
+                    # Rebuilt from tracked source after unpack, so the bundle
+                    # copy is only a stale placeholder and is never extracted.
+                    seen.add(entry.name)
+                    continue
                 if entry.size != row['size']:
                     raise ValueError(f'Unexpected firmware size: {entry.name}')
                 stream = source.extractfile(entry)
@@ -68,7 +77,7 @@ def unpack(archive, directory, rows):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(data)
                 seen.add(entry.name)
-        missing = rows.keys() - seen
+        missing = {name for name, row in rows.items() if not row.get('generated')} - seen
         if missing:
             raise ValueError('Missing firmware: ' + ', '.join(sorted(missing)))
         stage.rename(directory)

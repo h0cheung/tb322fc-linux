@@ -63,6 +63,35 @@ class FirmwareBundleTests(unittest.TestCase):
              for path in destination.rglob('*') if path.is_file()}, self.files)
         bundle.verify(destination, self.rows)
 
+    def test_unpack_ignores_generated_members(self):
+        # Generated files are rebuilt from tracked source after unpack, so a
+        # stale (or absent) bundle copy must not fail the extract.
+        rows = {'qcom/device/board.bin': self.rows['qcom/device/board.bin']}
+        rebuilt = b'rebuilt topology bytes'
+        rows['topology.bin'] = {
+            'path': 'topology.bin', 'size': len(rebuilt),
+            'sha256': hashlib.sha256(rebuilt).hexdigest(), 'generated': True,
+        }
+        stale = b'stale topology placeholder'
+        archive = self.base / 'with-generated.tar.gz'
+        self.write_archive(archive, [
+            ('qcom/device/board.bin', self.files['qcom/device/board.bin'], tarfile.REGTYPE),
+            ('topology.bin', stale, tarfile.REGTYPE),
+        ])
+        destination = self.base / 'unpacked-generated'
+        bundle.unpack(archive, destination, rows)
+        self.assertFalse((destination / 'topology.bin').exists())
+        self.assertEqual((destination / 'qcom/device/board.bin').read_bytes(),
+                         self.files['qcom/device/board.bin'])
+        # A generated member may also be missing from the bundle entirely.
+        absent = self.base / 'without-generated.tar.gz'
+        self.write_archive(absent, [
+            ('qcom/device/board.bin', self.files['qcom/device/board.bin'], tarfile.REGTYPE),
+        ])
+        destination = self.base / 'unpacked-no-generated'
+        bundle.unpack(absent, destination, rows)
+        self.assertFalse((destination / 'topology.bin').exists())
+
     def test_untrusted_archives_fail_without_publishing_partial_output(self):
         valid = self.regular_entries()
         name, data, kind = valid[0]

@@ -51,18 +51,23 @@ that is absent from the original firmware manifest.
 
 Follow [firmware preparation](firmware.md) to produce `inputs/firmware/`.
 The importer checks every file by content, including renamed stock firmware.
-Generate the audio topology before importing:
+
+The AudioReach topology is built from the tracked source, not imported from
+stock. `firmware.json` marks it `"generated": true`, so the bundle's copy is a
+stale placeholder that unpack drops and the build regenerates:
 
 ```sh
-mkdir -p build/audio
-m4 -I sources/audioreach-topology rootfs/audio/topology.m4 > build/audio/topology.conf
-alsatplg -c build/audio/topology.conf -o build/audio/Lenovo-Y700-Gen4-tplg.bin
+bash scripts/build-topology.sh
 ```
 
-The tested topology compiler is alsatplg 1.2.15.2. Expected output hash:
-`33288df358504392dcc1d70ebdff4dc7a9ec8f9936edb30a65b3faa88a2000ef`.
-An external `Secondary MI2S Playback` widget warning is expected; the machine
-driver supplies it. The firmware importer refuses a different output.
+This compiles `inputs/audio/Lenovo-Y700-Gen4.conf` into
+`inputs/firmware/qcom/sm8750/Lenovo-Y700-Gen4-tplg.bin`. The tested topology
+compiler is alsatplg 1.2.15.2; its expected output hash is
+`597eb974b3f4927097ff213d16800385d08671901267bcb626955ed325df261b`.
+External `Secondary MI2S Playback` and `TX_CODEC_DMA_TX_3 Capture` widget
+warnings are expected; the machine driver supplies them. The `.conf` is the
+compiled source; edit `inputs/audio/Lenovo-Y700-Gen4.m4` and regenerate it with
+`m4 -I sources/audioreach-topology` only when changing the graph.
 
 ## Kernel and boot image
 

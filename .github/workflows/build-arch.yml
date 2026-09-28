@@ -75,7 +75,7 @@ jobs:
             artifacts/kernel.release
             artifacts/kernel-modules.tar.gz
             artifacts/SHA256SUMS
-          key: kernel-${{ hashFiles('sources.json', 'firmware.json', 'configs/**', 'scripts/build-boot.sh', 'scripts/ci/build-kernel.sh', 'tools/avbtool') }}
+          key: kernel-${{ hashFiles('sources.json', 'firmware.json', 'configs/**', 'inputs/audio/**', 'scripts/build-boot.sh', 'scripts/build-topology.sh', 'scripts/ci/build-kernel.sh', 'scripts/ci/prepare-inputs.sh', 'tools/avbtool') }}
 
       - name: Build kernel, embedded initramfs, Android boot image and modules
         if: steps.restore-kernel-cache.outputs.cache-hit != 'true'

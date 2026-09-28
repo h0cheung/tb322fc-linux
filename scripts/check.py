@@ -14,9 +14,13 @@ def main():
     files = [ROOT / name for name in names if name and (ROOT / name).is_file()]
     failures = []
     experiment = re.compile(r"\b[Vv][0-9]{2,}[a-z][a-z0-9-]*\b")
-    local_path = re.compile(r"/home/[A-Za-z0-9_-]+/|\.\./(?:build|artifacts|linux-elden)/")
+    local_path = re.compile(r"(?<![A-Za-z])/home/[A-Za-z0-9_-]+/|\.\./(?:build|artifacts|linux-elden)/")
     for path in files:
-        text = path.read_text()
+        try:
+            text = path.read_text()
+        except UnicodeDecodeError:
+            # Tracked binary assets (icons, images) carry no text to check.
+            continue
         relative = str(path.relative_to(ROOT))
         if experiment.search(relative) or experiment.search(text):
             failures.append(f"experiment label: {relative}")
@@ -44,6 +48,8 @@ def main():
         assert not path.is_absolute() and ".." not in path.parts
         assert re.fullmatch(r"[0-9a-f]{64}", item["sha256"])
         assert item["size"] > 0
+        if "generated" in item:
+            assert item["generated"] is True, item["path"]
     subprocess.run(["sh", "-n", str(ROOT / "initramfs/init")], check=True)
     subprocess.run(["bash", "-n", str(ROOT / "scripts/build-boot.sh")], check=True)
     if failures:

@@ -17,7 +17,7 @@ Linux 的 Android v4 `boot.img` 和带 KDE Plasma 的 ext4 `rootfs.img`。
 | 设备树 | SM8650 / TB321FU | 内嵌 SM8750 / elden DTB |
 | 根分区 | `PARTLABEL=userdata` | 保留 `PARTLABEL=rootfs`，不访问 Android userdata |
 | 用户空间 | Arch + 从第三方 deb 中提取设备文件 | Arch + 原生编译四代 hexagonrpc、libssc、iio-sensor-proxy、libcamera |
-| 固件 | 三代预置硬件包 | 用户提供四代固件；78 个文件逐一验证 SHA256 |
+| 固件 | 三代预置硬件包 | 用户提供四代固件；82 个文件逐一验证 SHA256 |
 | 传感器校准 | 三代集成方式 | 用户在装机后导入自己的 persist 数据 |
 
 参考代码：
@@ -36,19 +36,20 @@ Linux 的 Android v4 `boot.img` 和带 KDE Plasma 的 ext4 `rootfs.img`。
 启动方式、DTB、`PARTLABEL=rootfs` 和 ext4 配置保持原设计。新加入的
 `android-userdata.config` 等可选配置片段不会自动合并。
 新版蓝牙冷启动还需要 `qca/brhperifw20.tlv`、`qca/brhperinv20.bin` 和
-`qca/tmel_peach_20.elf`；当前 78 文件固件包没有这些文件，不能视为新版蓝牙的
+`qca/tmel_peach_20.elf`；当前 82 文件固件包没有这些文件，不能视为新版蓝牙的
 完整固件集。需要取得匹配的原厂文件及真实哈希后补充清单和 initramfs，
 才能验证蓝牙初始化；其他启动流程不依赖蓝牙成功。
 
 ## 1. 准备一次性固件输入
 
-先依照[固件文档](firmware.md)从匹配的 Android 系统提取文件，并生成音频
-topology、导入 regulatory database，得到完整的 `inputs/firmware/`。
-它必须包含 `firmware.json` 中的全部 78 个文件。
+先依照[固件文档](firmware.md)从匹配的 Android 系统提取文件、导入 regulatory
+database，再用 `scripts/build-topology.sh` 生成音频 topology，得到完整的
+`inputs/firmware/`。它必须包含 `firmware.json` 中的全部 82 个文件。
 
-音频 topology 编译器版本会影响二进制哈希。上游验证的是 alsatplg 1.2.15.2；
-如果自己生成的 topology 不匹配，先检查工具版本，不能通过修改哈希跳过验证。
-CI 直接使用经过验证的完整固件包，因此不依赖 Ubuntu 自带的 topology 编译器。
+音频 topology 由仓库内跟踪的 `inputs/audio/Lenovo-Y700-Gen4.conf` 重新编译
+（`firmware.json` 中标记为 `"generated": true`，不取自固件包），因此 CI 会用
+仓库固定版本的 alsatplg 覆盖 bundle 里的旧 topology。编译器版本会影响二进制
+哈希，不能通过修改哈希跳过验证。
 
 ```sh
 mkdir -p build

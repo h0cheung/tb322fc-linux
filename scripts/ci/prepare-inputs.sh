@@ -13,9 +13,7 @@ printf '%s  %s\n' "$FIRMWARE_SHA256" build/firmware.tar.gz.part | sha256sum --ch
 mv build/firmware.tar.gz.part build/firmware.tar.gz
 python3 scripts/ci/firmware-bundle.py unpack build/firmware.tar.gz inputs/firmware
 # The bundle's audio topology predates WCD9395 mic capture support; rebuild it
-# from the tracked source (regenerate the .conf with m4 + audioreach-topology
-# only when changing the graph, alsatplg alone suffices here).
-alsatplg -c inputs/audio/Lenovo-Y700-Gen4.conf \
-    -o inputs/firmware/qcom/sm8750/Lenovo-Y700-Gen4-tplg.bin
+# from the tracked source with the same script a local build uses.
+bash scripts/build-topology.sh
 # Do not publish the input URL: it can contain temporary download credentials.
 printf 'firmware_bundle_sha256=%s\n' "$FIRMWARE_SHA256" > artifacts/firmware-input.txt

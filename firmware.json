@@ -12,8 +12,9 @@
     },
     {
       "path": "qcom/sm8750/Lenovo-Y700-Gen4-tplg.bin",
-      "size": 6012,
-      "sha256": "33288df358504392dcc1d70ebdff4dc7a9ec8f9936edb30a65b3faa88a2000ef"
+      "size": 11196,
+      "sha256": "597eb974b3f4927097ff213d16800385d08671901267bcb626955ed325df261b",
+      "generated": true
     },
     {
       "path": "qcom/gen80000_gmu.bin",
