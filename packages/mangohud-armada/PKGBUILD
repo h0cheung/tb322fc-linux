@@ -1,0 +1,111 @@
+# Maintainer: h0cheung <hcheunh@gmail.com>
+# Arch aarch64 build of MangoHud for the Legion Y700 Gen4 (SM8750/Adreno 830).
+# Based on Arch's own mangohud PKGBUILD (same 0.8.4 upstream tarball), plus the
+# six patches ArmadaOS applies to that same version so the overlay understands
+# Adreno/kgsl GPU stats, the Y700's battery reporting and SM8750's
+# time_to_empty_avg, plus one local patch that turns preset 2's dead power rows
+# into CPU/GPU clock rows. gamescope-session-plus and OGC's sessions.d/steam
+# already export STEAM_USE_MANGOAPP=1, so Steam's Performance Overlay needs this
+# package to exist - it is not packaged by Arch Linux ARM at all.
+#
+# Renamed build: the package carries -armada and stands in for "mangohud" via
+# provides/conflicts/replaces, so a rolling Arch Linux ARM update cannot clobber
+# the patched overlay (same scheme as mesa-y700-gen4 and gamescope-armada).
+_pkgname=MangoHud
+pkgname=mangohud-armada
+pkgver=0.8.4
+pkgrel=1
+pkgdesc="Vulkan/OpenGL overlay for monitoring FPS, temperatures, CPU/GPU load and more (Adreno/SM8750 build)"
+arch=('aarch64')
+url="https://github.com/flightlessmango/MangoHud"
+license=('MIT')
+# Runtime deps as Arch ships them, except python-matplotlib/python-numpy: those
+# are only mangoplot's requirements, and Arch can afford them as hard deps while
+# a device image cannot. ArmadaOS splits mangoplot into its own subpackage for
+# the same reason. fmt is kept even though meson.build only mentions it as
+# spdlog's 'external_fmt=disabled' option: the bundled spdlog still links it.
+depends=(
+    dbus
+    fmt
+    glfw
+    hicolor-icon-theme
+    libglvnd
+    libx11
+    libxkbcommon
+    python
+    vulkan-icd-loader
+    wayland
+)
+# Arch's makedepends minus the ones this target cannot or need not use:
+# - libxnvctrl: not packaged for aarch64, and with_xnvctrl is disabled below.
+# - cmocka, appstream: only reachable through the test targets, which 0.8.4 has
+#   commented out in meson.build; -Dtests=disabled makes appstreamcli optional.
+# - vulkan-headers, libxrandr: never referenced - MangoHud always builds its
+#   bundled Vulkan-Headers/Vulkan-Utility-Libraries subprojects (meson.build
+#   lines 173-185), and no meson.build mentions xrandr.
+makedepends=(
+    git
+    glslang
+    meson
+    python-mako
+)
+optdepends=(
+    'gamescope: run MangoApp as an overlay inside a gamescope session'
+    'python-matplotlib: plot MangoHud logs with mangoplot'
+    'python-numpy: plot MangoHud logs with mangoplot'
+)
+# tb322fc: renamed build; stand in for the repo package at any version.
+provides=('mangohud')
+conflicts=('mangohud')
+replaces=('mangohud')
+source=(
+    "$pkgname-$pkgver.tar.xz::https://github.com/flightlessmango/MangoHud/releases/download/v$pkgver/$_pkgname-v$pkgver-Source.tar.xz"
+    0001-Qualcomm-GPU-support.patch
+    0002-GPU-monitoring.patch
+    0003-Battery-name.patch
+    0004-Qualcomm-battery-power-now.patch
+    0005-RAM-name.patch
+    0006-SM8750-Battery.patch
+)
+sha256sums=(
+    'bbe5a2b976313c53f21dc24b98bbed03226589460a0cce20d923cb2c36c9d8b0'
+    '099114969f367117c11f965647e96e92d3a4e78ebb416db28d6f555e8ced9ac6'
+    '128e09c0b102a221e5e13a28cdcd30a6cdaee6bb7aaa553355d46e74242dad52'
+    '7b1bb759b57a4e6ea8b67896a57ad0aaf0aa4032abbd9426e67b4811927f6b2c'
+    'e288047623a6bbe4b0f63bd14fa9bfb6bab3828e225063f6a8f0ae469fe966a4'
+    '62eeb550fd1f46699b75201d767224ad072dddeb6d55771ad78d72b14d0231a5'
+    '97220df99329d8b1976aa9a84f0843999b5ae9a47fdaac6da61bedad68e34a84'
+)
+
+prepare() {
+    cd "$_pkgname-v$pkgver"
+    local patch
+    for patch in "$srcdir"/0*.patch; do
+        patch -Np1 -i "$patch"
+    done
+}
+
+build() {
+    # --wrap-mode=nodownload: every needed subproject is bundled in the release
+    # tarball, so the build stays hermetic. -Dwith_nvml/-Dwith_xnvctrl are
+    # disabled because the Adreno stats come from drm fdinfo + devfreq, and
+    # with_xnvctrl would otherwise abort without NVCtrl/NVCtrl.h.
+    meson setup build "$_pkgname-v$pkgver" \
+        --prefix=/usr \
+        --libdir=lib \
+        --buildtype=plain \
+        --wrap-mode=nodownload \
+        -Dmangoapp=true \
+        -Dmangohudctl=true \
+        -Dtests=disabled \
+        -Dwith_nvml=disabled \
+        -Dwith_xnvctrl=disabled
+    meson compile -C build
+}
+
+package() {
+    meson install -C build --destdir "$pkgdir"
+    install -Dm644 "$srcdir/$_pkgname-v$pkgver/LICENSE" \
+        "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    rm -f "$pkgdir/usr/lib/libimgui.a"
+}
