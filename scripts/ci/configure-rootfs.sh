@@ -226,11 +226,11 @@ cat > /usr/share/alsa/ucm2/Lenovo/Y700-Gen4/HiFi.conf <<'EOF'
 SectionVerb {
 	EnableSequence [
 		cset "name='SECONDARY_MI2S_RX Audio Mixer MultiMedia1' 1"
-		cset "name='MultiMedia3 Mixer TX_CODEC_DMA_TX_3' 1"
+		cset "name='MultiMedia3 Mixer VA_CODEC_DMA_TX_0' 1"
 	]
 	DisableSequence [
 		cset "name='SECONDARY_MI2S_RX Audio Mixer MultiMedia1' 0"
-		cset "name='MultiMedia3 Mixer TX_CODEC_DMA_TX_3' 0"
+		cset "name='MultiMedia3 Mixer VA_CODEC_DMA_TX_0' 0"
 	]
 	Value {
 		TQ "HiFi"
@@ -251,31 +251,19 @@ SectionDevice."Mic" {
 	Comment "Internal Microphone"
 
 	EnableSequence [
-		cset "name='TX DEC0 MUX' SWR_MIC"
-		cset "name='TX SMIC MUX0' SWR_MIC5"
-		cset "name='DMIC1 Switch' 1"
-		cset "name='DMIC1_MIXER Switch' 1"
-		cset "name='TX DEC1 MUX' SWR_MIC"
-		cset "name='TX SMIC MUX1' SWR_MIC6"
-		cset "name='DMIC2 Switch' 1"
-		cset "name='DMIC2_MIXER Switch' 1"
-		cset "name='TX_AIF1_CAP Mixer DEC0' 1"
-		cset "name='TX_AIF1_CAP Mixer DEC1' 1"
-		cset "name='DEC0 MODE' ADC_DEFAULT"
-		cset "name='DEC1 MODE' ADC_DEFAULT"
-		cset "name='TX_DEC0 Volume' 100"
-		cset "name='TX_DEC1 Volume' 100"
+		cset "name='VA DEC0 MUX' VA_DMIC"
+		cset "name='VA DMIC MUX0' DMIC0"
+		cset "name='VA_AIF1_CAP Mixer DEC0' 1"
+		cset "name='VA DEC1 MUX' VA_DMIC"
+		cset "name='VA DMIC MUX1' DMIC1"
+		cset "name='VA_AIF1_CAP Mixer DEC1' 1"
+		cset "name='VA_DEC0 Volume' 110"
+		cset "name='VA_DEC1 Volume' 110"
 	]
 
 	DisableSequence [
-		cset "name='TX_AIF1_CAP Mixer DEC0' 0"
-		cset "name='TX_AIF1_CAP Mixer DEC1' 0"
-		cset "name='DMIC1 Switch' 0"
-		cset "name='DMIC1_MIXER Switch' 0"
-		cset "name='DMIC2 Switch' 0"
-		cset "name='DMIC2_MIXER Switch' 0"
-		cset "name='TX SMIC MUX0' ZERO"
-		cset "name='TX SMIC MUX1' ZERO"
+		cset "name='VA_AIF1_CAP Mixer DEC0' 0"
+		cset "name='VA_AIF1_CAP Mixer DEC1' 0"
 	]
 
 	Value {
