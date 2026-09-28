@@ -324,6 +324,21 @@ echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/10-wheel
 chmod 440 /etc/sudoers.d/10-wheel
 visudo -cf /etc/sudoers.d/10-wheel
 
+# makepkg checks signed upstream tarballs against the *user's* gpg keyring. The
+# repo ships the keys it needs in packages/*/keys/pgp/*.asc, but makepkg only
+# copies those into --allsource output - it never imports them into a keyring,
+# so without this the first signed source fails with "unknown public key
+# 8D8E31AFC32428A6" (the tail of Eric Engestrom's key, which is listed in
+# mesa-y700-gen4's validpgpkeys). Import as alarm, since that is who runs
+# makepkg and therefore whose keyring is consulted.
+shopt -s nullglob
+key_files=(packages/*/keys/pgp/*.asc)
+shopt -u nullglob
+(( ${#key_files[@]} )) || { echo "no PGP keys under packages/*/keys/pgp" >&2; exit 1; }
+for key_file in "${key_files[@]}"; do
+    sudo -u alarm gpg --batch --no-tty --quiet --import "$key_file"
+done
+
 # Build and install this repo's own packages inside the target rootfs.
 #
 # The PKGBUILDs are the single source of truth for dependencies: they are read
