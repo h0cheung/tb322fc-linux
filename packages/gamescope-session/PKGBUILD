@@ -9,8 +9,19 @@ license=('MIT')
 depends=('gamescope')
 makedepends=('git')
 _commit=0232e0c0410b051b0c679c99c55bf34f5aaf9f78
-source=("git+$url.git#commit=$_commit")
-sha256sums=('SKIP')
+source=(
+    "git+$url.git#commit=$_commit"
+    '0001-lenovo-legion-y700-gen4-refresh-rates.patch'
+)
+sha256sums=('SKIP' 'SKIP')
+
+prepare() {
+    cd "$pkgname"
+    local patch
+    for patch in "$srcdir"/0*.patch; do
+        patch -Np1 -i "$patch"
+    done
+}
 
 package() {
     cd "$pkgname"

@@ -1,0 +1,22 @@
+diff --git a/usr/share/gamescope-session-plus/device-quirks b/usr/share/gamescope-session-plus/device-quirks
+index 6599b04..59b5663 100644
+--- a/usr/share/gamescope-session-plus/device-quirks
++++ b/usr/share/gamescope-session-plus/device-quirks
+@@ -213,6 +213,17 @@ if [[ ":83E1:" =~ ":$SYS_ID:"  ]]; then
+   export STEAM_DISPLAY_REFRESH_LIMITS=60,144
+ fi
+ 
++# Lenovo Legion Y700 Gen4 (TB322FC, SM8750)
++# The CSOT panel carries no EDID refresh range descriptor, so gamescope's
++# synthesized EDID advertises only the preferred 120 Hz mode and the Steam
++# refresh slider stops there. The kernel exposes 24/30/40/60/90/120/144/165 Hz
++# as discrete modes; bound the slider to that whole range so every one of them
++# is selectable. Matched on the device tree model prefix, as armada-powerd does.
++if [[ "$SYS_ID" == "Lenovo Legion Y700 Gen4"* ]]; then
++  # Set refresh rate range and enable refresh rate switching
++  export STEAM_DISPLAY_REFRESH_LIMITS=24,165
++fi
++
+ # Minisforum V3
+ if [[ ":V3:" =~ ":$SYS_ID:"  ]]; then
+   PANEL_TYPE=external
