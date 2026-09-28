@@ -128,10 +128,20 @@ mount -t sysfs -o ro,nosuid,nodev,noexec sysfs "$ROOTFS/sys"
 mounts+=("$ROOTFS/sys")
 mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs "$ROOTFS/run"
 mounts+=("$ROOTFS/run")
+# Inject the previous run's makepkg/meson caches (restored by the workflow).
+# They live outside /root so the unprivileged makepkg user can write them.
+if [[ -d build/rootfs-cache ]]; then
+    cp -a build/rootfs-cache "$ROOTFS/var/cache/tb322fc-build"
+fi
 chroot "$ROOTFS" /usr/bin/env -i PATH=/usr/bin:/usr/sbin HOME=/root \
     LC_ALL=C.UTF-8 JOBS="$JOBS" /bin/bash /root/tb322fc-build/configure-rootfs.sh
 cp "$ROOTFS/usr/share/tb322fc/rootfs.packages" artifacts/rootfs.packages
 cp "$ROOTFS/usr/share/tb322fc/userspace-build.txt" artifacts/userspace-build.txt
+# Hand the updated caches back to the host so the workflow can save them.
+if [[ -d "$ROOTFS/var/cache/tb322fc-build" ]]; then
+    mkdir -p build/rootfs-cache
+    cp -a "$ROOTFS/var/cache/tb322fc-build/." build/rootfs-cache/
+fi
 
 # Stop the keyring daemon before unmounting; pacman-key may leave it running.
 chroot "$ROOTFS" /usr/bin/gpgconf --homedir /etc/pacman.d/gnupg --kill all
@@ -140,6 +150,8 @@ for (( index=${#mounts[@]}-1; index>=0; index-- )); do
     unset 'mounts[index]'
 done
 rm -rf "$STAGE"
+# The build cache is a host artifact; it must not end up in the image.
+rm -rf "$ROOTFS/var/cache/tb322fc-build"
 rm -f "$ROOTFS/etc/resolv.conf"
 ln -s /run/NetworkManager/resolv.conf "$ROOTFS/etc/resolv.conf"
 

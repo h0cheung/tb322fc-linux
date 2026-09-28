@@ -53,12 +53,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential git python3 curl bzip2 flex bison bc \
             pkg-config libssl-dev libelf-dev gcc-aarch64-linux-gnu libc6-dev-arm64-cross \
-            clang lld llvm mkbootimg kmod cpio rsync libarchive-tools e2fsprogs \
+            clang lld llvm ccache mkbootimg kmod cpio rsync libarchive-tools e2fsprogs \
             zstd xz-utils gnupg ca-certificates alsa-utils
           # Workaround Ubuntu 24.04 mkbootimg missing gki module (LP: #2058228)
           sudo sed -i 's/from gki.generate_gki_certificate import generate_gki_certificate/generate_gki_certificate = None/' /usr/bin/mkbootimg || true
           sudo python3 -c "import pathlib; p = pathlib.Path('/usr/lib/python3/dist-packages/gki'); p.mkdir(exist_ok=True); (p/'__init__.py').touch(); (p/'generate_gki_certificate.py').write_text('def generate_gki_certificate(*args, **kwargs):\n    pass\n')" || true
           mkbootimg --help >/dev/null
+      - name: Build the audio topology from tracked source
+        run: bash scripts/build-topology.sh
       - name: Fetch and verify pinned sources
         run: python3 scripts/fetch-sources.py
       - name: Download and authenticate Arch Linux ARM
@@ -77,9 +79,25 @@ jobs:
             artifacts/SHA256SUMS
           key: kernel-${{ hashFiles('sources.json', 'firmware.json', 'configs/**', 'inputs/audio/**', 'scripts/build-boot.sh', 'scripts/build-topology.sh', 'scripts/ci/build-kernel.sh', 'scripts/ci/prepare-inputs.sh', 'tools/avbtool') }}
 
+      - name: Restore kernel ccache
+        id: ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: .ccache
+          key: ccache-${{ runner.os }}-${{ hashFiles('sources.json', 'configs/kernel.config', 'scripts/build-boot.sh', 'scripts/ci/build-kernel.sh') }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
       - name: Build kernel, embedded initramfs, Android boot image and modules
         if: steps.restore-kernel-cache.outputs.cache-hit != 'true'
         run: JOBS=$(nproc) bash scripts/ci/build-kernel.sh
+
+      - name: Save kernel ccache
+        if: steps.restore-kernel-cache.outputs.cache-hit != 'true' && steps.ccache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .ccache
+          key: ${{ steps.ccache.outputs.cache-primary-key }}
 
       - name: Save kernel build cache
         if: steps.restore-kernel-cache.outputs.cache-hit != 'true'
@@ -107,11 +125,25 @@ jobs:
         run: |
           rm -rf build/kernel build/busybox sources/kernel sources/busybox
           df -h .
+      - name: Restore rootfs package cache
+        id: rootfs-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: build/rootfs-cache
+          key: rootfs-pkgs-${{ runner.os }}-${{ hashFiles('packages/**', 'sources.json', 'scripts/ci/configure-rootfs.sh', 'rootfs/**') }}
+          restore-keys: |
+            rootfs-pkgs-${{ runner.os }}-
       - name: Build Arch rootfs and native device userspace
         run: |
           sudo env ARCH_ROOTFS_ARCHIVE="$PWD/build/ArchLinuxARM-aarch64.tar.gz" \
             ARCH_ROOTFS_SHA256="$(cut -d ' ' -f 1 build/ArchLinuxARM-aarch64.sha256)" \
             ROOTFS_SIZE="$ROOTFS_SIZE" JOBS="$(nproc)" bash scripts/ci/build-rootfs.sh
+      - name: Save rootfs package cache
+        if: always() && steps.rootfs-cache.outputs.cache-hit != 'true' && hashFiles('build/rootfs-cache/**') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: build/rootfs-cache
+          key: ${{ steps.rootfs-cache.outputs.cache-primary-key }}
       - name: Compress images and collect provenance
         run: bash scripts/ci/package.sh
       - name: Upload Boot Image

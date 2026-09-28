@@ -4,13 +4,14 @@
 # device-env, usr/lib/armada/{armada_game_tweaks,armada_perf}.py, device
 # profiles, usr/share/armada data). Note: device-env, armada_perf.py and the device profiles are owned by
 # armada-powerd (shipped there first); this package only adds what it needs.
+# Upstream: https://github.com/armada-os/armada (GPL-2.0-or-later, Copyright the Armada contributors)
 pkgname=armada-control
 pkgver=20260927
 pkgrel=1
 pkgdesc="Armada privileged settings daemon for the armada-control Decky plugin"
 arch=('aarch64')
-url="https://gitlab.com/armadaproject"
-license=('MIT')
+url="https://github.com/armada-os/armada"
+license=('GPL-2.0-or-later')
 depends=('python' 'python-gobject')
 makedepends=()
 backup=('etc/armada/game-tweaks.json')

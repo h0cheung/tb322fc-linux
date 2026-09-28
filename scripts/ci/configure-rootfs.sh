@@ -37,6 +37,68 @@ build_packages=(
 )
 pacman -S --needed --noconfirm "${runtime_packages[@]}" "${build_packages[@]}"
 
+# Persistent caches, injected into the chroot by build-rootfs.sh and saved by
+# the workflow. Downloads are always reusable; the compiled package and meson
+# caches are gated by a dependency stamp so a rolling-release ABI bump rebuilds
+# them instead of reusing stale objects. The cache lives outside /root because
+# makepkg runs as the unprivileged alarm user and has to write into it.
+CACHE=/var/cache/tb322fc-build
+mkdir -p "$CACHE/sources" "$CACHE/pkgs" "$CACHE/meson"
+{
+    echo "SRCDEST=$CACHE/sources"
+    echo "PKGDEST=$CACHE/pkgs"
+} >> /etc/makepkg.conf
+
+# The ABI-relevant dependency snapshot: the union of every repo package's
+# depends/makedepends (minus the names this repo builds) plus the shared
+# libraries the meson components link against. Sourcing a PKGBUILD only
+# evaluates variable assignments.
+dependency_stamp() {
+    local dir name dep
+    local -A repo_names=() wanted=()
+    for dir in packages/*/; do
+        [[ -f "$dir/PKGBUILD" ]] || continue
+        name=$(bash -c "source '$dir/PKGBUILD' && printf '%s\n' \"\${pkgname[@]}\"")
+        while read -r one; do
+            [[ -n "$one" ]] || continue
+            repo_names[$one]=1
+        done <<< "$name"
+    done
+    for dir in packages/*/; do
+        [[ -f "$dir/PKGBUILD" ]] || continue
+        mapfile -t deps < <(bash -c \
+            "source '$dir/PKGBUILD' && printf '%s\n' \${depends[*]} \${makedepends[*]}")
+        for dep in "${deps[@]}"; do
+            [[ -n "$dep" ]] || continue
+            [[ -n "${repo_names[$dep]:-}" ]] && continue
+            wanted[$dep]=1
+        done
+    done
+    # Compiler/build-tool packages do not change a cached package's runtime ABI
+    # and they roll frequently, so excluding them keeps the stamp stable.
+    for dep in clang llvm cmake meson ninja rust rust-bindgen cbindgen git \
+        nodejs npm pnpm pkgconf glib2-devel gtk-doc python-build python-installer \
+        python-setuptools python-wheel python-packaging; do
+        unset 'wanted[$dep]'
+    done
+    # The meson components are built from sources.json, not a repo PKGBUILD, so
+    # add the shared libraries they link against explicitly.
+    for dep in glib2 protobuf protobuf-c libdrm libglvnd llvm-libs vala gobject-introspection; do
+        wanted[$dep]=1
+    done
+    { for dep in "${!wanted[@]}"; do pacman -Q "$dep" 2>/dev/null; done; } | sort | sha256sum | cut -d' ' -f1
+}
+
+stamp=$(dependency_stamp)
+if [[ -f "$CACHE/stamp" && "$(cat "$CACHE/stamp")" == "$stamp" ]]; then
+    echo "rootfs cache: dependency stamp matches; reusing the compiled caches"
+else
+    echo "rootfs cache: dependency stamp changed; discarding the compiled caches"
+    rm -rf "$CACHE/pkgs" "$CACHE/meson"
+    mkdir -p "$CACHE/pkgs" "$CACHE/meson"
+fi
+printf '%s\n' "$stamp" > "$CACHE/stamp"
+
 # Package versions include an epoch (1:); compare the upstream version itself.
 for package in mesa vulkan-freedreno; do
     read -r _ version < <(pacman -Q "$package")
@@ -67,12 +129,32 @@ mkdir -p build /usr/share/tb322fc/meson
 build_component() {
     local component=$1
     shift
+    local tarball="$CACHE/meson/$component.tar"
+    if [[ -f "$tarball" ]]; then
+        echo "meson cache: restoring $component"
+        tar -C / -xf "$tarball" --no-overwrite-dir
+        ldconfig
+        return
+    fi
+    local stage
+    stage=$(mktemp -d)
+    # mktemp -d creates 0700 and the archive records "." with the stage's mode,
+    # so without this the install step below would chmod the live rootfs "/" to
+    # 0700 and lock every non-root user out of the tree.
+    chmod 755 "$stage"
     meson setup "build/$component" "sources/$component" --prefix=/usr --libdir=lib \
         --buildtype=release --wrap-mode=nodownload -Dwerror=false \
         -Dc_args="-Wno-error" -Dcpp_args="-Wno-error -Wno-error=array-bounds" "$@"
     meson compile -C "build/$component" -j "$JOBS"
-    meson install -C "build/$component"
-    cp "build/$component/meson-info/intro-buildoptions.json" "/usr/share/tb322fc/meson/$component.json"
+    DESTDIR="$stage" meson install -C "build/$component"
+    mkdir -p "$stage/usr/share/tb322fc/meson"
+    cp "build/$component/meson-info/intro-buildoptions.json" "$stage/usr/share/tb322fc/meson/$component.json"
+    tar -C "$stage" -cf "$tarball.part" .
+    mv "$tarball.part" "$tarball"
+    rm -rf "$stage"
+    # The staged install is the cache entry; also install it into the live rootfs.
+    # --no-overwrite-dir keeps pre-existing directory modes (notably "/") intact.
+    tar -C / -xf "$tarball" --no-overwrite-dir
     ldconfig
 }
 build_component hexagonrpc
@@ -233,6 +315,9 @@ fi
 usermod -aG wheel,video,input alarm
 echo 'alarm:alarm' | chpasswd
 chage -d 0 alarm
+# makepkg runs as alarm and writes the shared source/package cache, so hand it
+# over now that the user exists.
+chown -R alarm:alarm "$CACHE"
 passwd -l root
 install -d -m 750 /etc/sudoers.d
 echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/10-wheel
@@ -250,12 +335,14 @@ visudo -cf /etc/sudoers.d/10-wheel
 # that still fails after the last pass aborts the build loudly.
 declare -A pkg_paths=()
 declare -A pkg_deps=()
+declare -A pkg_vers=()
 for pkg_dir in packages/*/; do
     [[ -f "$pkg_dir/PKGBUILD" ]] || continue
     mapfile -t info < <(sudo -u alarm bash -c \
-        "source '$pkg_dir/PKGBUILD' && printf '%s\n%s\n' \"\$pkgname\" \"\${depends[*]} \${makedepends[*]}\"")
+        "source '$pkg_dir/PKGBUILD' && printf '%s\n%s\n%s\n' \"\$pkgname\" \"\$pkgver\" \"\${depends[*]} \${makedepends[*]}\"")
     pkg_paths[${info[0]}]=$pkg_dir
-    pkg_deps[${info[0]}]=${info[1]:-}
+    pkg_vers[${info[0]}]=${info[1]}
+    pkg_deps[${info[0]}]=${info[2]:-}
 done
 
 pending=("${!pkg_paths[@]}")
@@ -264,9 +351,6 @@ for _pass in 1 2 3; do
     deferred=()
     for pkg_name in "${pending[@]}"; do
         pkg_dir=${pkg_paths[$pkg_name]}
-        pkg_workdir=$(mktemp -d -p /home/alarm "pkg-$pkg_name.XXXXXX")
-        cp -a "$pkg_dir/." "$pkg_workdir/"
-        chown -R alarm:alarm "$pkg_workdir"
         read -ra deps_list <<< "${pkg_deps[$pkg_name]}"
         mapfile -t pkg_missing < <(pacman -T "${deps_list[@]}" || true)
         install_list=()
@@ -277,9 +361,23 @@ for _pass in 1 2 3; do
         if (( ${#install_list[@]} )); then
             pacman -S --needed --noconfirm "${install_list[@]}"
         fi
-        pkg_log=$(mktemp -p /home/alarm "mk-$pkg_name.XXXXXX")
-        if sudo -u alarm bash -c "cd '$pkg_workdir' && makepkg -f" >"$pkg_log" 2>&1 \
-            && pacman -U --noconfirm --ask 6 "$pkg_workdir"/"$pkg_name"*.pkg.tar.* ; then
+        # Drop cached packages from other versions so the globs below are exact.
+        find "$CACHE/pkgs" -maxdepth 1 -name "$pkg_name-*" \
+            ! -name "$pkg_name-${pkg_vers[$pkg_name]}-*" -delete 2>/dev/null || true
+        mapfile -t built < <(compgen -G "$CACHE/pkgs/$pkg_name-${pkg_vers[$pkg_name]}-*.pkg.tar.*" || true)
+        if (( ${#built[@]} )) && pacman -U --noconfirm --ask 6 "${built[@]}"; then
+            echo "cache: installed $pkg_name from the package cache"
+            continue
+        fi
+        [[ ${#built[@]} -eq 0 ]] || rm -f "${built[@]}"
+        pkg_workdir=$(mktemp -d -p /home/alarm "pkg-$pkg_name.XXXXXX")
+        cp -a "$pkg_dir/." "$pkg_workdir/"
+        chown -R alarm:alarm "$pkg_workdir"
+        pkg_log=$(sudo -u alarm mktemp -p /home/alarm "mk-$pkg_name.XXXXXX")
+        if sudo -u alarm bash -c "cd '$pkg_workdir' && makepkg -f >'$pkg_log' 2>&1" \
+            && mapfile -t built < <(compgen -G "$CACHE/pkgs/$pkg_name-${pkg_vers[$pkg_name]}-*.pkg.tar.*" || true) \
+            && (( ${#built[@]} )) \
+            && pacman -U --noconfirm --ask 6 "${built[@]}" ; then
             rm -rf "$pkg_workdir" "$pkg_log"
         else
             echo "Deferring $pkg_name; last makepkg output:" >&2

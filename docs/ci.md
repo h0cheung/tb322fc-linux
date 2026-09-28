@@ -27,18 +27,17 @@ Linux 的 Android v4 `boot.img` 和带 KDE Plasma 的 ext4 `rootfs.img`。
 
 `sources.json` 的 kernel URL 已指向
 [tb322fc-linux-kernel](https://github.com/h0cheung/tb322fc-linux-kernel)，
-内核更新为 2026-09-24 核对的 `v7.2-elden` 最新提交
-`ba28ec16f01f59ba8f5099e8af9e95b061fc5c78` 及对应树哈希。仍固定具体提交，
+内核更新为 2026-09-28 核对的 `v7.2-elden` 提交
+`09e220216ce97f5e4118080cc79a1d9379a07d21` 及对应树哈希（WCD9395 音频）。
+仍固定具体提交，
 不会在后续构建时自动追踪移动的分支。Linux 基础版本仍为 7.2，新增的是蓝牙、
 背光、电池等设备补丁；原有实机验证记录不适用于这次更新。
 不需要给 kernel 仓库再加一套 CI，也不需要制作 deb。
 
 启动方式、DTB、`PARTLABEL=rootfs` 和 ext4 配置保持原设计。新加入的
 `android-userdata.config` 等可选配置片段不会自动合并。
-新版蓝牙冷启动还需要 `qca/brhperifw20.tlv`、`qca/brhperinv20.bin` 和
-`qca/tmel_peach_20.elf`；当前 82 文件固件包没有这些文件，不能视为新版蓝牙的
-完整固件集。需要取得匹配的原厂文件及真实哈希后补充清单和 initramfs，
-才能验证蓝牙初始化；其他启动流程不依赖蓝牙成功。
+蓝牙所需的 `qca/brhperifw20.tlv`、`qca/brhperinv20.bin` 和 `qca/tmel_peach_20.elf`
+已列入 `firmware.json` 与 `configs/initramfs.list`，随固件包进入 initramfs。
 
 ## 1. 准备一次性固件输入
 
@@ -101,6 +100,24 @@ Arch 下载签名使用[官方公布的密钥](https://archlinuxarm.org/about/do
 
 `Check build scripts` 在 push / pull request 上独立运行，不需要固件。
 它验证脚本和归档处理，成功不表示镜像已构建或设备已启动。
+
+## 缓存
+
+工作流用三层缓存加速重复构建，命中只影响速度，不影响产物内容：
+
+- **内核产物缓存**：`sources.json`、`configs/**`、`inputs/audio/**` 等一致时，
+  直接复用上次的 `boot.img` / `Image` / 模块产物，跳过内核构建。
+- **ccache**：键包含 `sources.json` 与内核配置，`restore-keys` 前缀命中可跨提交
+  复用。即使内核产物缓存未命中（例如只改了 DTS 或一个配置项），也只需重编译
+  改动的目标，而不是从零开始。ccache 不改变编译输出，可复现性不变。
+- **rootfs 包缓存**：缓存 makepkg 的 `SRCDEST` 下载、已构建的包，以及 4 个 meson
+  组件（hexagonrpc / libssc / iio-sensor-proxy / libcamera）的安装产物。缓存用
+  “依赖戳”把关：对仓库包依赖与 meson 构建依赖执行 `pacman -Q` 取哈希，滚动发行版
+  升级到相关 ABI 包（如 libdrm、llvm）时依赖戳变化，自动丢弃已编译缓存并重新
+  构建；无关包的升级不影响缓存。
+
+缓存键已包含 `packages/**`、`sources.json` 与构建脚本，改动这些文件会自然使对应
+缓存失效。
 
 ## 3. 下载与启动
 

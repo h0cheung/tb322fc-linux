@@ -58,7 +58,10 @@ sources/kernel/scripts/config --file build/kernel/.config \
     --set-str INITRAMFS_SOURCE "$PROJECT/build/initramfs.cpio" \
     --set-str EXTRA_FIRMWARE_DIR "$FIRMWARE_DIR"
 make -C sources/kernel O="$PROJECT/build/kernel" ARCH=arm64 LLVM=1 olddefconfig
+# build-kernel.sh may hand us a ccache-wrapped compiler; a plain local run just
+# uses clang.
 make -C sources/kernel O="$PROJECT/build/kernel" ARCH=arm64 LLVM=1 \
+    CC="${KERNEL_CC:-clang}" \
     -j"${JOBS:-12}" Image qcom/sm8750-lenovo-elden.dtb
 cp build/kernel/arch/arm64/boot/Image artifacts/Image
 cp build/kernel/arch/arm64/boot/dts/qcom/sm8750-lenovo-elden.dtb artifacts/sm8750-lenovo-elden.dtb

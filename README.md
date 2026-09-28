@@ -11,9 +11,9 @@ Userspace changes are included as patches against pinned public sources.
 
 ## Hardware support
 
-The results below describe the original device-tested baseline. The CI now pins
-the newer kernel revision `ba28ec16`, which still needs build/device validation;
-its Bluetooth setup also needs [three additional firmware files](docs/firmware.md#newer-kernel-bluetooth-firmware).
+The results below describe the device-tested baseline, refreshed for the current
+kernel pin `09e22021`. Bluetooth, suspend (s2idle) and the built-in microphone
+have since been verified on hardware; hibernation to disk is untested.
 
 | Component | Status | Notes |
 | --- | --- | --- |
@@ -22,12 +22,13 @@ its Bluetooth setup also needs [three additional firmware files](docs/firmware.m
 | Touch | Working | Novatek NT36536 |
 | GPU | Working | Adreno 830 with Mesa Turnip and Zink |
 | Wi-Fi | Working | Qualcomm Peach / ath12k |
-| Bluetooth | Partial | Firmware loads; discovery has failed testing |
+| Bluetooth | Working | QCA UART firmware load, discovery and pairing |
 | Speakers | Working | AW88461; supplied AudioReach topology and UCM |
+| Microphone | Working | Built-in analog capture (AMIC1/AMIC4 via the WCD9395) |
 | Haptics | Working | Two AW86927-family devices; force-feedback replay |
 | Accelerometer / gyro / light | Working | ADSP/SSC; patched sensor services required |
 | Cameras | Partial | Front/rear capture works; camera application and tuning work remains |
-| Suspend | Unreliable | USB-attached sleep can abort; historical wake tests passed |
+| Suspend | Working | s2idle on USB-attached sleep; hibernate-to-disk untested |
 | Battery / charging | Partial | Charger wake and power/reporting issues remain |
 
 See the [support matrix](docs/hardware.md) for test scope and unverified features.

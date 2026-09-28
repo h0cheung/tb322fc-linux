@@ -34,18 +34,18 @@ patches, and verifies each resulting Git tree. No unpublished commit is needed.
 Existing source directories are never reset or overwritten. To fetch just the
 kernel and topology macros, pass `kernel audioreach-topology wireless-regdb` as arguments.
 
-The kernel is pinned to `ba28ec16f01f59ba8f5099e8af9e95b061fc5c78`, the
-`v7.2-elden` branch tip checked on 2026-09-24 in the kernel fork. It is still
+The kernel is pinned to `09e220216ce97f5e4118080cc79a1d9379a07d21`, the
+`v7.2-elden` tip checked on 2026-09-28 in the kernel fork (the WCD9395 audio
+commit). It is still
 based on Linux 7.2, with newer device patches. The exact commit and tree stay
 pinned so later branch changes cannot silently change a build. Patched userspace
 source trees intentionally have staged changes; their expected post-patch trees
 are in the manifest.
 
-This kernel revision has not been built or tested on hardware by this CI work.
-The existing [validation record](validation.md) applies to the older baseline.
-No boot argument or DTB selection changes are needed, but the newer Bluetooth
-initialization requests [additional stock firmware](firmware.md#newer-kernel-bluetooth-firmware)
-that is absent from the original firmware manifest.
+The pinned revision has been built and booted on hardware. The historical
+[validation record](validation.md) still covers the older baseline. No boot
+argument or DTB selection changes are needed, and the Bluetooth firmware is part
+of the standard manifest.
 
 ## Firmware and topology
 

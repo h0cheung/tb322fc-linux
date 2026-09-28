@@ -1,8 +1,8 @@
 {
   "kernel": {
     "url": "https://github.com/h0cheung/tb322fc-linux-kernel.git",
-    "commit": "b56295cfe5a458514b2313ac17ff9f1de2ef8ba0",
-    "tree": "3fc48a6e7609c37531ed531098bd0a59180b961f"
+    "commit": "09e220216ce97f5e4118080cc79a1d9379a07d21",
+    "tree": "a00fb0351bb979b203057e60a266d71c46c06bb2"
   },
   "libcamera": {
     "url": "https://gitlab.freedesktop.org/camera/libcamera.git",

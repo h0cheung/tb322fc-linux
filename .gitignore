@@ -3,5 +3,6 @@
 !/inputs/audio/
 /artifacts/
 /sources/
+/.ccache/
 __pycache__/
 *.pyc

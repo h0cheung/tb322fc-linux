@@ -1,11 +1,13 @@
 # Maintainer: h0cheung <hcheunh@gmail.com>
+# Upstream: https://github.com/armada-os/armada (GPL-2.0-or-later, Copyright the Armada contributors;
+# the bundled Valve Steam client keeps Valve's own terms).
 pkgname=steam-bootstrap
 pkgver=1788652215
 pkgrel=5
 pkgdesc="Fetch and bootstrap Valve's official ARM64 Steam client into the user's home"
 arch=('aarch64')
-url="https://github.com/ArmadaOS/armada"
-license=('MIT')
+url="https://github.com/armada-os/armada"
+license=('GPL-2.0-or-later')
 depends=('python' 'curl' 'unzip' 'xorg-server-xvfb' 'file' 'gtk2' 'openal' 'lsof')
 # The manifest pins every client package by SHA256, so the bootstrap state is
 # reproducible; the client self-updates from Valve afterwards. Bump pkgver (and

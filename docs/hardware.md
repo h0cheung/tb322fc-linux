@@ -1,10 +1,9 @@
 # Hardware support
 
 Status reflects actual Y700 Gen4 testing, not just enabled kernel options.
-These are historical baseline results recorded in [validation.json](../validation.json),
-not validation of the newer CI kernel pin. Its WCN7861 Bluetooth setup requires
-[three additional firmware files](firmware.md#newer-kernel-bluetooth-firmware)
-absent from the original firmware bundle.
+The Bluetooth, suspend and microphone entries have been re-verified on hardware
+against the current kernel pin; the older baseline numbers are preserved in
+[validation.json](../validation.json).
 
 | Area | Working | Remaining limits |
 | --- | --- | --- |
@@ -13,14 +12,14 @@ absent from the original firmware bundle.
 | Touch | Built-in NT36536 SPI firmware and input | Physical touch after every suspend scenario is not established |
 | Graphics | Adreno 830, Turnip Vulkan and Zink rendering | No graphics conformance or long stress-test claim |
 | Wi-Fi | ath12k Peach association and SSH transport | Throughput and long-term stability remain unmeasured |
-| Bluetooth | QCA UART firmware load and power-on | Discovery failed; pairing and audio not validated |
-| Audio | AW88461 stereo speaker playback and PCM progress; SD1 AudioReach routing | Microphone/headset routes not validated |
+| Bluetooth | QCA UART firmware load, discovery and pairing | Bluetooth audio profiles are not exhaustively tested |
+| Audio | AW88461 stereo speaker playback; built-in microphone capture (AMIC1/AMIC4 via the WCD9395); SD1 AudioReach routing | Headset routes not validated |
 | Haptics | Both motors, bounded force-feedback replay and cleanup | Arbitrary audio waveform streaming is not a production API |
 | Sensors | Accelerometer, gyro and ambient-light samples over SSC | Physical desktop rotation and compass accuracy need validation |
 | Cameras | S5KJNS rear, GC08A8 front, GT9764 actuator, CAMSS capture | Generic autofocus calibration, colour processing and still-image workflow remain incomplete |
 | USB | Qualcomm controller and role-switch support | ADB requires a rootfs daemon/gadget setup; not supplied by the initramfs |
 | Power / thermal | CPU/GPU scaling and cooling controls | Long-term standby power not measured |
-| Suspend | Successful earlier RTC wake cycles and abort recovery | USB-attached sleep can abort with EBUSY; not reliable |
+| Suspend | s2idle on USB-attached sleep, wake and abort recovery | Hibernation to disk is untested |
 | Battery / charging | Battery-manager communication and existing charging control | PC USB discharge, reporting discrepancies and charger wake behavior remain open |
 | Buttons | Kernel input definitions | Physical volume-event checks incomplete |
 

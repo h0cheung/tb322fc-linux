@@ -22,6 +22,22 @@ export KBUILD_BUILD_USER=${KBUILD_BUILD_USER:-builder}
 export KBUILD_BUILD_HOST=${KBUILD_BUILD_HOST:-tb322fc-ci}
 export KBUILD_BUILD_VERSION=1
 
+# Cache compiler output so a partial change (a DTS tweak, a config option) does
+# not pay for a full kernel rebuild. The object tree is still removed below;
+# ccache keys on the preprocessed source, so it works from a clean build dir.
+# CCACHE_BASEDIR is deliberately unset: the CI workspace path is stable, and
+# rewriting paths would change the compiled output.
+KERNEL_CC=clang
+if command -v ccache >/dev/null 2>&1; then
+    KERNEL_CC="ccache clang"
+    export CCACHE_DIR="$PROJECT/.ccache"
+    export CCACHE_MAXSIZE=2G
+    export CCACHE_COMPILERCHECK=content
+    export CCACHE_SLOPPINESS=file_stat_matches
+    mkdir -p "$CCACHE_DIR"
+fi
+export KERNEL_CC
+
 # These directories contain only generated output. A clean object tree avoids
 # stale modules or configuration surviving a rerun with a different source pin.
 rm -rf -- build/kernel build/busybox build/kernel-modules
@@ -83,7 +99,7 @@ with Path('artifacts/boot.img').open('rb') as stream:
 print('Verified Android v4 boot.img and signed AVB0 footer (96MB).')
 PY
 
-kernel_make=(make -C sources/kernel O="$PROJECT/build/kernel" ARCH=arm64 LLVM=1)
+kernel_make=(make -C sources/kernel O="$PROJECT/build/kernel" ARCH=arm64 LLVM=1 CC="$KERNEL_CC")
 "${kernel_make[@]}" -j"$JOBS" modules
 release=$("${kernel_make[@]}" --no-print-directory -s kernelrelease)
 [[ "$release" =~ ^[A-Za-z0-9._+-]+$ ]] || { echo "Invalid kernel release: $release" >&2; exit 1; }

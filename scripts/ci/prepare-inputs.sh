@@ -12,8 +12,8 @@ curl --fail --location --retry 5 --proto '=https' --proto-redir '=https' \
 printf '%s  %s\n' "$FIRMWARE_SHA256" build/firmware.tar.gz.part | sha256sum --check -
 mv build/firmware.tar.gz.part build/firmware.tar.gz
 python3 scripts/ci/firmware-bundle.py unpack build/firmware.tar.gz inputs/firmware
-# The bundle's audio topology predates WCD9395 mic capture support; rebuild it
-# from the tracked source with the same script a local build uses.
-bash scripts/build-topology.sh
+# The generated audio topology is compiled later, once the host build tools are
+# installed (scripts/build-topology.sh needs alsatplg), so this early check
+# stays runnable before the dependency install.
 # Do not publish the input URL: it can contain temporary download credentials.
 printf 'firmware_bundle_sha256=%s\n' "$FIRMWARE_SHA256" > artifacts/firmware-input.txt

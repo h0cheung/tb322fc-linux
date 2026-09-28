@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Compile the tracked AudioReach topology source into the firmware tree.
-# Shared by scripts/ci/prepare-inputs.sh and local builds so they cannot drift.
+# Used by the CI build (a dedicated step) and local builds so they cannot drift.
 set -euo pipefail
 PROJECT=$(cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$PROJECT"

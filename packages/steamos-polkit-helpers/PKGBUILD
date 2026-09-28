@@ -3,6 +3,7 @@
 # that would otherwise degrade silently (GPU clock/perf-level writes, backlight
 # steering, timezone picker). GPU writes are translated into armada-power
 # commands instead of raw sysfs (freedreno exposes no amdgpu-style nodes).
+# Upstream: https://github.com/armada-os/armada (GPL-2.0-or-later, Copyright the Armada contributors)
 
 pkgname=steamos-polkit-helpers
 pkgver=1.0.0
@@ -10,7 +11,7 @@ pkgrel=1
 pkgdesc="SteamOS pkexec helpers (priv-write, set-timezone) with armada-power translation"
 arch=('aarch64')
 url="https://github.com/h0cheung/tb322fc-linux"
-license=('MIT')
+license=('GPL-2.0-or-later')
 depends=('polkit' 'armada-control' 'armada-powerd')
 
 package() {

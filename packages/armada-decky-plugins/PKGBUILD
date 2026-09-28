@@ -8,13 +8,14 @@
 # the Install action is hidden for system apps, and /etc/armada-store/
 # catalog.json can override the catalog (the plugin dir is re-seeded from
 # /usr/share/decky-plugins on every boot by armada-decky-sync).
+# Upstream: https://github.com/armada-os/armada (GPL-2.0-or-later, Copyright the Armada contributors)
 pkgname=armada-decky-plugins
 pkgver=20260928
 pkgrel=1
 pkgdesc="ArmadaOS Decky plugins (armada-control, armada-store) for the Steam Deck UI"
 arch=('aarch64')
-url="https://gitlab.com/armadaproject"
-license=('MIT')
+url="https://github.com/armada-os/armada"
+license=('GPL-2.0-or-later')
 depends=('armada-control' 'decky-loader' 'python')
 makedepends=('nodejs' 'npm')
 install=armada-decky-plugins.install
