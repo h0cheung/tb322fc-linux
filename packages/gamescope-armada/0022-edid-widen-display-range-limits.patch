@@ -1,0 +1,46 @@
+diff --git a/src/edid.cpp b/src/edid.cpp
+index 6c835ce..8bf8169 100644
+--- a/src/edid.cpp
++++ b/src/edid.cpp
+@@ -446,12 +446,35 @@ namespace gamescope
+         edid[0x21] = wx >> 2;
+         edid[0x22] = wy >> 2;
+ 
+-        // The template's 45-90Hz range limits contradict the real mode; blanking it
+-        // also requires clearing the continuous-frequency bit, which mandates one.
+-        edid[0x18] &= ~0x01;
+-        uint8_t *dummyDescriptor = &edid[0x5a];
+-        std::fill( dummyDescriptor, dummyDescriptor + EDID_BYTE_DESCRIPTOR_SIZE, 0 );
+-        dummyDescriptor[3] = 0x10;
++        // The template's 45-90Hz range limits contradict the real mode. Replace it
++        // with the range the session actually supports (STEAM_DISPLAY_REFRESH_LIMITS,
++        // e.g. "24,165") so Steam's refresh-rate slider spans the full panel range.
++        // The real mode still comes from the kernel, so the DTD pixel-clock clamp
++        // does not affect which refresh rates can be switched to.
++        uint8_t *rangeDescriptor = &edid[0x5a];
++        std::fill( rangeDescriptor, rangeDescriptor + EDID_BYTE_DESCRIPTOR_SIZE, 0 );
++        uint32_t uMinRefresh = 0, uMaxRefresh = 0;
++        if ( const char *pLimits = getenv( "STEAM_DISPLAY_REFRESH_LIMITS" ) )
++            sscanf( pLimits, "%u,%u", &uMinRefresh, &uMaxRefresh );
++
++        if ( uMinRefresh && uMaxRefresh && uMinRefresh <= uMaxRefresh && uMaxRefresh <= 255 )
++        {
++            rangeDescriptor[3] = 0xfd;
++            rangeDescriptor[4] = (uint8_t)uMinRefresh;                    // min vertical Hz
++            rangeDescriptor[5] = (uint8_t)uMaxRefresh;                    // max vertical Hz
++            rangeDescriptor[6] = 0x01;                                    // min horizontal kHz
++            rangeDescriptor[7] = 0xff;                                    // max horizontal kHz
++            rangeDescriptor[8] = 0xff;                                    // max pixel clock, 10 MHz units
++            rangeDescriptor[9] = 0x00;                                    // no secondary GTF
++            std::fill( rangeDescriptor + 10, rangeDescriptor + EDID_BYTE_DESCRIPTOR_SIZE, 0x20 );
++        }
++        else
++        {
++            rangeDescriptor[3] = 0x10;
++            // Blanking the range limits also requires clearing the
++            // continuous-frequency bit, which mandates one.
++            edid[0x18] &= ~0x01;
++        }
+ 
+         // Keep a valid, empty CTA extension so display policy can add metadata
+         // without replacing this baseline EDID.

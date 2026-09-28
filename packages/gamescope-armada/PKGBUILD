@@ -1,0 +1,208 @@
+# Maintainer: h0cheung <hcheunh@gmail.com>
+# Arch aarch64 build of the OpenGamingCollective (OGC) gamescope fork at the
+# revision ArmadaOS ships, plus the twenty patches ArmadaOS carries on top.
+#
+# Why not Arch's own gamescope: the Y700's internal DSI panel exposes no EDID,
+# so upstream's CDRMConnector::ParseEDID() bails out early and never populates
+# ValidDynamicRefreshRates. wlserver then advertises only the single current
+# mode, which is why Steam shows no refresh-rate selector at all and the frame
+# limiter stops at 120 Hz. ArmadaOS fixes that with a synthetic-EDID path and
+# known-display profiles (patches 0002/0003) and layers its HDR / DRM-lease
+# work (0004-0017) and a few arm64 fixes on the same fork. All twenty of those
+# are written against this exact fork revision, so the fork is the base rather
+# than a backport target. 0021 is local: the synthetic-EDID generator rejected
+# any mode whose pixel clock did not fit EDID's 16-bit field, and the Y700's
+# 1904x3040@120 runs at 915.6 MHz, so without it none of the above takes effect.
+#
+# Renamed build: the package carries -armada and stands in for "gamescope" via
+# provides/conflicts/replaces, so a rolling Arch Linux ARM update cannot clobber
+# the patched compositor (same scheme as mesa-y700-gen4). The file capabilities
+# are applied by the rootfs tmpfiles entry, not here, because makepkg runs
+# unprivileged.
+_pkgname=gamescope
+_commit=4b50dd7a719c09acb1a0141ff6eac9dab1ab4f2f # tag 3.16.29-ogc2
+pkgname=gamescope-armada
+pkgver=3.16.29.ogc2
+pkgrel=1
+pkgdesc="SteamOS session compositing window manager (OGC fork, ArmadaOS patches)"
+arch=('aarch64')
+url="https://github.com/OpenGamingCollective/gamescope"
+license=('BSD-2-Clause' 'BSD-3-Clause' 'LicenseRef-Reshade')
+depends=(
+    glibc
+    libstdc++
+    libgcc
+    hwdata
+    lcms2
+    libavif
+    libcap.so
+    libdecor
+    libdrm
+    libei
+    libinput
+    libpipewire-0.3.so
+    libx11
+    libxcb
+    libxcomposite
+    libxcursor
+    libxdamage
+    libxext
+    libxfixes
+    libxi
+    libxkbcommon.so
+    libxmu
+    libxrender
+    libxres
+    libxtst
+    libxxf86vm
+    luajit
+    pixman
+    sdl2
+    seatd
+    systemd-libs
+    vulkan-icd-loader
+    wayland
+    xcb-util-errors
+    xcb-util-wm
+    xorg-server-xwayland
+)
+# The compositor bundles wlroots, libliftoff, libdisplay-info, vkroots, openvr,
+# reshade and SPIRV-Headers as meson subprojects (see force_fallback_for below),
+# so those are build-time sources, not dependencies.
+makedepends=(
+    benchmark
+    catch2
+    cmake
+    git
+    glslang
+    meson
+    ninja
+    vulkan-headers
+    wayland-protocols
+)
+source=(
+    "git+$url.git#commit=$_commit"
+    # Subprojects are pinned to this fork's own gitlinks and supplied as
+    # separate sources; prepare() repoints the submodule URLs at them so the
+    # build never fetches anything mid-meson.
+    'git+https://github.com/Joshua-Ashton/GamescopeShaders.git#commit=359e480c548fc3a38a612da2de314980c8329983' # tag v0.1
+    'git+https://github.com/Joshua-Ashton/reshade.git#commit=696b14cd6006ae9ca174e6164450619ace043283'
+    'git+https://github.com/Joshua-Ashton/vkroots.git#commit=5106d8a0df95de66cc58dc1ea37e69c99afc9540'
+    'git+https://github.com/KhronosGroup/SPIRV-Headers.git#commit=d790ced752b5bfc06b6988baadef6eb2d16bdf96'
+    'git+https://github.com/ValveSoftware/openvr.git#commit=ff87f683f41fe26cc9353dd9d9d7028357fd8e1a'
+    'git+https://gitlab.freedesktop.org/emersion/libdisplay-info.git#commit=c67a3e9bedb05ab61c7443704a1a107e76254595'
+    'git+https://gitlab.freedesktop.org/emersion/libliftoff.git#commit=8b08dc1c14fd019cc90ddabe34ad16596b0691f4'
+    'git+https://gitlab.freedesktop.org/wlroots/wlroots.git#commit=d783533489e1f75d6886c2ab5c5960090ef268f8'
+    0001-steamcompmgr-fallback-appid-focus.patch
+    0002-drm-synthesize-edid-for-edidless-internal-panels.patch
+    0003-drm-support-known-display-profiles-for-edidless-panels.patch
+    0004-drm-compose-gamma22-hdr-without-hardware-color-management.patch
+    0005-wsi-filter-hdr-formats-by-underlying-support.patch
+    0006-color-scale-sdr-white-on-gamma22-hdr-output.patch
+    0007-expose-client-sampleable-formats.patch
+    0008-fix-arm64-steam-night-mode.patch
+    0009-main-add-opt-in-force-vulkan-realtime.patch
+    0010-color-fall-back-to-app-hdr-metadata-for-tonemapping.patch
+    0011-wlserver-implement-drm-lease-v1.patch
+    0012-wsi-layer-pass-through-display-surface-swapchains.patch
+    0013-feat-drm-run-a-compositor-from-the-leased-output.patch
+    0014-wlserver-always-swallow-ignored-touch-device.patch
+    0015-drm-blank-leased-connector-on-release.patch
+    0016-drm-let-a-socket-lease-holder-yield-to-protocol-clients.patch
+    0017-drm-sdr-color-management-through-dpu-output-luts.patch
+    0018-steamcompmgr-arm64-virtual-white.patch
+    0019-color-p3-red-is-wide-gamut.patch
+    0020-libliftoff-fix-multiple-primary-plane-stacking.patch
+    0021-drm-clamp-synthetic-edid-pixel-clock.patch
+    0022-edid-widen-display-range-limits.patch
+)
+sha256sums=(
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    '611989049383b9d3a5d30f908a5dbe164c7ee5a4d451bebb9c108d6ba9a2d02b'
+    'd60c38f35e7dde79e20acb01a1666671b7abdf250ce5997dcfdb0866ff69dbe2'
+    'd639ea9070de5ad7e500a0377827004f7a48360fc92f917f2cee5f50bc06d365'
+    'f0ba25b5c28e138aa5075d4e053c8b0a818e22fc890025803a66bfa1d003cdf9'
+    'c690d73870e96b82853f0c98f6f1bc87fb9717a971351225a7bf03512eeb39c3'
+    '0c0d40fedf343d5d306d74046aa961d8d2cdc4025cc5254c0517a5ea000436cf'
+    'ee897b0a565ff36b2220f84a32f2f4024ea7fb5e5df967fffa5e3fdc5f144e6a'
+    '201ca8388f5376f03e5d001b3dbb8e5c404b38b81d443f456ae4fac17365866e'
+    'f48a38311e529288a032b298ae8f6ba06450aee1ded46defcf274a7da9b06a15'
+    'df12ed81efa245a642a62a1b724fb76ec6a0234aaedc9f75ce1f9f3f7b93827d'
+    'ecb845fbbfb9d0161977718ae90837ccf11070fb2ea255b255f37b2371e25c5f'
+    '4fd7fa651093164a87fb42adf1fabc66a5402b83c729b26382e2c2ee52814e94'
+    'f79f309df9ac11743a438f35feef6cce864cb47ebf93c012cfe69fd123d24899'
+    '3222ee686fa87c9e059f3aca4ec077a104396df7e8d6f52054342674df28f126'
+    'ac4ca460f67bbce04b59396794cd0fca8e5a806da796c424498292e295c3d774'
+    'abd2308c5d8e66478c5eab65b38cadab11200807d57dab3641286354983f30e5'
+    '35b7efa70d7d4033855de7514769a19e07a0e6689414e3668a9c379aaee9a073'
+    '2eb8d5e6a8e8c97be18771cd80c5680dd924646b87c854f5e8e047edb78978cd'
+    '13211242ab9a04d5d76d85326b77b3f972e106fddebb6f45ae1ad43c7b178b14'
+    'a195edfee890c5c2976742104e52c6ca31463d7368a94d2b2d5d303417d82938'
+    '752c0af39c9fef258870c1ac1d7cf90d645c4d94c9e0fba445724a5e73b8da5b'
+    'dcf954cec741f19e7dd678cd46c48fc00b97d231bb0b444e46684382ff4ccc64'
+)
+# tb322fc: renamed build; stand in for the repo package at any version, since
+# the fork's 3.16.29.ogc2 sorts below the stock 3.16.30.
+provides=('gamescope')
+conflicts=('gamescope')
+replaces=('gamescope')
+
+prepare() {
+    cd "$_pkgname"
+
+    # glm and stb come from wrap files, not git submodules.
+    meson subprojects download
+
+    # Repoint every submodule at the pinned source makepkg already unpacked.
+    local submodule
+    for submodule in src/reshade \
+        subprojects/{libdisplay-info,libliftoff,openvr,vkroots,wlroots} \
+        thirdparty/SPIRV-Headers; do
+        git submodule init "$submodule"
+        git config "submodule.$submodule.url" "../${submodule##*/}"
+    done
+    git -c protocol.file.allow=always submodule update
+
+    # 0020 patches libliftoff, so this has to follow the submodule checkout.
+    local patch
+    for patch in "$srcdir"/*.patch; do
+        msg2 "Applying $(basename "$patch")"
+        patch -Np1 -i "$patch"
+    done
+}
+
+build() {
+    # The bundled openvr subproject's CMakeLists predates CMake 4 policy checks.
+    export CMAKE_POLICY_VERSION_MINIMUM=3.5
+
+    cd "$_pkgname"
+    # wlroots is forced to the subproject too: the fork wants wlroots-0.20 and
+    # no distro package provides it.
+    arch-meson . build \
+        -Dforce_fallback_for=glm,stb,libdisplay-info,libliftoff,vkroots,wlroots \
+        -Dpipewire=enabled
+    meson compile -C build
+}
+
+package() {
+    cd "$_pkgname"
+
+    # ReShade effect shaders are runtime data the compositor looks for under
+    # <prefix>/share/gamescope/reshade/Shaders.
+    install -d "$pkgdir/usr/share/gamescope/reshade"
+    cp -r "$srcdir"/GamescopeShaders/* "$pkgdir/usr/share/gamescope/reshade/"
+    chmod -R 755 "$pkgdir/usr/share/gamescope"
+
+    meson install -C build --skip-subprojects --destdir "$pkgdir"
+
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    install -Dm644 "$srcdir"/reshade/LICENSE.md "$pkgdir/usr/share/licenses/$pkgname/LICENSE.reshade"
+}

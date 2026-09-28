@@ -1,0 +1,48 @@
+From: h0cheung <hcheunh@gmail.com>
+Subject: [PATCH] drm: clamp the synthetic EDID pixel clock to the DTD limit
+
+The synthetic EDID generator bails out when the preferred mode's pixel clock
+exceeds 655.35 MHz, because an EDID detailed timing stores it in a 16-bit
+field of 10 kHz units. The Y700's panel is 1904x3040 and its 120 Hz mode runs
+at 915.6 MHz, so every mode is rejected, the connector keeps no EDID, and
+ParseEDID returns before it ever fills ValidDynamicRefreshRates - Steam then
+sees a single refresh rate and hides the selector entirely.
+
+The detailed timing only describes the panel to EDID readers; the mode itself
+comes from the kernel and the refresh list is collected from the connector's
+kernel modes. Cap the clock instead of dropping the whole EDID.
+---
+ src/edid.cpp | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/src/edid.cpp b/src/edid.cpp
+index 6c835ce..740bfd7 100644
+--- a/src/edid.cpp
++++ b/src/edid.cpp
+@@ -363,7 +363,7 @@ namespace gamescope
+ 
+     std::vector<uint8_t> GenerateSimpleEdid( const EdidModeInfo &mode )
+     {
+-        if ( !mode.clockKHz || mode.clockKHz > 655350 ||
++        if ( !mode.clockKHz ||
+              !mode.hdisplay || mode.hdisplay > 4095 ||
+              mode.hsyncStart < mode.hdisplay || mode.hsyncEnd < mode.hsyncStart || mode.htotal < mode.hsyncEnd ||
+              !mode.vdisplay || mode.vdisplay > 4095 ||
+@@ -391,8 +391,15 @@ namespace gamescope
+         const uint32_t vsyncOffset = std::min<uint32_t>( mode.vsyncStart - mode.vdisplay, 63 );
+         const uint32_t vsyncWidth = std::clamp<uint32_t>( mode.vsyncEnd - mode.vsyncStart, 1, 63 );
+ 
+-        const uint32_t pixelClock10KHz = ( mode.clockKHz + 5 ) / 10;
+-        if ( !pixelClock10KHz || pixelClock10KHz > UINT16_MAX )
++        // The DTD pixel-clock field is 16-bit in 10 kHz units, so a timing above
++        // 655.35 MHz cannot be encoded. A 3K panel at a high refresh needs more
++        // (the Y700's 1904x3040@120 is 915.6 MHz), and rejecting it here would
++        // drop the whole synthetic EDID and, with it, every refresh rate the
++        // connector advertises. The detailed timing only describes the panel to
++        // EDID readers - the mode itself comes from the kernel - so cap the
++        // clock instead of failing the mode.
++        const uint32_t pixelClock10KHz = std::min<uint32_t>( ( mode.clockKHz + 5 ) / 10, UINT16_MAX );
++        if ( !pixelClock10KHz )
+             return {};
+ 
+         std::vector<uint8_t> edid = GenerateSimpleEdid( mode.hdisplay, mode.vdisplay );
