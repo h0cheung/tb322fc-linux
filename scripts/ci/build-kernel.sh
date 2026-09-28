@@ -101,6 +101,11 @@ PY
 
 kernel_make=(make -C sources/kernel O="$PROJECT/build/kernel" ARCH=arm64 LLVM=1 CC="$KERNEL_CC")
 "${kernel_make[@]}" -j"$JOBS" modules
+# Out-of-tree modules from this repo ship in the same artifact. The als-bridge
+# module backs Steam's adaptive-brightness switch; its userspace half lives in
+# packages/als-bridge. Building here (not inside the rootfs chroot) keeps the
+# module ABI-matched to this exact kernel without shipping kernel headers.
+"${kernel_make[@]}" -j"$JOBS" M="$PROJECT/packages/als-bridge" modules
 release=$("${kernel_make[@]}" --no-print-directory -s kernelrelease)
 [[ "$release" =~ ^[A-Za-z0-9._+-]+$ ]] || { echo "Invalid kernel release: $release" >&2; exit 1; }
 printf '%s\n' "$release" > artifacts/kernel.release
@@ -112,6 +117,8 @@ trap 'rm -rf -- "$stage"' EXIT
 # Run depmod ourselves before converting the conventional /lib to Arch's /usr/lib.
 "${kernel_make[@]}" INSTALL_MOD_PATH="$stage" INSTALL_MOD_STRIP=1 \
     DEPMOD=true modules_install
+"${kernel_make[@]}" INSTALL_MOD_PATH="$stage" INSTALL_MOD_STRIP=1 \
+    DEPMOD=true M="$PROJECT/packages/als-bridge" modules_install
 for link in build source; do
     path="$stage/lib/modules/$release/$link"
     [[ ! -L "$path" ]] || rm -- "$path"

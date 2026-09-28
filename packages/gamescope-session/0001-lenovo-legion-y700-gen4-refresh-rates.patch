@@ -2,7 +2,7 @@ diff --git a/usr/share/gamescope-session-plus/device-quirks b/usr/share/gamescop
 index 6599b04..59b5663 100644
 --- a/usr/share/gamescope-session-plus/device-quirks
 +++ b/usr/share/gamescope-session-plus/device-quirks
-@@ -213,6 +213,17 @@ if [[ ":83E1:" =~ ":$SYS_ID:"  ]]; then
+@@ -213,6 +213,20 @@ if [[ ":83E1:" =~ ":$SYS_ID:"  ]]; then
    export STEAM_DISPLAY_REFRESH_LIMITS=60,144
  fi
  
@@ -15,6 +15,9 @@ index 6599b04..59b5663 100644
 +if [[ "$SYS_ID" == "Lenovo Legion Y700 Gen4"* ]]; then
 +  # Set refresh rate range and enable refresh rate switching
 +  export STEAM_DISPLAY_REFRESH_LIMITS=24,165
++  # Enables the adaptive brightness toggle (Steam checks this env var in
++  # addition to finding an ambient light sensor; see als-bridge).
++  export STEAM_ENABLE_DYNAMIC_BACKLIGHT=1
 +fi
 +
  # Minisforum V3

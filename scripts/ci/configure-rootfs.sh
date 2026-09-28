@@ -416,7 +416,7 @@ for service in systemd-networkd.service systemd-networkd.socket systemd-networkd
         systemctl disable "$service"
     fi
 done
-systemctl enable NetworkManager.service bluetooth.service sddm.service hexagonrpcd-sensors.service armada-powerd.service steamos-manager.service armada-control.service armada-decky-sync.service decky-loader@alarm.service
+systemctl enable NetworkManager.service bluetooth.service sddm.service hexagonrpcd-sensors.service als-bridge.service armada-powerd.service steamos-manager.service armada-control.service armada-decky-sync.service decky-loader@alarm.service
 systemctl set-default graphical.target
 systemctl --global enable pipewire.socket pipewire-pulse.socket wireplumber.service
 

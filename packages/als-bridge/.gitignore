@@ -1,0 +1,11 @@
+# kbuild external-module outputs
+*.cmd
+*.ko
+*.mod
+*.mod.c
+*.mod.o
+*.o
+.o.cmd
+Module.symvers
+modules.order
+.module-common.o

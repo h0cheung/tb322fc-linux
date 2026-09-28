@@ -1,0 +1,29 @@
+# Maintainer: h0cheung <hcheunh@gmail.com>
+# Userspace half of the als-bridge: the kernel module itself is built by
+# scripts/ci/build-kernel.sh from this directory and ships inside the
+# kernel-modules artifact, so this package installs only the daemon, the
+# service unit and the modules-load.d entry.
+pkgname=als-bridge
+pkgver=20260929
+pkgrel=1
+pkgdesc="Mirror SensorProxy ambient-light levels into the als-bridge sysfs IIO device so Steam can offer adaptive brightness"
+arch=('any')
+license=('GPL-2.0')
+depends=('python-gobject')
+source=(
+    'als-bridge-daemon.py'
+    'als-bridge.service'
+)
+sha256sums=(
+    'SKIP'
+    'SKIP'
+)
+
+package() {
+    install -Dm755 "$srcdir/als-bridge-daemon.py" "$pkgdir/usr/lib/alsbridge/als-bridge-daemon.py"
+    install -Dm644 "$srcdir/als-bridge.service" "$pkgdir/usr/lib/systemd/system/als-bridge.service"
+    # Loaded through the regular modules-load machinery; depmod has already
+    # indexed /usr/lib/modules/*/updates/ by the time services start.
+    install -Dm644 /dev/null "$pkgdir/usr/lib/modules-load.d/als-bridge.conf"
+    printf 'als-bridge\n' > "$pkgdir/usr/lib/modules-load.d/als-bridge.conf"
+}
