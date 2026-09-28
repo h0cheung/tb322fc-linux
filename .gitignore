@@ -1,5 +1,6 @@
 /build/
-/inputs/
+/inputs/*
+!/inputs/audio/
 /artifacts/
 /sources/
 __pycache__/
