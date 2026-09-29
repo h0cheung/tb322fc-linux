@@ -13,6 +13,10 @@
 # than a backport target. 0021 is local: the synthetic-EDID generator rejected
 # any mode whose pixel clock did not fit EDID's 16-bit field, and the Y700's
 # 1904x3040@120 runs at 915.6 MHz, so without it none of the above takes effect.
+# 0023 is local too: the touch-to-connector association only recognised an i2c
+# or usb udev ancestor, so the Y700's SPI digitizer was never tied to the
+# internal connector and the panel-orientation transform was skipped for touch,
+# leaving it rotated 90 degrees against the portrait-native panel.
 #
 # Renamed build: the package carries -armada and stands in for "gamescope" via
 # provides/conflicts/replaces, so a rolling Arch Linux ARM update cannot clobber
@@ -115,6 +119,7 @@ source=(
     0020-libliftoff-fix-multiple-primary-plane-stacking.patch
     0021-drm-clamp-synthetic-edid-pixel-clock.patch
     0022-edid-widen-display-range-limits.patch
+    0023-wlserver-associate-spi-touchscreen.patch
 )
 sha256sums=(
     'SKIP'
@@ -148,6 +153,7 @@ sha256sums=(
     'a195edfee890c5c2976742104e52c6ca31463d7368a94d2b2d5d303417d82938'
     '752c0af39c9fef258870c1ac1d7cf90d645c4d94c9e0fba445724a5e73b8da5b'
     'dcf954cec741f19e7dd678cd46c48fc00b97d231bb0b444e46684382ff4ccc64'
+    '25cdbb5434810ad461d02ec1ff3e95d496e0db1ae4b3daf8864f1b60c066165b'
 )
 # tb322fc: renamed build; stand in for the repo package at any version, since
 # the fork's 3.16.29.ogc2 sorts below the stock 3.16.30.
