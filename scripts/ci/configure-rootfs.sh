@@ -13,6 +13,14 @@ JOBS=${JOBS:-$(nproc)}
 # Disable CheckSpace in chroot where cachedir mount point cannot be probed via /proc/mounts.
 sed -i 's/^[[:space:]]*CheckSpace/#CheckSpace/' /etc/pacman.conf
 
+# The ALARM bootstrap carries the distro's own linux-aarch64 kernel and its
+# initramfs tooling. This image boots the kernel and module tree built by this
+# repository instead (extracted from kernel-modules.tar.gz below), so neither
+# is ever used - and mkinitcpio's autodetect hook cannot work inside the build
+# chroot, aborting with "failed to detect root filesystem" on every kernel
+# upgrade. Drop them before the rolling upgrade would touch the kernel.
+pacman -Rcns --noconfirm linux-aarch64 mkinitcpio
+
 # Keep package signatures enabled. The authenticated bootstrap contains the
 # distro keyring; update it before the full rolling-release upgrade.
 pacman-key --init
@@ -175,6 +183,10 @@ cat >> /etc/pacman.conf <<'EOF'
 SigLevel = Optional TrustAll
 Server = https://github.com/h0cheung/tb322fc-linux/releases/download/repository
 EOF
+# Fetch that database now. pacman refuses to prepare *any* transaction while a
+# configured sync database is still missing ("could not find database"), and
+# the build loop below installs dependencies with plain `pacman -S`.
+pacman -Sy --noconfirm
 
 # Allow building AUR/local packages that only specify x86_64 in PKGBUILD arch array.
 echo 'IGNOREARCH=1' >> /etc/makepkg.conf
