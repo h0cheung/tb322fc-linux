@@ -58,6 +58,16 @@ sources/kernel/scripts/config --file build/kernel/.config \
     --set-str INITRAMFS_SOURCE "$PROJECT/build/initramfs.cpio" \
     --set-str EXTRA_FIRMWARE_DIR "$FIRMWARE_DIR"
 make -C sources/kernel O="$PROJECT/build/kernel" ARCH=arm64 LLVM=1 olddefconfig
+# BTF is derived from DWARF and CONFIG_DEBUG_INFO_BTF is gated on PAHOLE_VERSION,
+# so a host without pahole silently resolves the config down to no BTF - and then
+# CONFIG_SCHED_CLASS_EXT disappears with it, leaving a kernel that armada-powerd's
+# scx_* schedulers cannot load into. Fail the build instead.
+for option in CONFIG_DEBUG_INFO_BTF=y CONFIG_SCHED_CLASS_EXT=y; do
+    grep -qx "$option" build/kernel/.config || {
+        echo "Resolved config lacks $option; install pahole (dwarves)." >&2
+        exit 1
+    }
+done
 # build-kernel.sh may hand us a ccache-wrapped compiler; a plain local run just
 # uses clang.
 make -C sources/kernel O="$PROJECT/build/kernel" ARCH=arm64 LLVM=1 \

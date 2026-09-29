@@ -37,6 +37,7 @@ runtime_packages=(
     alsa-ucm-conf alsa-utils pipewire pipewire-audio pipewire-alsa pipewire-pulse wireplumber
     noto-fonts noto-fonts-cjk fcitx5 fcitx5-chinese-addons fcitx5-configtool fcitx5-qt fcitx5-gtk
     libqmi protobuf-c glib2 libgudev polkit libyaml libevent qt6-base python python-gobject
+    scx-scheds
 )
 build_packages=(
     base-devel linux-api-headers meson ninja git python pkgconf
