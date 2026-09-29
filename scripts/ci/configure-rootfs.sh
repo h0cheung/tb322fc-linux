@@ -86,7 +86,11 @@ dependency_stamp() {
     for dep in glib2 protobuf protobuf-c libdrm libglvnd llvm-libs vala gobject-introspection; do
         wanted[$dep]=1
     done
-    { for dep in "${!wanted[@]}"; do pacman -Q "$dep" 2>/dev/null; done; } | sort | sha256sum | cut -d' ' -f1
+    # Some of these deps are only pulled in later by the build loop, so they may
+    # be absent here. Record a marker instead of a bare `pacman -Q`, which would
+    # make the pipeline return non-zero and (under `set -e`/pipefail) abort the
+    # whole script with no message.
+    { for dep in "${!wanted[@]}"; do pacman -Q "$dep" 2>/dev/null || echo "$dep (missing)"; done; } | sort | sha256sum | cut -d' ' -f1
 }
 
 stamp=$(dependency_stamp)
@@ -98,18 +102,6 @@ else
     mkdir -p "$CACHE/pkgs" "$CACHE/meson"
 fi
 printf '%s\n' "$stamp" > "$CACHE/stamp"
-
-# Package versions include an epoch (1:); compare the upstream version itself.
-# The installed mesa is the -git build that tracks upstream main, so query the
-# -git package names directly.
-for package in mesa-y700-gen4-git vulkan-freedreno-y700-gen4-git; do
-    read -r _ version < <(pacman -Q "$package")
-    upstream=${version#*:}
-    if (( $(vercmp "$upstream" 26.2.1) < 0 )); then
-        echo "$package $version is below this CI's tested Adreno 830 baseline (26.2.1). Use an up-to-date Arch Linux ARM mirror and rebuild." >&2
-        exit 1
-    fi
-done
 
 # Apply verified device firmware after distro package installation. Never copy
 # directory contents from the input bundle that are absent from firmware.json.
@@ -358,25 +350,34 @@ declare -A pkg_paths=()
 declare -A pkg_deps=()
 declare -A pkg_fullver=()
 declare -A pkg_splits=()
+declare -A pkg_dynamic=()
 for pkg_dir in packages/*/; do
     [[ -f "$pkg_dir/PKGBUILD" ]] || continue
-    # The pinned (release-tarball) mesa PKGBUILD coexists here for reference, but
-    # CI must only build the -git variant that tracks upstream main.
-    [[ "$(basename "$pkg_dir")" == mesa-y700-gen4 ]] && continue
+    # $pkgver is only a placeholder when the PKGBUILD defines a pkgver()
+    # function (a VCS package): the real version is computed from the fetched
+    # source at build time and cannot be known here. Flag those so the cache
+    # globs below match by split name instead of the placeholder version.
     mapfile -t info < <(sudo -u alarm bash -c \
-        "source '$pkg_dir/PKGBUILD' && _fv=\"\$pkgver-\$pkgrel\"; (( \${epoch:-0} > 0 )) && _fv=\"\$epoch:\$_fv\"; printf '%s\n%s\n%s\n%s\n' \"\${pkgname[0]}\" \"\$_fv\" \"\${depends[*]} \${makedepends[*]}\" \"\${pkgname[*]}\"")
+        "source '$pkg_dir/PKGBUILD' && _fv=\"\$pkgver-\$pkgrel\"; (( \${epoch:-0} > 0 )) && _fv=\"\$epoch:\$_fv\"; _dyn=0; declare -F pkgver >/dev/null && _dyn=1; printf '%s\n%s\n%s\n%s\n%s\n' \"\${pkgname[0]}\" \"\$_fv\" \"\${depends[*]} \${makedepends[*]}\" \"\${pkgname[*]}\" \"\$_dyn\"")
     pkg_paths[${info[0]}]=$pkg_dir
     pkg_fullver[${info[0]}]=${info[1]}
     pkg_deps[${info[0]}]=${info[2]:-}
     pkg_splits[${info[0]}]=${info[3]}
+    pkg_dynamic[${info[0]}]=${info[4]:-0}
 done
 
-# Collect every split package built for pkgbase $1 (pkg_fullver/$pkg_splits are
-# associative arrays in the caller's scope).
+# Collect every split package built for pkgbase $1 (the pkg_* arrays are in the
+# caller's scope). Dynamic (VCS) packages have a version that is not known until
+# build time, so match their splits by name only.
 _collect_built() {
-    local _s _ff
+    local _s _ff _pattern
     for _s in ${pkg_splits[$1]}; do
-        mapfile -t _ff < <(compgen -G "$CACHE/pkgs/$_s-${pkg_fullver[$1]}-*.pkg.tar.*" || true)
+        if [[ ${pkg_dynamic[$1]:-0} == 1 ]]; then
+            _pattern="$_s-*.pkg.tar.*"
+        else
+            _pattern="$_s-${pkg_fullver[$1]}-*.pkg.tar.*"
+        fi
+        mapfile -t _ff < <(compgen -G "$CACHE/pkgs/$_pattern" || true)
         printf '%s\n' "${_ff[@]}"
     done
 }
@@ -397,10 +398,16 @@ for _pass in 1 2 3; do
         if (( ${#install_list[@]} )); then
             pacman -S --needed --noconfirm "${install_list[@]}"
         fi
-        # Drop cached packages from other versions so the globs below are exact.
+        # Drop stale cached packages so the globs below only see this build's
+        # output. Dynamic (VCS) packages get a fresh pkgver every build, so drop
+        # every cached copy and always rebuild; static ones keep their version.
         for _s in ${pkg_splits[$pkg_name]}; do
-            find "$CACHE/pkgs" -maxdepth 1 -name "$_s-*" \
-                ! -name "$_s-${pkg_fullver[$pkg_name]}-*" -delete 2>/dev/null || true
+            if [[ ${pkg_dynamic[$pkg_name]:-0} == 1 ]]; then
+                find "$CACHE/pkgs" -maxdepth 1 -name "$_s-*" -delete 2>/dev/null || true
+            else
+                find "$CACHE/pkgs" -maxdepth 1 -name "$_s-*" \
+                    ! -name "$_s-${pkg_fullver[$pkg_name]}-*" -delete 2>/dev/null || true
+            fi
         done
         mapfile -t built < <(_collect_built "$pkg_name")
         if (( ${#built[@]} )) && pacman -U --noconfirm --ask 6 "${built[@]}"; then
@@ -427,6 +434,19 @@ for _pass in 1 2 3; do
     pending=("${deferred[@]}")
 done
 (( ${#pending[@]} == 0 )) || { echo "Packages failed to build: ${pending[*]}" >&2; exit 1; }
+
+# The Adreno 830 graphics path is this repo's -git mesa, built and installed by
+# the loop above. Confirm it landed and clears the tested baseline (strip the
+# epoch: pacman versions are 1:...). Checking here, not before the loop, because
+# the -git packages do not exist until they are built.
+for package in mesa-y700-gen4-git vulkan-freedreno-y700-gen4-git; do
+    version=$(pacman -Q "$package" 2>/dev/null | cut -d' ' -f2) || true
+    [[ -n "$version" ]] || { echo "$package was not installed by the build loop" >&2; exit 1; }
+    if (( $(vercmp "${version#*:}" 26.2.1) < 0 )); then
+        echo "$package $version is below this CI's tested Adreno 830 baseline (26.2.1)." >&2
+        exit 1
+    fi
+done
 
 cat > /etc/issue <<'EOF'
 Arch Linux ARM on Lenovo Y700 Gen 4 (TB322FC)

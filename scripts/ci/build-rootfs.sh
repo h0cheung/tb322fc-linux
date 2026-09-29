@@ -138,9 +138,12 @@ chroot "$ROOTFS" /usr/bin/env -i PATH=/usr/bin:/usr/sbin HOME=/root \
 cp "$ROOTFS/usr/share/tb322fc/rootfs.packages" artifacts/rootfs.packages
 cp "$ROOTFS/usr/share/tb322fc/userspace-build.txt" artifacts/userspace-build.txt
 # Hand the updated caches back to the host so the workflow can save them.
+# Replace, do not merge: merging would keep superseded packages from the
+# restored cache (for example an older -git mesa build) and publish-repo.sh
+# would then ship them alongside the freshly built ones.
 if [[ -d "$ROOTFS/var/cache/tb322fc-build" ]]; then
-    mkdir -p build/rootfs-cache
-    cp -a "$ROOTFS/var/cache/tb322fc-build/." build/rootfs-cache/
+    rm -rf build/rootfs-cache
+    cp -a "$ROOTFS/var/cache/tb322fc-build" build/rootfs-cache
 fi
 
 # Stop the keyring daemon before unmounting; pacman-key may leave it running.
