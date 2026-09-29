@@ -3,7 +3,8 @@ set -uo pipefail
 
 command=${ARMADA_SLEEP_DEBUG_COMMAND:-/usr/bin/armada-sleep-debug}
 run_dir=${ARMADA_SLEEP_DEBUG_RUN_ROOT:-/run}/armada/sleep-debug
-report_dir=${ARMADA_SLEEP_DEBUG_REPORT_DIR:-/var/home/armada/Documents/sleep-logs}
+# Defaults to <session user>/Documents/sleep-logs once the owner is resolved.
+report_dir=${ARMADA_SLEEP_DEBUG_REPORT_DIR:-}
 cycle=${2:-${INVOCATION_ID:-}}
 [[ $cycle =~ ^[a-f0-9]{32}$ ]] || exit 0
 
@@ -32,7 +33,13 @@ case "${1:-}" in
         "$command" report "$cycle" >"$report" 2>"$run_dir/$cycle/formatter.stderr" ||
             echo 'report_incomplete=collector failed; partial output retained' >>"$report"
         [[ -s $report ]] || exit 1
-        owner=${ARMADA_SESSION_USER:-armada}
+        owner=${ARMADA_SESSION_USER:-$(/usr/libexec/armada/session-user 2>/dev/null)}
+        home=$(getent passwd "$owner" 2>/dev/null | cut -d: -f6)
+        if [[ -z $owner || -z $home ]]; then
+            echo 'report_incomplete=could not resolve the session user' >>"$report"
+            exit 1
+        fi
+        report_dir=${report_dir:-$home/Documents/sleep-logs}
         parent=$(dirname -- "$report_dir")
         if [[ ! -d $parent ]]; then
             install -d -o "$owner" -g "$owner" -m 0755 -- "$parent" || exit 1

@@ -1,6 +1,8 @@
 from pathlib import Path
 
-STEAM_ROOT = Path.home() / ".local/share/Steam"
+from .paths import user_home
+
+STEAM_ROOT = user_home() / ".local/share/Steam"
 STEAM_APPS_DIR = STEAM_ROOT / "steamapps"
 CONFIG_VDF = STEAM_ROOT / "config/config.vdf"
 

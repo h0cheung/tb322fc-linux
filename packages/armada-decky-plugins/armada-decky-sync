@@ -1,8 +1,19 @@
 #!/bin/bash
 set -euo pipefail
 
-user_name=alarm
-homebrew="/home/${user_name}/.local/var/opt/decky-loader"
+# The loader instance (decky-loader@<user>) is enabled for the graphical
+# session's account, so seed that same account rather than assuming a name.
+user_name=$(/usr/libexec/armada/session-user)
+if [[ -z $user_name ]]; then
+    echo "armada-decky-sync: could not determine the session user" >&2
+    exit 1
+fi
+home=$(getent passwd "$user_name" | cut -d: -f6)
+if [[ -z $home ]]; then
+    echo "armada-decky-sync: no home directory for $user_name" >&2
+    exit 1
+fi
+homebrew="${home}/.local/var/opt/decky-loader"
 src=/usr/share/decky-plugins
 
 install -d -m 0755 "${homebrew}/services"

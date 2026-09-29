@@ -209,14 +209,21 @@ def install_flatpak(ref, cancel, on_percent):
 
 # Emulator manifests rarely grant removable media, and DuckStation's grants no
 # filesystem access at all. Armada mounts cards under /run/media.
-BASE_OVERRIDES = ("--filesystem=/var/home/armada", "--filesystem=/home/armada", "--filesystem=/run/media", "--filesystem=/media")
+def base_overrides():
+    # The sandbox needs the user's home (Steam library, saves); resolve the
+    # account per call rather than baking in a name at import.
+    return (
+        f"--filesystem={paths.user_home()}",
+        "--filesystem=/run/media",
+        "--filesystem=/media",
+    )
 
 
 # Persistent rather than a `flatpak run` argument: ES-DE launches the flatpak
 # export directly, bypassing the Steam shortcut.
 def override_flatpak(ref, extra=None):
     result = subprocess.run(
-        ["flatpak", "override", "--system", ref, *BASE_OVERRIDES, *(extra or ())],
+        ["flatpak", "override", "--system", ref, *base_overrides(), *(extra or ())],
         capture_output=True,
         timeout=30,
         env=clean_env(),

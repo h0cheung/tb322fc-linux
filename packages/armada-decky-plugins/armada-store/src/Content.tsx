@@ -293,7 +293,7 @@ export function Content() {
   // Steam's own "Add a Non-Steam Game" browse button does nothing on the ARM
   // client (ValveSoftware/steam-for-linux#9447).
   const addNonSteamGame = () => {
-    const home = catalog?.home || "/var/home/armada";
+    const home = catalog?.home || "/";
     openFilePicker(FileSelectionType.FILE, home, true, true)
       .then((result) => {
         const path = result.realpath || result.path;

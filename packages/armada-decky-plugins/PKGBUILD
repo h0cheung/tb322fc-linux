@@ -1,8 +1,9 @@
 # Maintainer: h0cheung <hcheunh@gmail.com>
 # The ArmadaOS armada-control and armada-store Decky plugins, built from the
 # vendored sources in this repo (copied from gitlab.com/armadaproject decky/).
-# armada-control patch: steam.py's STEAM_ROOT derives from $HOME instead of
-# the hardcoded /var/home/armada.
+# armada-control patch: steam.py's STEAM_ROOT derives from the Decky user's
+# home ($DECKY_USER_HOME) instead of the hardcoded /var/home/armada, since the
+# root-flagged plugin backend runs with HOME=/root.
 # armada-store patches: the catalog uses only pacman-managed "system" entries
 # (apps are installed via pacman/AUR, availability = the exec path exists),
 # the Install action is hidden for system apps, and /etc/armada-store/
@@ -10,7 +11,7 @@
 # /usr/share/decky-plugins on every boot by armada-decky-sync).
 # Upstream: https://github.com/armada-os/armada (GPL-2.0-or-later, Copyright the Armada contributors)
 pkgname=armada-decky-plugins
-pkgver=20260928
+pkgver=20260929
 pkgrel=1
 pkgdesc="ArmadaOS Decky plugins (armada-control, armada-store) for the Steam Deck UI"
 arch=('aarch64')

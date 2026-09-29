@@ -4,9 +4,13 @@
 # device-env, usr/lib/armada/{armada_game_tweaks,armada_perf}.py, device
 # profiles, usr/share/armada data). Note: device-env, armada_perf.py and the device profiles are owned by
 # armada-powerd (shipped there first); this package only adds what it needs.
+# armada_session.py is the port's replacement for upstream's assumed single
+# user: it discovers the graphical session's account instead of hardcoding
+# "armada", and is exposed as /usr/libexec/armada/session-user for the shell
+# callers (armada-decky-sync, the sleep-debug hook).
 # Upstream: https://github.com/armada-os/armada (GPL-2.0-or-later, Copyright the Armada contributors)
 pkgname=armada-control
-pkgver=20260927
+pkgver=20260929
 pkgrel=1
 pkgdesc="Armada privileged settings daemon for the armada-control Decky plugin"
 arch=('aarch64')
@@ -22,6 +26,9 @@ package() {
     install -Dm755 armada-game-launch "$pkgdir/usr/libexec/armada/armada-game-launch"
     install -Dm755 armada-power "$pkgdir/usr/bin/armada-power"
     install -Dm644 armada_game_tweaks.py "$pkgdir/usr/lib/armada/armada_game_tweaks.py"
+    install -Dm755 armada_session.py "$pkgdir/usr/lib/armada/armada_session.py"
+    # Shell callers want a command, not a python -c one-liner.
+    ln -s ../../lib/armada/armada_session.py "$pkgdir/usr/libexec/armada/session-user"
     install -Dm644 armada-control.service \
         "$pkgdir/usr/lib/systemd/system/armada-control.service"
 

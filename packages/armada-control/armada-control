@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, "/usr/lib/armada")
 import armada_game_tweaks
 import armada_perf
+import armada_session
 
 SOCKET = Path("/run/armada/control.sock")
 SESSION_SOCKET = Path(armada_perf.SESSION_SOCKET)
@@ -37,7 +38,6 @@ SUSPEND_MODE_KEY = "suspend_mode"
 NM_IGNORE_SLEEP = Path("/etc/NetworkManager/ignore-sleep")
 MEM_SLEEP_PATH = Path("/sys/power/mem_sleep")
 STEAMOSCTL = "/usr/bin/steamosctl"
-STEAMOS_MANAGER_STATE = Path("/var/home/armada/.config/steamos-manager/state.toml")
 DESKTOP_SESSION_FOR_MODE = {
     "desktop": "armada-plasma.desktop",
     "mobile": "armada-plasma-mobile.desktop",
@@ -160,10 +160,22 @@ def set_networkmanager_sleep_allowed(allow_sleep):
     else:
         NM_IGNORE_SLEEP.touch()
 
+def steamos_manager_state():
+    # steamos-manager keeps its state under the session user's config dir; the
+    # account is discovered, not assumed (upstream ArmadaOS is single-user).
+    home = armada_session.session_home()
+    if home is None:
+        return None
+    return home / ".config" / "steamos-manager" / "state.toml"
+
+
 def get_desktop_mode() -> str:
     # steamos-manager (steamosctl set-default-desktop-session) is the source of truth
+    state = steamos_manager_state()
+    if state is None:
+        return "desktop"
     try:
-        text = STEAMOS_MANAGER_STATE.read_text(encoding="utf-8")
+        text = state.read_text(encoding="utf-8")
     except OSError:
         return "desktop"
 
@@ -226,8 +238,13 @@ def bottom_screen_supported():
 
 
 def session_user_command(*command):
-    user = os.environ.get("ARMADA_SESSION_USER", "armada")
-    account = pwd.getpwnam(user)
+    user = armada_session.session_user()
+    if not user:
+        raise RuntimeError("could not determine the session user")
+    try:
+        account = pwd.getpwnam(user)
+    except KeyError as exc:
+        raise RuntimeError(f"session user {user!r} does not exist") from exc
     return [
         "/usr/bin/runuser", "-u", user, "--", "env",
         f"HOME={account.pw_dir}",
