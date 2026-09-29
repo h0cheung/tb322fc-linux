@@ -166,16 +166,6 @@ build_component libcamera -Dpipelines=simple -Dipas=softisp -Dqcam=enabled -Dcam
 # and rebuild the device support; these builds are recorded in sources.json.
 sed -i '/^\[options\]$/a IgnorePkg = hexagonrpc libssc iio-sensor-proxy libcamera libcamera-ipa libcamera-tools' /etc/pacman.conf
 
-# Point the image at this project's rolling package repository: the CI publishes
-# every package it builds to the `repository` pre-release (see publish-repo.sh),
-# so the device can update them with plain pacman. Unsigned, like those assets.
-cat >> /etc/pacman.conf <<'EOF'
-
-[tb322fc]
-SigLevel = Optional TrustAll
-Server = https://github.com/h0cheung/tb322fc-linux/releases/download/repository
-EOF
-
 # Allow building AUR/local packages that only specify x86_64 in PKGBUILD arch array.
 echo 'IGNOREARCH=1' >> /etc/makepkg.conf
 
@@ -489,6 +479,14 @@ pacman -Q > /usr/share/tb322fc/rootfs.packages
 # Leave build tools installed for diagnosis. Remove downloads, host identities
 # and transient state; package signatures and the distro trust database remain.
 pacman -Scc --noconfirm
+# Configure the project's rolling repository only after package transactions.
+# Its database is published by the later workflow step (see publish-repo.sh).
+cat >> /etc/pacman.conf <<'EOF'
+
+[tb322fc]
+SigLevel = Optional TrustAll
+Server = https://github.com/h0cheung/tb322fc-linux/releases/download/repository
+EOF
 rm -f /etc/machine-id /var/lib/dbus/machine-id /var/lib/systemd/random-seed
 : > /etc/machine-id
 ln -s /etc/machine-id /var/lib/dbus/machine-id
