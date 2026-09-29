@@ -100,7 +100,9 @@ fi
 printf '%s\n' "$stamp" > "$CACHE/stamp"
 
 # Package versions include an epoch (1:); compare the upstream version itself.
-for package in mesa vulkan-freedreno; do
+# The installed mesa is the -git build that tracks upstream main, so query the
+# -git package names directly.
+for package in mesa-y700-gen4-git vulkan-freedreno-y700-gen4-git; do
     read -r _ version < <(pacman -Q "$package")
     upstream=${version#*:}
     if (( $(vercmp "$upstream" 26.2.1) < 0 )); then
@@ -324,20 +326,24 @@ echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/10-wheel
 chmod 440 /etc/sudoers.d/10-wheel
 visudo -cf /etc/sudoers.d/10-wheel
 
-# makepkg checks signed upstream tarballs against the *user's* gpg keyring. The
-# repo ships the keys it needs in packages/*/keys/pgp/*.asc, but makepkg only
-# copies those into --allsource output - it never imports them into a keyring,
-# so without this the first signed source fails with "unknown public key
-# 8D8E31AFC32428A6" (the tail of Eric Engestrom's key, which is listed in
-# mesa-y700-gen4's validpgpkeys). Import as alarm, since that is who runs
-# makepkg and therefore whose keyring is consulted.
+# The pinned mesa PKGBUILD builds from a signed upstream tarball, so makepkg
+# checks its signature against the *user's* gpg keyring. The repo ships the
+# needed keys under packages/*/keys/pgp/*.asc, but makepkg only copies them
+# into --allsource output - it never imports them into a keyring, so without
+# this the first signed source fails with "unknown public key
+# 8D8E31AFC32428A6". Import as alarm, since that is who runs makepkg.
+# The -git build tracks mesa main over git and has no detached signature, so it
+# needs none of this; importing any present keys is harmless either way.
 shopt -s nullglob
 key_files=(packages/*/keys/pgp/*.asc)
 shopt -u nullglob
-(( ${#key_files[@]} )) || { echo "no PGP keys under packages/*/keys/pgp" >&2; exit 1; }
-for key_file in "${key_files[@]}"; do
-    sudo -u alarm gpg --batch --no-tty --quiet --import "$key_file"
-done
+if (( ${#key_files[@]} )); then
+    for key_file in "${key_files[@]}"; do
+        sudo -u alarm gpg --batch --no-tty --quiet --import "$key_file"
+    done
+else
+    echo "no PGP keys under packages/*/keys/pgp; skipping import (fine for -git)"
+fi
 
 # Build and install this repo's own packages inside the target rootfs.
 #
@@ -350,15 +356,30 @@ done
 # that still fails after the last pass aborts the build loudly.
 declare -A pkg_paths=()
 declare -A pkg_deps=()
-declare -A pkg_vers=()
+declare -A pkg_fullver=()
+declare -A pkg_splits=()
 for pkg_dir in packages/*/; do
     [[ -f "$pkg_dir/PKGBUILD" ]] || continue
+    # The pinned (release-tarball) mesa PKGBUILD coexists here for reference, but
+    # CI must only build the -git variant that tracks upstream main.
+    [[ "$(basename "$pkg_dir")" == mesa-y700-gen4 ]] && continue
     mapfile -t info < <(sudo -u alarm bash -c \
-        "source '$pkg_dir/PKGBUILD' && printf '%s\n%s\n%s\n' \"\$pkgname\" \"\$pkgver\" \"\${depends[*]} \${makedepends[*]}\"")
+        "source '$pkg_dir/PKGBUILD' && _fv=\"\$pkgver-\$pkgrel\"; (( \${epoch:-0} > 0 )) && _fv=\"\$epoch:\$_fv\"; printf '%s\n%s\n%s\n%s\n' \"\${pkgname[0]}\" \"\$_fv\" \"\${depends[*]} \${makedepends[*]}\" \"\${pkgname[*]}\"")
     pkg_paths[${info[0]}]=$pkg_dir
-    pkg_vers[${info[0]}]=${info[1]}
+    pkg_fullver[${info[0]}]=${info[1]}
     pkg_deps[${info[0]}]=${info[2]:-}
+    pkg_splits[${info[0]}]=${info[3]}
 done
+
+# Collect every split package built for pkgbase $1 (pkg_fullver/$pkg_splits are
+# associative arrays in the caller's scope).
+_collect_built() {
+    local _s _ff
+    for _s in ${pkg_splits[$1]}; do
+        mapfile -t _ff < <(compgen -G "$CACHE/pkgs/$_s-${pkg_fullver[$1]}-*.pkg.tar.*" || true)
+        printf '%s\n' "${_ff[@]}"
+    done
+}
 
 pending=("${!pkg_paths[@]}")
 for _pass in 1 2 3; do
@@ -377,9 +398,11 @@ for _pass in 1 2 3; do
             pacman -S --needed --noconfirm "${install_list[@]}"
         fi
         # Drop cached packages from other versions so the globs below are exact.
-        find "$CACHE/pkgs" -maxdepth 1 -name "$pkg_name-*" \
-            ! -name "$pkg_name-${pkg_vers[$pkg_name]}-*" -delete 2>/dev/null || true
-        mapfile -t built < <(compgen -G "$CACHE/pkgs/$pkg_name-${pkg_vers[$pkg_name]}-*.pkg.tar.*" || true)
+        for _s in ${pkg_splits[$pkg_name]}; do
+            find "$CACHE/pkgs" -maxdepth 1 -name "$_s-*" \
+                ! -name "$_s-${pkg_fullver[$pkg_name]}-*" -delete 2>/dev/null || true
+        done
+        mapfile -t built < <(_collect_built "$pkg_name")
         if (( ${#built[@]} )) && pacman -U --noconfirm --ask 6 "${built[@]}"; then
             echo "cache: installed $pkg_name from the package cache"
             continue
@@ -390,7 +413,7 @@ for _pass in 1 2 3; do
         chown -R alarm:alarm "$pkg_workdir"
         pkg_log=$(sudo -u alarm mktemp -p /home/alarm "mk-$pkg_name.XXXXXX")
         if sudo -u alarm bash -c "cd '$pkg_workdir' && makepkg -f >'$pkg_log' 2>&1" \
-            && mapfile -t built < <(compgen -G "$CACHE/pkgs/$pkg_name-${pkg_vers[$pkg_name]}-*.pkg.tar.*" || true) \
+            && mapfile -t built < <(_collect_built "$pkg_name") \
             && (( ${#built[@]} )) \
             && pacman -U --noconfirm --ask 6 "${built[@]}" ; then
             rm -rf "$pkg_workdir" "$pkg_log"
