@@ -144,6 +144,10 @@ jobs:
         with:
           path: build/rootfs-cache
           key: ${{ steps.rootfs-cache.outputs.cache-primary-key }}
+      - name: Publish package repository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/ci/publish-repo.sh
       - name: Compress images and collect provenance
         run: bash scripts/ci/package.sh
       - name: Upload Boot Image
