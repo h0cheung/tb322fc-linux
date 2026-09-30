@@ -174,6 +174,11 @@ build_component libcamera -Dpipelines=simple -Dipas=softisp -Dqcam=enabled -Dcam
 # Manual installation of a conflicting package must first remove this guard
 # and rebuild the device support; these builds are recorded in sources.json.
 sed -i '/^\[options\]$/a IgnorePkg = hexagonrpc libssc iio-sensor-proxy libcamera libcamera-ipa libcamera-tools' /etc/pacman.conf
+# The device thermal policy is written by this script and is not owned by the
+# thermald package, so pin it: a future package that ships its own
+# thermal-conf.xml must never overwrite it (pacman drops the package's copy as
+# a .pacnew instead, and the overlay copy stays authoritative).
+sed -i '/^\[options\]$/a NoUpgrade = etc/thermald/thermal-conf.xml' /etc/pacman.conf
 
 # Point the image at this project's rolling package repository: the CI publishes
 # every package it builds to the `repository` pre-release (see publish-repo.sh),
@@ -208,6 +213,17 @@ install -Dm644 overlay/sensors/hexagonrpcd-sensors.service /etc/systemd/system/h
 install -Dm644 overlay/sensors/iio-sensor-proxy.conf /etc/systemd/system/iio-sensor-proxy.service.d/ssc.conf
 install -d -m 700 /var/lib/hexagonrpc /var/lib/hexagonrpc/sensors
 ln -s /sys/devices/soc0 /var/lib/hexagonrpc/socinfo
+
+# Device thermal policy.  Both files are written by the overlay, not owned by
+# the thermald package, so a future ALARM thermald package cannot drop them.
+# The config must be root-owned and not group/world-writable, or thermald's
+# open_validated_xml_file() refuses it with EPERM; regenerate it with
+# rootfs/thermald/gen_thermal_conf.py when the policy changes.  The drop-in
+# runs thermald with --exclusive-control, because upstream's --adaptive engine
+# ignores thermal-conf.xml.
+install -Dm644 overlay/thermald/thermal-conf.xml /etc/thermald/thermal-conf.xml
+install -Dm644 overlay/thermald/exclusive.conf \
+    /etc/systemd/system/thermald.service.d/exclusive.conf
 # Enablement is harmless before calibration is installed: both services are
 # gated on the same required paths, including the per-device registry state.
 for service in hexagonrpcd-sensors iio-sensor-proxy; do
@@ -482,7 +498,7 @@ for service in systemd-networkd.service systemd-networkd.socket systemd-networkd
         systemctl disable "$service"
     fi
 done
-systemctl enable NetworkManager.service bluetooth.service sddm.service hexagonrpcd-sensors.service als-bridge.service armada-powerd.service steamos-manager.service armada-control.service armada-decky-sync.service decky-loader@alarm.service
+systemctl enable NetworkManager.service bluetooth.service sddm.service hexagonrpcd-sensors.service als-bridge.service armada-powerd.service thermald.service steamos-manager.service armada-control.service armada-decky-sync.service decky-loader@alarm.service
 systemctl set-default graphical.target
 systemctl --global enable pipewire.socket pipewire-pulse.socket wireplumber.service
 

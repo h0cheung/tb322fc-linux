@@ -1,0 +1,53 @@
+# Maintainer: h0cheung <hcheunh@gmail.com>
+# Unmodified upstream release of the Linux Thermal Daemon, rebuilt for
+# aarch64/ALARM.  Arch Linux ARM ships no thermald package at all (checked
+# against the extra repository on 2026-09-30), so this is the only source of
+# thermald for the image.
+#
+# The package is deliberately identical to upstream: the device thermal policy
+# (thermal-conf.xml plus the --exclusive-control systemd drop-in) is written by
+# the rootfs overlay into /etc, so a future ALARM thermald package cannot drop
+# it.  See rootfs/thermald/ and scripts/ci/configure-rootfs.sh.
+pkgname=thermald
+pkgver=2.5.13
+pkgrel=1
+epoch=2
+pkgdesc="The Linux Thermal Daemon program from 01.org (aarch64 build)"
+arch=('aarch64')
+url="https://github.com/intel/thermal_daemon"
+license=('GPL-2.0-or-later')
+# glib2/libxml2/upower/libevdev are linked directly by thermald_LDADD.  Arch
+# also lists dbus-glib, but this build uses the GDBus backend (configure's
+# default), which never includes dbus-glib; that dependency is only reachable
+# through --disable-gdbus, so it is deliberately dropped here.
+depends=('glib2' 'libxml2' 'upower' 'libevdev')
+# autoconf/automake/libtool come from base-devel.  autoconf-archive provides
+# AX_CHECK_COMPILE_FLAG (configure aborts without it) and gtk-doc provides the
+# GTK_DOC_CHECK macro that autoreconf must expand even under --disable-doc.
+# python backs the gdbus-codegen helper that glib2 ships.
+makedepends=('autoconf-archive' 'gtk-doc' 'python')
+source=(
+    "$pkgname-$pkgver.tar.gz::https://github.com/intel/thermal_daemon/archive/v$pkgver/$pkgname-$pkgver.tar.gz"
+)
+sha256sums=(
+    '5456f60aed52e9a14f88dde9b2e2875e5e3d0cc3d1e7bf742d7ea4b22ff6a995'
+)
+
+build() {
+    cd "$srcdir/thermal_daemon-$pkgver"
+    # --disable-doc: no gtk-doc output is shipped in the image.
+    # --disable-werror: upstream turns on -Werror and the rolling ALARM
+    # toolchain emits new warnings that are not defects in this code.
+    ./autogen.sh \
+        --prefix=/usr \
+        --sysconfdir=/etc \
+        --sbindir=/usr/bin \
+        --disable-doc \
+        --disable-werror
+    make
+}
+
+package() {
+    cd "$srcdir/thermal_daemon-$pkgver"
+    make DESTDIR="$pkgdir" install
+}
