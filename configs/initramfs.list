@@ -17,6 +17,8 @@ file /lib/firmware/qcom/sm8750/Lenovo-Y700-Gen4-tplg.bin ${FIRMWARE_DIR}/qcom/sm
 file /lib/firmware/qcom/gen80000_gmu.bin ${FIRMWARE_DIR}/qcom/gen80000_gmu.bin 0444 0 0
 file /lib/firmware/qcom/gen80000_sqe.fw ${FIRMWARE_DIR}/qcom/gen80000_sqe.fw 0444 0 0
 file /lib/firmware/qcom/gen80000_aqe.fw ${FIRMWARE_DIR}/qcom/gen80000_aqe.fw 0444 0 0
+dir /lib/firmware/qcom/vpu 0555 0 0
+file /lib/firmware/qcom/vpu/vpu35_p4.mbn ${FIRMWARE_DIR}/qcom/vpu/vpu35_p4.mbn 0444 0 0
 file /lib/firmware/qcom/sm8750/gen80000_zap.mbn ${FIRMWARE_DIR}/qcom/sm8750/gen80000_zap.mbn 0444 0 0
 file /lib/firmware/regulatory.db ${FIRMWARE_DIR}/regulatory.db 0444 0 0
 file /lib/firmware/regulatory.db.p7s ${FIRMWARE_DIR}/regulatory.db.p7s 0444 0 0
