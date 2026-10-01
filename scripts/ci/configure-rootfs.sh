@@ -163,6 +163,7 @@ install -Dm644 overlay/camera/70-libcamera-dma-heap.rules /etc/udev/rules.d/70-l
 install -Dm644 overlay/camera/libcamera-qcam.desktop /usr/share/applications/libcamera-qcam.desktop
 install -Dm644 overlay/sensors/hexagonrpcd-sensors.service /etc/systemd/system/hexagonrpcd-sensors.service
 install -Dm644 overlay/sensors/iio-sensor-proxy.conf /etc/systemd/system/iio-sensor-proxy.service.d/ssc.conf
+install -Dm644 overlay/sensors/61-sensor-matrix.rules /etc/udev/rules.d/61-sensor-matrix.rules
 install -d -m 700 /var/lib/hexagonrpc /var/lib/hexagonrpc/sensors
 ln -s /sys/devices/soc0 /var/lib/hexagonrpc/socinfo
 

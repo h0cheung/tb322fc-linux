@@ -1,0 +1,1 @@
+ACTION=="add|change", KERNEL=="fastrpc-adsp*", ENV{ACCEL_MOUNT_MATRIX}="-1, 0, 0; 0, -1, 0; 0, 0, 1"
