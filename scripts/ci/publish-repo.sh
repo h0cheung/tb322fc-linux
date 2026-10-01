@@ -13,7 +13,11 @@ PKGS=${REPO_PKGS:-build/rootfs-cache/pkgs}
 
 [[ -d "$PKGS" ]] || { echo "publish-repo: no packages at $PKGS (run build-rootfs.sh first)" >&2; exit 1; }
 shopt -s nullglob
-pkgs=("$PKGS"/*.pkg.tar.*)
+pkgs=()
+for f in "$PKGS"/*.pkg.tar.*; do
+    [[ "$f" != *.sig ]] || continue
+    pkgs+=("$f")
+done
 shopt -u nullglob
 (( ${#pkgs[@]} )) || { echo "publish-repo: no .pkg.tar.* files under $PKGS" >&2; exit 1; }
 
@@ -24,6 +28,7 @@ trap 'rm -rf "$work"' EXIT
 # download URL from the db's %FILENAME%. Rename to the same safe charset first
 # so the db and the served asset agree; the package contents are untouched.
 for src in "${pkgs[@]}"; do
+    [[ "$src" != *.sig ]] || continue
     base=$(basename "$src")
     cp -f "$src" "$work/${base//[!A-Za-z0-9._-]/.}"
 done
@@ -38,6 +43,7 @@ cp -f "$REPO.files.tar.gz" "$REPO.files"
 
 declare -A keep=()
 for f in "$REPO.db" "$REPO.db.tar.gz" "$REPO.files" "$REPO.files.tar.gz" ./*.pkg.tar.*; do
+    [[ "$f" != *.sig ]] || continue
     keep[$(basename "$f")]=1
 done
 

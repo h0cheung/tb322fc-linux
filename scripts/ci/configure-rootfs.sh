@@ -459,7 +459,46 @@ done
 # Ensure packages downloaded by pacman from tb322fc repo into /var/cache/pacman/pkg
 # are present in $CACHE/pkgs alongside freshly built ones, so publish-repo.sh can
 # maintain the complete package set and database.
-cp -n /var/cache/pacman/pkg/*.pkg.tar.* "$CACHE/pkgs/" 2>/dev/null || true
+# Only copy packages that actually belong to our packages/ definitions,
+# never copy generic distro packages or signature files.
+for pkg_name in "${!pkg_paths[@]}"; do
+    for split in ${pkg_splits[$pkg_name]}; do
+        for f in /var/cache/pacman/pkg/"$split"-[0-9]*.pkg.tar.*; do
+            [[ -f "$f" && "$f" != *.sig ]] || continue
+            cp -n "$f" "$CACHE/pkgs/" 2>/dev/null || true
+        done
+    done
+done
+
+# Prune $CACHE/pkgs to ensure it contains only packages defined in our repository,
+# and remove any signature (.sig) or stray files that would break repo-add.
+declare -A project_splits=()
+for pkg_name in "${!pkg_paths[@]}"; do
+    for split in ${pkg_splits[$pkg_name]}; do
+        project_splits["$split"]=1
+    done
+done
+
+shopt -s nullglob
+for f in "$CACHE/pkgs"/*; do
+    [[ -f "$f" ]] || continue
+    fname=$(basename "$f")
+    if [[ "$fname" == *.sig ]]; then
+        rm -f "$f"
+        continue
+    fi
+    matched=0
+    for split in "${!project_splits[@]}"; do
+        if [[ "$fname" == "$split"-[0-9]* ]]; then
+            matched=1
+            break
+        fi
+    done
+    if (( matched == 0 )); then
+        rm -f "$f"
+    fi
+done
+shopt -u nullglob
 
 # The Adreno 830 graphics path is this repo's -git mesa, built and installed by
 # the loop above. Confirm it landed and clears the tested baseline (strip the

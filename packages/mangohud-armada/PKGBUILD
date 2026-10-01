@@ -66,6 +66,7 @@ source=(
     0004-Qualcomm-battery-power-now.patch
     0005-RAM-name.patch
     0006-SM8750-Battery.patch
+    0007-mangoapp-pause-when-steam-focused.patch
 )
 sha256sums=(
     'bbe5a2b976313c53f21dc24b98bbed03226589460a0cce20d923cb2c36c9d8b0'
@@ -75,6 +76,7 @@ sha256sums=(
     'e288047623a6bbe4b0f63bd14fa9bfb6bab3828e225063f6a8f0ae469fe966a4'
     '62eeb550fd1f46699b75201d767224ad072dddeb6d55771ad78d72b14d0231a5'
     '97220df99329d8b1976aa9a84f0843999b5ae9a47fdaac6da61bedad68e34a84'
+    'd8fee01266bc3ef54b2293eb343177e9ee4c651c6b56868d68d8906ab21de0ad'
 )
 
 prepare() {

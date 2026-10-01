@@ -1,0 +1,247 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# System updater for Lenovo Legion Y700 Gen 4 (TB322FC).
+set -uo pipefail
+
+LOCK_FILE="/run/lock/tb322fc-update.lock"
+STATE_DIR="/var/lib/tb322fc"
+STATE_FILE="$STATE_DIR/installed-release"
+GITHUB_REPO="h0cheung/tb322fc-linux"
+API_URL="https://api.github.com/repos/${GITHUB_REPO}/releases"
+
+# Steam update exit codes:
+# 0 = success / update available (in check mode)
+# 7 = no update available / error
+
+log() {
+    echo "tb322fc-update: $*" >&2
+}
+
+# Quick exit for duplicate detection without needing root
+for arg in "$@"; do
+    case "$arg" in
+        --supports-duplicate-detection)
+            exit 0
+            ;;
+    esac
+done
+
+# Privilege elevation
+if [[ $EUID -ne 0 ]]; then
+    if command -v sudo >/dev/null 2>&1; then
+        exec sudo -E "$0" "$@"
+    elif command -v pkexec >/dev/null 2>&1; then
+        exec pkexec "$0" "$@"
+    else
+        log "Root privileges required"
+        exit 7
+    fi
+fi
+
+# Acquire file lock to prevent concurrent updates
+mkdir -p /run/lock
+exec 200>"$LOCK_FILE"
+if ! flock -n 200; then
+    log "Another update instance is currently running"
+    exit 7
+fi
+
+check_mode=0
+for arg in "$@"; do
+    case "$arg" in
+        check)
+            check_mode=1
+            ;;
+    esac
+done
+
+get_boot_slot() {
+    local slot=""
+    # 1. Check kernel cmdline and bootconfig
+    slot=$(grep -oP 'androidboot\.slot_suffix=\K\S+' /proc/cmdline /proc/bootconfig 2>/dev/null | head -n 1 || true)
+    if [[ -n "$slot" ]]; then
+        [[ "$slot" == _* ]] || slot="_$slot"
+        echo "$slot"
+        return 0
+    fi
+
+    # 2. Check UFS boot LUN attribute (0x1 -> _a, 0x2 -> _b)
+    shopt -s nullglob
+    for ufs in /sys/bus/platform/devices/*.ufs/attributes/boot_lun_enabled /sys/devices/platform/soc@*/*.ufs/attributes/boot_lun_enabled; do
+        if [[ -f "$ufs" ]]; then
+            local val
+            val=$(cat "$ufs" 2>/dev/null || true)
+            case "$val" in
+                *1) echo "_a"; shopt -u nullglob; return 0 ;;
+                *2) echo "_b"; shopt -u nullglob; return 0 ;;
+            esac
+        fi
+    done
+    shopt -u nullglob
+
+    # 3. Default fallback
+    echo "_a"
+}
+
+# Query installed release tag
+installed_tag=""
+if [[ -f "$STATE_FILE" ]]; then
+    installed_tag=$(cat "$STATE_FILE" 2>/dev/null | tr -d '[:space:]')
+fi
+
+# Fetch GitHub releases (includes pre-releases)
+latest_tag=""
+boot_url=""
+modules_url=""
+sha256sums_url=""
+
+releases_json=$(curl -sSf --connect-timeout 10 --max-time 30 -H "Accept: application/vnd.github.v3+json" "$API_URL" 2>/dev/null || true)
+if [[ -n "$releases_json" ]]; then
+    latest_tag=$(jq -r '[.[] | select(.tag_name | test("^v[0-9]"))][0].tag_name // empty' <<<"$releases_json" 2>/dev/null || true)
+    if [[ -n "$latest_tag" ]]; then
+        boot_url=$(jq -r --arg tag "$latest_tag" '.[] | select(.tag_name == $tag) | .assets[] | select(.name == "boot.img.zst") | .browser_download_url // empty' <<<"$releases_json" 2>/dev/null | head -n 1 || true)
+        modules_url=$(jq -r --arg tag "$latest_tag" '.[] | select(.tag_name == $tag) | .assets[] | select(.name == "kernel-modules.tar.gz") | .browser_download_url // empty' <<<"$releases_json" 2>/dev/null | head -n 1 || true)
+        sha256sums_url=$(jq -r --arg tag "$latest_tag" '.[] | select(.tag_name == $tag) | .assets[] | select(.name == "SHA256SUMS") | .browser_download_url // empty' <<<"$releases_json" 2>/dev/null | head -n 1 || true)
+    fi
+fi
+
+# Check whether kernel release update is available
+kernel_update_available=0
+if [[ -n "$latest_tag" && -n "$boot_url" && -n "$modules_url" ]]; then
+    if [[ "$latest_tag" != "$installed_tag" ]]; then
+        kernel_update_available=1
+    fi
+fi
+
+# Check whether pacman updates are available
+pacman -Sy >/dev/null 2>&1 || true
+pacman_updates=$(pacman -Qu 2>/dev/null | wc -l || echo 0)
+pacman_update_available=0
+if (( pacman_updates > 0 )); then
+    pacman_update_available=1
+fi
+
+# CHECK MODE
+if (( check_mode == 1 )); then
+    if (( kernel_update_available == 0 && pacman_update_available == 0 )); then
+        # No updates available
+        exit 7
+    fi
+
+    # Print version string for SteamOS UI
+    if (( kernel_update_available == 1 )); then
+        version_str="$latest_tag"
+        if (( pacman_update_available == 1 )); then
+            version_str="${latest_tag}+p${pacman_updates}"
+        fi
+    else
+        version_str="${installed_tag:-current}+p${pacman_updates}"
+    fi
+
+    echo "$version_str"
+    exit 0
+fi
+
+# APPLY MODE
+echo "0%"
+
+if (( kernel_update_available == 0 && pacman_update_available == 0 )); then
+    echo "100%"
+    log "System is already up to date."
+    exit 0
+fi
+
+if (( kernel_update_available == 1 )); then
+    slot=$(get_boot_slot)
+    target_boot_part="/dev/disk/by-partlabel/boot${slot}"
+    if [[ ! -b "$target_boot_part" ]]; then
+        log "Target boot partition $target_boot_part does not exist!"
+        exit 7
+    fi
+
+    WORK_DIR=$(mktemp -d /var/tmp/tb322fc-update.XXXXXX)
+    cleanup() {
+        rm -rf -- "$WORK_DIR"
+    }
+    trap cleanup EXIT
+
+    log "Updating kernel to $latest_tag on slot $slot ($target_boot_part)..."
+    echo "15%"
+
+    log "Downloading boot.img.zst..."
+    curl -sSL --fail --retry 3 --connect-timeout 15 "$boot_url" -o "$WORK_DIR/boot.img.zst" || {
+        log "Failed to download boot.img.zst"
+        exit 7
+    }
+
+    echo "30%"
+    log "Downloading kernel-modules.tar.gz..."
+    curl -sSL --fail --retry 3 --connect-timeout 15 "$modules_url" -o "$WORK_DIR/kernel-modules.tar.gz" || {
+        log "Failed to download kernel-modules.tar.gz"
+        exit 7
+    }
+
+    if [[ -n "$sha256sums_url" ]]; then
+        if curl -sSL --fail --connect-timeout 10 "$sha256sums_url" -o "$WORK_DIR/SHA256SUMS" 2>/dev/null; then
+            log "Verifying SHA256 checksums..."
+            (
+                cd "$WORK_DIR"
+                grep -E '(boot\.img\.zst|kernel-modules\.tar\.gz)' SHA256SUMS | sed 's|\./||' | sha256sum -c --status
+            ) || {
+                log "SHA256 checksum verification failed!"
+                exit 7
+            }
+        fi
+    fi
+
+    echo "45%"
+    log "Decompressing boot.img.zst..."
+    zstd -d -f "$WORK_DIR/boot.img.zst" -o "$WORK_DIR/boot.img" || {
+        log "Failed to decompress boot.img.zst"
+        exit 7
+    }
+
+    boot_size=$(stat -c %s "$WORK_DIR/boot.img" 2>/dev/null || echo 0)
+    if (( boot_size != 100663296 )); then
+        log "Invalid boot.img size: $boot_size (expected 100663296)"
+        exit 7
+    fi
+    if ! head -c 8 "$WORK_DIR/boot.img" | grep -q 'ANDROID!'; then
+        log "boot.img lacks ANDROID! header"
+        exit 7
+    fi
+
+    echo "55%"
+    log "Flashing boot image to $target_boot_part..."
+    dd if="$WORK_DIR/boot.img" of="$target_boot_part" bs=4M conv=fsync status=none || {
+        log "Failed to write boot image to $target_boot_part"
+        exit 7
+    }
+    sync
+
+    echo "65%"
+    log "Extracting kernel modules to /..."
+    tar -xzf "$WORK_DIR/kernel-modules.tar.gz" -C / || {
+        log "Failed to extract kernel modules"
+        exit 7
+    }
+    depmod -a || true
+    sync
+
+    echo "75%"
+    mkdir -p "$STATE_DIR"
+    echo "$latest_tag" > "$STATE_FILE"
+    sync
+fi
+
+echo "80%"
+log "Running pacman -Syu..."
+pacman -Syu --noconfirm || {
+    log "pacman -Syu failed"
+    exit 7
+}
+sync
+
+echo "100%"
+log "Update completed successfully."
+exit 0

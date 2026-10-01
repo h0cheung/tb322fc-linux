@@ -17,8 +17,12 @@ source=(
     'holo.conf'
     'gamescope-wayland.desktop'
     'steam.png'
+    'steamos-update'
+    'tb322fc-update'
 )
 sha256sums=(
+    'SKIP'
+    'SKIP'
     'SKIP'
     'SKIP'
     'SKIP'
@@ -33,6 +37,8 @@ package() {
                   steamos-update jupiter-biosupdate; do
         install -Dm755 "usr/bin/$helper" "$pkgdir/usr/bin/$helper"
     done
+    install -Dm755 "$srcdir/steamos-update" "$pkgdir/usr/bin/steamos-update"
+    install -Dm755 "$srcdir/tb322fc-update" "$pkgdir/usr/libexec/tb322fc/tb322fc-update"
     install -d "$pkgdir/usr/bin/steamos-polkit-helpers"
     for helper in jupiter-biosupdate steamos-select-branch steamos-update; do
         install -m755 "usr/bin/steamos-polkit-helpers/$helper" \
