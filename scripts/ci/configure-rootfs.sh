@@ -58,59 +58,6 @@ mkdir -p "$CACHE/sources" "$CACHE/pkgs" "$CACHE/meson"
     echo "PKGDEST=$CACHE/pkgs"
 } >> /etc/makepkg.conf
 
-# The ABI-relevant dependency snapshot: the union of every repo package's
-# depends/makedepends (minus the names this repo builds) plus the shared
-# libraries the meson components link against. Sourcing a PKGBUILD only
-# evaluates variable assignments.
-dependency_stamp() {
-    local dir name dep
-    local -A repo_names=() wanted=()
-    for dir in packages/*/; do
-        [[ -f "$dir/PKGBUILD" ]] || continue
-        name=$(bash -c "source '$dir/PKGBUILD' && printf '%s\n' \"\${pkgname[@]}\"")
-        while read -r one; do
-            [[ -n "$one" ]] || continue
-            repo_names[$one]=1
-        done <<< "$name"
-    done
-    for dir in packages/*/; do
-        [[ -f "$dir/PKGBUILD" ]] || continue
-        mapfile -t deps < <(bash -c \
-            "source '$dir/PKGBUILD' && printf '%s\n' \${depends[*]} \${makedepends[*]}")
-        for dep in "${deps[@]}"; do
-            [[ -n "$dep" ]] || continue
-            [[ -n "${repo_names[$dep]:-}" ]] && continue
-            wanted[$dep]=1
-        done
-    done
-    # Compiler/build-tool packages do not change a cached package's runtime ABI
-    # and they roll frequently, so excluding them keeps the stamp stable.
-    for dep in clang llvm cmake meson ninja rust rust-bindgen cbindgen git \
-        nodejs npm pnpm pkgconf glib2-devel gtk-doc python-build python-installer \
-        python-setuptools python-wheel python-packaging; do
-        unset 'wanted[$dep]'
-    done
-    # The meson components are built from sources.json, not a repo PKGBUILD, so
-    # add the shared libraries they link against explicitly.
-    for dep in glib2 protobuf protobuf-c libdrm libglvnd llvm-libs vala gobject-introspection; do
-        wanted[$dep]=1
-    done
-    # Some of these deps are only pulled in later by the build loop, so they may
-    # be absent here. Record a marker instead of a bare `pacman -Q`, which would
-    # make the pipeline return non-zero and (under `set -e`/pipefail) abort the
-    # whole script with no message.
-    { for dep in "${!wanted[@]}"; do pacman -Q "$dep" 2>/dev/null || echo "$dep (missing)"; done; } | sort | sha256sum | cut -d' ' -f1
-}
-
-stamp=$(dependency_stamp)
-if [[ -f "$CACHE/stamp" && "$(cat "$CACHE/stamp")" == "$stamp" ]]; then
-    echo "rootfs cache: dependency stamp matches; reusing the compiled caches"
-else
-    echo "rootfs cache: dependency stamp changed; discarding the compiled caches"
-    rm -rf "$CACHE/pkgs" "$CACHE/meson"
-    mkdir -p "$CACHE/pkgs" "$CACHE/meson"
-fi
-printf '%s\n' "$stamp" > "$CACHE/stamp"
 
 # Apply verified device firmware after distro package installation. Never copy
 # directory contents from the input bundle that are absent from firmware.json.
@@ -133,7 +80,9 @@ build_component() {
     local component=$1
     shift
     local tarball="$CACHE/meson/$component.tar"
-    if [[ -f "$tarball" ]]; then
+    local tree
+    tree=$(python3 -c "import json, pathlib; print(json.loads(pathlib.Path('/usr/share/tb322fc/sources.json').read_text())['$component']['tree'])" 2>/dev/null || true)
+    if [[ -f "$tarball" && -n "$tree" && -f "$CACHE/meson/$component.tree" && "$(cat "$CACHE/meson/$component.tree")" == "$tree" ]]; then
         echo "meson cache: restoring $component"
         tar -C / -xf "$tarball" --no-overwrite-dir
         ldconfig
@@ -154,6 +103,9 @@ build_component() {
     cp "build/$component/meson-info/intro-buildoptions.json" "$stage/usr/share/tb322fc/meson/$component.json"
     tar -C "$stage" -cf "$tarball.part" .
     mv "$tarball.part" "$tarball"
+    if [[ -n "$tree" ]]; then
+        printf '%s\n' "$tree" > "$CACHE/meson/$component.tree"
+    fi
     rm -rf "$stage"
     # The staged install is the cache entry; also install it into the live rootfs.
     # --no-overwrite-dir keeps pre-existing directory modes (notably "/") intact.
@@ -376,52 +328,86 @@ else
     echo "no PGP keys under packages/*/keys/pgp; skipping import (fine for -git)"
 fi
 
-# Build and install this repo's own packages inside the target rootfs.
-#
-# The PKGBUILDs are the single source of truth for dependencies: they are read
-# out of each PKGBUILD, and anything pacman can resolve is installed before
-# the build (pacman -T limits this to what is not already satisfied). Names
-# that belong to this repo are deliberately skipped here and provided by the
-# loop itself, which therefore has to be order-independent: packages whose
-# dependencies are not met yet are deferred to a later pass, and a package
-# that still fails after the last pass aborts the build loudly.
+# Query the project rolling package repository (configured above) to check which
+# packages are already built and available on the repository release.
+declare -A repo_versions=()
+while read -r _repo _name _ver _rest; do
+    repo_versions[$_name]=$_ver
+done < <(pacman -Sl tb322fc 2>/dev/null || true)
+
 declare -A pkg_paths=()
 declare -A pkg_deps=()
 declare -A pkg_fullver=()
 declare -A pkg_splits=()
-declare -A pkg_dynamic=()
 for pkg_dir in packages/*/; do
     [[ -f "$pkg_dir/PKGBUILD" ]] || continue
-    # $pkgver is only a placeholder when the PKGBUILD defines a pkgver()
-    # function (a VCS package): the real version is computed from the fetched
-    # source at build time and cannot be known here. Flag those so the cache
-    # globs below match by split name instead of the placeholder version.
     mapfile -t info < <(sudo -u alarm bash -c \
         "source '$pkg_dir/PKGBUILD' && _fv=\"\$pkgver-\$pkgrel\"; (( \${epoch:-0} > 0 )) && _fv=\"\$epoch:\$_fv\"; _dyn=0; declare -F pkgver >/dev/null && _dyn=1; printf '%s\n%s\n%s\n%s\n%s\n' \"\${pkgname[0]}\" \"\$_fv\" \"\${depends[*]} \${makedepends[*]}\" \"\${pkgname[*]}\" \"\$_dyn\"")
-    pkg_paths[${info[0]}]=$pkg_dir
-    pkg_fullver[${info[0]}]=${info[1]}
-    pkg_deps[${info[0]}]=${info[2]:-}
-    pkg_splits[${info[0]}]=${info[3]}
-    pkg_dynamic[${info[0]}]=${info[4]:-0}
+    pkgbase=${info[0]}
+    pkg_paths[$pkgbase]=$pkg_dir
+    pkg_fullver[$pkgbase]=${info[1]}
+    pkg_deps[$pkgbase]=${info[2]:-}
+    pkg_splits[$pkgbase]=${info[3]}
+    is_dyn=${info[4]:-0}
+
+    # For dynamic VCS packages, fetch sources and execute pkgver() to determine the actual target version.
+    if (( is_dyn == 1 )); then
+        pkg_workdir=$(mktemp -d -p /home/alarm "pkgver-$pkgbase.XXXXXX")
+        cp -a "$pkg_dir/." "$pkg_workdir/"
+        chown -R alarm:alarm "$pkg_workdir"
+        echo "Fetching sources and running pkgver() for dynamic VCS package $pkgbase..."
+        if sudo -u alarm bash -c "cd '$pkg_workdir' && makepkg -o --nodeps >/dev/null 2>&1"; then
+            resolved_ver=$(sudo -u alarm bash -c "cd '$pkg_workdir' && source PKGBUILD && _fv=\"\$pkgver-\$pkgrel\"; (( \${epoch:-0} > 0 )) && _fv=\"\$epoch:\$_fv\"; printf '%s' \"\$_fv\"")
+            if [[ -n "$resolved_ver" ]]; then
+                pkg_fullver[$pkgbase]=$resolved_ver
+                echo "$pkgbase resolved dynamic version: $resolved_ver"
+            fi
+        fi
+        rm -rf "$pkg_workdir"
+    fi
 done
 
-# Collect every split package built for pkgbase $1 (the pkg_* arrays are in the
-# caller's scope). Dynamic (VCS) packages have a version that is not known until
-# build time, so match their splits by name only.
+# Separate packages into those installable directly from the repository vs
+# those that need to be built (due to missing assets or version bumps).
+repo_install=()
+to_build=()
+for pkg_name in "${!pkg_paths[@]}"; do
+    expected_ver=${pkg_fullver[$pkg_name]}
+    in_repo=1
+    for split in ${pkg_splits[$pkg_name]}; do
+        if [[ "${repo_versions[$split]:-}" != "$expected_ver" ]]; then
+            in_repo=0
+            break
+        fi
+    done
+    if (( in_repo )); then
+        for split in ${pkg_splits[$pkg_name]}; do
+            repo_install+=("tb322fc/$split")
+        done
+        echo "repo: $pkg_name $expected_ver is available in tb322fc repository"
+    else
+        to_build+=("$pkg_name")
+        echo "build: $pkg_name $expected_ver is missing or updated in repo; will build with makepkg"
+    fi
+done
+
+# Install all packages that exist in the repository with matching versions.
+# pacman resolves intra-repo dependencies automatically.
+if (( ${#repo_install[@]} )); then
+    echo "Installing ${#repo_install[@]} package(s) from tb322fc repository..."
+    pacman -S --needed --noconfirm "${repo_install[@]}"
+fi
+
 _collect_built() {
     local _s _ff _pattern
     for _s in ${pkg_splits[$1]}; do
-        if [[ ${pkg_dynamic[$1]:-0} == 1 ]]; then
-            _pattern="$_s-*.pkg.tar.*"
-        else
-            _pattern="$_s-${pkg_fullver[$1]}-*.pkg.tar.*"
-        fi
+        _pattern="$_s-${pkg_fullver[$1]//:/?}-*.pkg.tar.*"
         mapfile -t _ff < <(compgen -G "$CACHE/pkgs/$_pattern" || true)
         printf '%s\n' "${_ff[@]}"
     done
 }
 
-pending=("${!pkg_paths[@]}")
+pending=("${to_build[@]}")
 for _pass in 1 2 3; do
     (( ${#pending[@]} )) || break
     deferred=()
@@ -430,34 +416,26 @@ for _pass in 1 2 3; do
         read -ra deps_list <<< "${pkg_deps[$pkg_name]}"
         mapfile -t pkg_missing < <(pacman -T "${deps_list[@]}" || true)
         install_list=()
+        has_unmet_repo_dep=0
         for dep in "${pkg_missing[@]}"; do
-            [[ -n "${pkg_paths[$dep]:-}" ]] && continue
-            install_list+=("$dep")
+            if [[ -n "${pkg_paths[$dep]:-}" ]]; then
+                has_unmet_repo_dep=1
+            else
+                install_list+=("$dep")
+            fi
         done
+        if (( has_unmet_repo_dep )); then
+            deferred+=("$pkg_name")
+            continue
+        fi
         if (( ${#install_list[@]} )); then
             pacman -S --needed --noconfirm "${install_list[@]}"
         fi
-        # Drop stale cached packages so the globs below only see this build's
-        # output. Dynamic (VCS) packages get a fresh pkgver every build, so drop
-        # every cached copy and always rebuild; static ones keep their version.
-        for _s in ${pkg_splits[$pkg_name]}; do
-            if [[ ${pkg_dynamic[$pkg_name]:-0} == 1 ]]; then
-                find "$CACHE/pkgs" -maxdepth 1 -name "$_s-*" -delete 2>/dev/null || true
-            else
-                find "$CACHE/pkgs" -maxdepth 1 -name "$_s-*" \
-                    ! -name "$_s-${pkg_fullver[$pkg_name]}-*" -delete 2>/dev/null || true
-            fi
-        done
-        mapfile -t built < <(_collect_built "$pkg_name")
-        if (( ${#built[@]} )) && pacman -U --noconfirm --ask 6 "${built[@]}"; then
-            echo "cache: installed $pkg_name from the package cache"
-            continue
-        fi
-        [[ ${#built[@]} -eq 0 ]] || rm -f "${built[@]}"
         pkg_workdir=$(mktemp -d -p /home/alarm "pkg-$pkg_name.XXXXXX")
         cp -a "$pkg_dir/." "$pkg_workdir/"
         chown -R alarm:alarm "$pkg_workdir"
         pkg_log=$(sudo -u alarm mktemp -p /home/alarm "mk-$pkg_name.XXXXXX")
+        echo "Building $pkg_name with makepkg..."
         if sudo -u alarm bash -c "cd '$pkg_workdir' && makepkg -f >'$pkg_log' 2>&1" \
             && mapfile -t built < <(_collect_built "$pkg_name") \
             && (( ${#built[@]} )) \
@@ -473,6 +451,11 @@ for _pass in 1 2 3; do
     pending=("${deferred[@]}")
 done
 (( ${#pending[@]} == 0 )) || { echo "Packages failed to build: ${pending[*]}" >&2; exit 1; }
+
+# Ensure packages downloaded by pacman from tb322fc repo into /var/cache/pacman/pkg
+# are present in $CACHE/pkgs alongside freshly built ones, so publish-repo.sh can
+# maintain the complete package set and database.
+cp -n /var/cache/pacman/pkg/*.pkg.tar.* "$CACHE/pkgs/" 2>/dev/null || true
 
 # The Adreno 830 graphics path is this repo's -git mesa, built and installed by
 # the loop above. Confirm it landed and clears the tested baseline (strip the

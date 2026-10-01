@@ -53,11 +53,26 @@ EOF
         --title "Package repository" --notes-file "$work/NOTES.md"
 fi
 
-gh release upload "$TAG" --repo "$SLUG" --clobber "${!keep[@]}"
+mapfile -t existing < <(gh release view "$TAG" --repo "$SLUG" --json assets -q '.assets[].name')
+declare -A existing_map=()
+for name in "${existing[@]}"; do
+    existing_map[$name]=1
+done
+
+upload_list=()
+for f in "${!keep[@]}"; do
+    if [[ "$f" == "$REPO.db"* || "$f" == "$REPO.files"* || -z "${existing_map[$f]:-}" ]]; then
+        upload_list+=("$f")
+    fi
+done
+
+if (( ${#upload_list[@]} )); then
+    echo "publish-repo: uploading ${#upload_list[@]} asset(s) to $TAG..."
+    gh release upload "$TAG" --repo "$SLUG" --clobber "${upload_list[@]}"
+fi
 
 # Drop superseded assets (for example yesterday's -git mesa build) so the
 # release only ever holds the current package set.
-mapfile -t existing < <(gh release view "$TAG" --repo "$SLUG" --json assets -q '.assets[].name')
 for name in "${existing[@]}"; do
     [[ -n "$name" && -z "${keep[$name]:-}" ]] || continue
     gh release delete-asset "$TAG" "$name" --repo "$SLUG" --yes

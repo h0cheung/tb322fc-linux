@@ -216,60 +216,213 @@ jobs:
 
           ---
 
-          ## 📦 资产下载与说明
-          - **首次刷机（全新安装）**：下载 `boot.img.zst` 和 `rootfs.img.zst`（若分卷则下载所有分卷后合并）。
-          - **老用户仅升级内核**：仅需下载 `boot.img.zst` 和 `kernel-modules.tar.gz`，**无需重刷 rootfs，个人数据、游戏及配置完全保留**。
+          ## 🌐 English
+
+          ### 📦 Assets & Downloads
+          - **Fresh Installation**: Download `boot.img.zst` and `rootfs.img.zst` (if split, download all parts `rootfs.img.zst.*` and combine them).
+          - **Kernel-Only Upgrade (Existing Users)**: Download `boot.img.zst` and `kernel-modules.tar.gz`. **No need to reflash rootfs; personal data, desktop apps, and games are fully preserved.**
 
           ---
 
-          ## 🚀 首次全新安装指南
+          ### 🚀 First-Time Installation & Partitioning Guide (TWRP + ADB)
 
-          ### 1. 准备 rootfs 分区
-          请确保内部存储中存在 GPT 标签为 `rootfs` 的分区：
+          > [!WARNING]
+          > Modifying internal storage partitions carries risk of data loss. Back up all important Android data before proceeding!
+
+          #### Step 1: Boot TWRP Recovery
+          1. Ensure your tablet's bootloader is unlocked.
+          2. Reboot to Fastboot mode and temporarily boot TWRP:
+             ```bash
+             fastboot boot twrp.img
+             ```
+
+          #### Step 2: Repartition Internal Storage (Create `rootfs` Partition)
+          By default, Android allocates all remaining space on UFS LUN 0 (`/dev/block/sda`) to partition 16 (`userdata`). Linux requires an ext4 partition with GPT label `rootfs`.
+
+          Connect the tablet to your computer via USB and open a terminal:
           ```bash
-          lsblk -o NAME,SIZE,PARTLABEL,MOUNTPOINTS
+          adb shell
+          umount /data /sdcard 2>/dev/null || true
+
+          # Inspect current partitions on UFS LUN 0:
+          parted /dev/block/sda print
           ```
 
-          ### 2. 解压并写入 rootfs
+          **Choose your layout:**
+
+          - **Option A: Dual-Boot (Keep Android + Allocate Space for Linux)**
+            Shrink `userdata` (e.g. keep 64GB for Android) and create `rootfs` using the remaining space:
+            ```bash
+            parted /dev/block/sda resizepart 16 64GB
+            parted /dev/block/sda mkpart rootfs ext4 64GB 100%
+            parted /dev/block/sda name 17 rootfs
+            mke2fs -t ext4 -F -L rootfs /dev/block/by-name/rootfs
+            ```
+            *(Note: In TWRP, go to Wipe -> Format Data afterwards if Android userdata requires re-initialization).*
+
+          - **Option B: Dedicated Linux (Entire User Storage for Linux)**
+            Remove `userdata` and allocate the full remaining disk to `rootfs`:
+            ```bash
+            parted /dev/block/sda rm 16
+            parted /dev/block/sda mkpart rootfs ext4 24GB 100%
+            parted /dev/block/sda name 16 rootfs
+            mke2fs -t ext4 -F -L rootfs /dev/block/by-name/rootfs
+            ```
+
+          #### Step 3: Flash Rootfs Image
+          Decompress the downloaded image on your PC:
           ```bash
-          # 若文件存在分卷，请先合并：cat rootfs.img.zst.* > rootfs.img.zst
+          # Merge split parts first if applicable: cat rootfs.img.zst.* > rootfs.img.zst
           zstd -d rootfs.img.zst -o rootfs.img
-
-          # 写入平板的 rootfs 分区（请确认目标分区对应设备节点）：
-          sudo dd if=rootfs.img of=/dev/disk/by-partlabel/rootfs bs=4M status=progress conv=fsync
           ```
 
-          ### 3. 引导系统
+          Directly stream-flash to the tablet's partition via ADB (avoids running out of RAM in TWRP):
           ```bash
-          zstd -d boot.img.zst -o boot.img
-          fastboot boot boot.img
+          cat rootfs.img | adb shell "dd of=/dev/block/by-name/rootfs bs=4M status=progress conv=fsync"
           ```
+
+          #### Step 4: Boot into Arch Linux ARM
+          1. Reboot the tablet to Fastboot mode:
+             ```bash
+             adb reboot bootloader
+             ```
+          2. Decompress and boot the Linux kernel image:
+             ```bash
+             zstd -d boot.img.zst -o boot.img
+             fastboot boot boot.img
+             ```
+             *(After confirming successful boot, permanently flash to current slot: `fastboot flash boot_a boot.img`)*
+          3. **Default Login**: User `alarm` / Password `alarm` (Root login is locked; use `sudo`).
 
           ---
 
-          ## 🔄 老用户增量升级内核指南
+          ### 🔄 Kernel-Only Upgrade Guide (Existing Users)
+
+          > [!NOTE]
+          > Upgrading the kernel does not touch your `rootfs`. All installed software, configuration, and Steam games are preserved.
+
+          1. **Update Kernel Modules** (while running Arch Linux on the tablet):
+             Transfer `kernel-modules.tar.gz` to the tablet, then in terminal run:
+             ```bash
+             sudo tar -xzf kernel-modules.tar.gz -C /
+             sudo depmod -a __KERNEL_RELEASE__
+             ```
+          2. **Boot / Flash New Kernel**:
+             Reboot the tablet into Fastboot mode and connect to PC:
+             ```bash
+             zstd -d boot.img.zst -o boot.img
+
+             # Temporary test boot:
+             fastboot boot boot.img
+
+             # Once verified, flash permanently:
+             fastboot flash boot_a boot.img
+             ```
+
+          ---
+
+          ## 🇨🇳 中文说明
+
+          ### 📦 资产下载与说明
+          - **首次刷机（全新安装）**：下载 `boot.img.zst` 和 `rootfs.img.zst`（若存在分卷则先合并）。
+          - **老用户仅升级内核**：仅需下载 `boot.img.zst` 和 `kernel-modules.tar.gz`，**无需重刷 rootfs，个人数据、桌面应用及游戏配置完全保留**。
+
+          ---
+
+          ### 🚀 首次全新安装与分区指南 (TWRP + ADB)
+
+          > [!WARNING]
+          > 调整磁盘分区存在数据丢失风险，操作前请务必备份 Android 系统中的重要数据！
+
+          #### 步骤 1：引导进入 TWRP Recovery
+          1. 确保平板已解锁 Bootloader。
+          2. 平板进入 Fastboot 模式，电脑端临时引导 TWRP：
+             ```bash
+             fastboot boot twrp.img
+             ```
+
+          #### 步骤 2：调整内部存储分区（创建 `rootfs` 分区）
+          平板出厂时，内部存储剩余空间全部归属于 `userdata` 分区（UFS LUN 0 `/dev/block/sda` 的第 16 号分区）。启动 Linux 需要一个 GPT 分区标签（PARTLABEL）为 `rootfs` 的 ext4 分区。
+
+          电脑连接平板 USB，打开终端：
+          ```bash
+          adb shell
+          umount /data /sdcard 2>/dev/null || true
+
+          # 查看当前 UFS 磁盘分区：
+          parted /dev/block/sda print
+          ```
+
+          **根据需求选择分区方案：**
+
+          - **方案 A：双系统共存（保留 Android + 为 Linux 分配空间）**
+            缩小 `userdata` 分区（例如保留 64GB 给 Android），并将剩余空间分配给 `rootfs`：
+            ```bash
+            parted /dev/block/sda resizepart 16 64GB
+            parted /dev/block/sda mkpart rootfs ext4 64GB 100%
+            parted /dev/block/sda name 17 rootfs
+            mke2fs -t ext4 -F -L rootfs /dev/block/by-name/rootfs
+            ```
+            *(注：双系统若 Android 提示数据损坏，可在 TWRP 中执行 Wipe -> Format Data 重新初始化 userdata)*
+
+          - **方案 B：单 Linux 系统（全盘空间分配给 Linux）**
+            删除 `userdata` 分区，将全部空间划归 `rootfs`：
+            ```bash
+            parted /dev/block/sda rm 16
+            parted /dev/block/sda mkpart rootfs ext4 24GB 100%
+            parted /dev/block/sda name 16 rootfs
+            mke2fs -t ext4 -F -L rootfs /dev/block/by-name/rootfs
+            ```
+
+          #### 步骤 3：写入 Rootfs 系统镜像
+          电脑端解压下载的系统镜像：
+          ```bash
+          # 若存在分卷，请先合并：cat rootfs.img.zst.* > rootfs.img.zst
+          zstd -d rootfs.img.zst -o rootfs.img
+          ```
+
+          通过 ADB 数据流直接写入平板目标分区（无需将 12G 镜像保存在平板临时内存中）：
+          ```bash
+          cat rootfs.img | adb shell "dd of=/dev/block/by-name/rootfs bs=4M status=progress conv=fsync"
+          ```
+
+          #### 步骤 4：引导启动 Arch Linux ARM
+          1. 平板重启至 Fastboot 模式：
+             ```bash
+             adb reboot bootloader
+             ```
+          2. 解压并引导启动内核：
+             ```bash
+             zstd -d boot.img.zst -o boot.img
+             fastboot boot boot.img
+             ```
+             *(确认正常开机后，可固化刷入当前启动槽位：`fastboot flash boot_a boot.img`)*
+          3. **系统默认凭据**：用户名 `alarm` / 密码 `alarm`（Root 账户已禁用密码登录，请使用 `sudo` 执行管理员命令）。
+
+          ---
+
+          ### 🔄 老用户增量升级内核指南
 
           > [!NOTE]
           > 升级内核不需要重新下载和刷入 `rootfs.img`，所有桌面应用与配置保持原样。
 
-          ### 1. 更新内核模块（在平板系统开机状态下）
-          将下载的 `kernel-modules.tar.gz` 传入平板，在终端执行：
-          ```bash
-          sudo tar -xzf kernel-modules.tar.gz -C /
-          sudo depmod -a __KERNEL_RELEASE__
-          ```
+          1. **更新内核模块（在平板系统开机状态下）**：
+             将下载的 `kernel-modules.tar.gz` 传入平板，在终端执行：
+             ```bash
+             sudo tar -xzf kernel-modules.tar.gz -C /
+             sudo depmod -a __KERNEL_RELEASE__
+             ```
+          2. **引导/固化新内核**：
+             将平板重启至 Fastboot 模式，接电脑执行：
+             ```bash
+             zstd -d boot.img.zst -o boot.img
 
-          ### 2. 引导/固化新内核
-          将平板重启至 Fastboot 模式，接电脑执行：
-          ```bash
-          zstd -d boot.img.zst -o boot.img
+             # 临时测试启动：
+             fastboot boot boot.img
 
-          # 临时测试启动：
-          fastboot boot boot.img
-
-          # 确认正常开机后固化至当前启动槽位（如 boot_a）：
-          fastboot flash boot_a boot.img
-          ```
+             # 确认正常开机后固化至当前启动槽位（如 boot_a）：
+             fastboot flash boot_a boot.img
+             ```
           EOF
 
           sed -i "s/__TAG__/${TAG}/g" artifacts/release/RELEASE-NOTES.md
