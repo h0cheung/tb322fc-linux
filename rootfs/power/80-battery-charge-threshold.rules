@@ -1,0 +1,3 @@
+# Set charge thresholds for Lenovo Legion Y700 Gen4 battery protection (70% start, 80% end)
+SUBSYSTEM=="power_supply", KERNEL=="qcom-battmgr-bat", ATTR{charge_control_end_threshold}="80", ATTR{charge_control_start_threshold}="70"
+SUBSYSTEM=="power_supply", KERNEL=="qcom-battmgr-usb", ATTR{online}=="1", RUN+="/usr/bin/sh -c 'echo 80 > /sys/class/power_supply/qcom-battmgr-bat/charge_control_end_threshold; echo 70 > /sys/class/power_supply/qcom-battmgr-bat/charge_control_start_threshold'"

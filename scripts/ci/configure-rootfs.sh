@@ -165,6 +165,8 @@ install -Dm644 overlay/sensors/hexagonrpcd-sensors.service /etc/systemd/system/h
 install -Dm644 overlay/sensors/iio-sensor-proxy.conf /etc/systemd/system/iio-sensor-proxy.service.d/ssc.conf
 install -Dm644 overlay/sensors/61-sensor-matrix.rules /etc/udev/rules.d/61-sensor-matrix.rules
 install -Dm644 overlay/sensors/81-iio-sensor-proxy-proximity.rules /etc/udev/rules.d/81-iio-sensor-proxy-proximity.rules
+install -Dm644 overlay/power/80-battery-charge-threshold.rules /etc/udev/rules.d/80-battery-charge-threshold.rules
+install -Dm644 overlay/power/battery-charge-threshold.conf /etc/tmpfiles.d/battery-charge-threshold.conf
 install -d -m 700 /var/lib/hexagonrpc /var/lib/hexagonrpc/sensors
 ln -s /sys/devices/soc0 /var/lib/hexagonrpc/socinfo
 
