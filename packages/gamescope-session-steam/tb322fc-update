@@ -115,10 +115,15 @@ fi
 
 # Check whether pacman updates are available
 pacman -Sy >/dev/null 2>&1 || true
-pacman_updates=$(pacman -Qu 2>/dev/null | wc -l || echo 0)
+pacman_updates=0
 pacman_update_available=0
-if (( pacman_updates > 0 )); then
-    pacman_update_available=1
+pacman_out=$(pacman -Qu 2>/dev/null || true)
+if [[ -n "$pacman_out" ]]; then
+    pacman_updates=$(wc -l <<<"$pacman_out")
+    pacman_updates=${pacman_updates//[[:space:]]/}
+    if (( pacman_updates > 0 )); then
+        pacman_update_available=1
+    fi
 fi
 
 # CHECK MODE
