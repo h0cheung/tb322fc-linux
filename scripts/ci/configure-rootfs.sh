@@ -164,6 +164,7 @@ install -Dm644 overlay/camera/libcamera-qcam.desktop /usr/share/applications/lib
 install -Dm644 overlay/sensors/hexagonrpcd-sensors.service /etc/systemd/system/hexagonrpcd-sensors.service
 install -Dm644 overlay/sensors/iio-sensor-proxy.conf /etc/systemd/system/iio-sensor-proxy.service.d/ssc.conf
 install -Dm644 overlay/sensors/61-sensor-matrix.rules /etc/udev/rules.d/61-sensor-matrix.rules
+install -Dm644 overlay/sensors/81-iio-sensor-proxy-proximity.rules /etc/udev/rules.d/81-iio-sensor-proxy-proximity.rules
 install -d -m 700 /var/lib/hexagonrpc /var/lib/hexagonrpc/sensors
 ln -s /sys/devices/soc0 /var/lib/hexagonrpc/socinfo
 
@@ -482,7 +483,7 @@ for service in systemd-networkd.service systemd-networkd.socket systemd-networkd
         systemctl disable "$service"
     fi
 done
-systemctl enable NetworkManager.service bluetooth.service sddm.service hexagonrpcd-sensors.service als-bridge.service armada-powerd.service thermald.service steamos-manager.service armada-control.service armada-decky-sync.service decky-loader@alarm.service
+systemctl enable NetworkManager.service bluetooth.service sddm.service hexagonrpcd-sensors.service als-bridge.service armada-powerd.service thermald.service steamos-manager.service armada-control.service armada-decky-sync.service decky-loader@alarm.service tb322fc-hall-lid.service tb322fc-gyro-bridge.service
 systemctl set-default graphical.target
 systemctl --global enable pipewire.socket pipewire-pulse.socket wireplumber.service
 

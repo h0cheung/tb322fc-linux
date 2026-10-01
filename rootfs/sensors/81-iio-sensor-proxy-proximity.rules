@@ -1,0 +1,3 @@
+# IIO sensor-proxy: expose Qualcomm Sensor Core (SSC) proximity sensor
+SUBSYSTEM=="misc", KERNEL=="fastrpc-adsp*", ENV{IIO_SENSOR_PROXY_TYPE}+="ssc-proximity"
+SUBSYSTEM=="misc", KERNEL=="fastrpc-sdsp*", ENV{IIO_SENSOR_PROXY_TYPE}+="ssc-proximity"

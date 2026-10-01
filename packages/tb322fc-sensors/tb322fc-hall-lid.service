@@ -1,0 +1,14 @@
+[Unit]
+Description=Lenovo Legion Y700 Folio Hall Sensor Lid Switch Bridge
+Requires=hexagonrpcd-sensors.service
+After=hexagonrpcd-sensors.service
+ConditionDirectoryNotEmpty=/var/lib/hexagonrpc/sensors/config
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/tb322fc-hall-lid
+Restart=always
+RestartSec=3s
+
+[Install]
+WantedBy=multi-user.target

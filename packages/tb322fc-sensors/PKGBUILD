@@ -1,0 +1,33 @@
+# Maintainer: h0cheung <hcheunh@gmail.com>
+pkgname=tb322fc-sensors
+pkgver=20261001
+pkgrel=1
+pkgdesc="Hardware sensor bridges for Lenovo Legion Y700 Gen 4 (gyro Cemuhook DSU/uinput and folio Hall switch)"
+arch=('aarch64')
+license=('GPL-3.0-or-later')
+depends=('libssc' 'glib2')
+makedepends=('gcc' 'pkgconf')
+source=(
+    'Makefile'
+    'tb322fc-hall-lid.c'
+    'tb322fc-gyro-bridge.c'
+    'tb322fc-hall-lid.service'
+    'tb322fc-gyro-bridge.service'
+)
+sha256sums=(
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+    'SKIP'
+)
+
+build() {
+    cd "$srcdir"
+    make
+}
+
+package() {
+    cd "$srcdir"
+    make DESTDIR="$pkgdir" install
+}
