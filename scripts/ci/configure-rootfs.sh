@@ -167,6 +167,13 @@ install -Dm644 overlay/sensors/61-sensor-matrix.rules /etc/udev/rules.d/61-senso
 install -Dm644 overlay/sensors/81-iio-sensor-proxy-proximity.rules /etc/udev/rules.d/81-iio-sensor-proxy-proximity.rules
 install -Dm644 overlay/power/80-battery-charge-threshold.rules /etc/udev/rules.d/80-battery-charge-threshold.rules
 install -Dm644 overlay/power/battery-charge-threshold.conf /etc/tmpfiles.d/battery-charge-threshold.conf
+# Steam Game Mode charging ETA: a small bridge republishes UPower's battery
+# estimates into the vpower files Game Mode reads (ported from armada PR #463).
+install -Dm755 overlay/power/armada-steam-charging-eta /usr/libexec/armada/armada-steam-charging-eta
+install -Dm644 overlay/power/armada-steam-charging-eta.service /usr/lib/systemd/user/armada-steam-charging-eta.service
+install -Dm644 overlay/power/gamescope-session-plus@steam.service.d/20-armada-steam-charging-eta.conf \
+    /usr/lib/systemd/user/gamescope-session-plus@steam.service.d/20-armada-steam-charging-eta.conf
+install -Dm644 overlay/power/vpower.conf /etc/tmpfiles.d/vpower.conf
 install -d -m 700 /var/lib/hexagonrpc /var/lib/hexagonrpc/sensors
 ln -s /sys/devices/soc0 /var/lib/hexagonrpc/socinfo
 
@@ -526,7 +533,7 @@ for service in systemd-networkd.service systemd-networkd.socket systemd-networkd
 done
 systemctl enable NetworkManager.service bluetooth.service sddm.service hexagonrpcd-sensors.service als-bridge.service armada-powerd.service thermald.service steamos-manager.service armada-control.service armada-decky-sync.service decky-loader@alarm.service tb322fc-hall-lid.service tb322fc-gyro-bridge.service
 systemctl set-default graphical.target
-systemctl --global enable pipewire.socket pipewire-pulse.socket wireplumber.service
+systemctl --global enable pipewire.socket pipewire-pulse.socket wireplumber.service armada-steam-charging-eta.service
 
 # Record both pacman packages and the source-built components.
 pacman -Q > /usr/share/tb322fc/rootfs.packages
