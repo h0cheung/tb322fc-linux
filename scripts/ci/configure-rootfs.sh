@@ -30,18 +30,19 @@ done
 pacman-key --init
 pacman-key --populate archlinux
 
-# forge/core/extra packages - archlinux-keyring included - are signed by the
-# Arch Linux Ports key, which the bootstrap does not ship. Install the keyring
-# package before anything else: its post_install hook runs
-# pacman-key --populate archports. LocalFileSigLevel is Optional, and the
-# [forge] repo is marked Optional only for this single fetch, after which the
-# key is trusted and the original configuration is restored.
-cp /etc/pacman.conf /etc/pacman.conf.tb322fc-keyring
-sed -i '/^\[forge\]/a SigLevel = Optional' /etc/pacman.conf
+# forge/core/extra packages - archlinux-keyring and archports-keyring included -
+# are signed by the Arch Linux Ports key, which the bootstrap does not ship.
+# Trust the key published next to the packages first; the fingerprint is pinned,
+# so a substituted key fails the local signature. Then install the keyring
+# package so its revoked-key list is authoritative.
+curl --fail --location --retry 5 --proto '=https' --proto-redir '=https' \
+    --output /tmp/archports.key \
+    "https://arch-linux-repo.drzee.net/arch/extra/os/aarch64/public.key"
+pacman-key --add /tmp/archports.key
+pacman-key --lsign-key 9B2C213B21883BB65CE2FB900CF25682E6BA0751
+rm -f /tmp/archports.key
 pacman -Sy --noconfirm
 pacman -S --noconfirm archports-keyring
-cp /etc/pacman.conf.tb322fc-keyring /etc/pacman.conf
-rm -f /etc/pacman.conf.tb322fc-keyring
 pacman-key --populate archports
 
 # The Ports key is trusted now, so every later download can be verified.
