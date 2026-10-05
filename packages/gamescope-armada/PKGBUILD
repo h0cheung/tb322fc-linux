@@ -28,7 +28,7 @@ _pkgname=gamescope
 _commit=afd6eac6e1b5045119831b63854bad68ec4fd92c # tag 3.16.31-ogc1
 pkgname=gamescope-armada
 pkgver=3.16.31.ogc1
-pkgrel=1
+pkgrel=2
 pkgdesc="SteamOS session compositing window manager (OGC fork, ArmadaOS patches)"
 arch=('aarch64')
 url="https://github.com/OpenGamingCollective/gamescope"
@@ -128,6 +128,8 @@ source=(
     0027-drm-clamp-synthetic-edid-pixel-clock.patch
     0028-edid-widen-display-range-limits.patch
     0029-wlserver-associate-spi-touchscreen.patch
+    # Device profile: HDR static metadata for the Y700 Gen4 internal panel.
+    csot.pp8807hb1-1.lua
 )
 sha256sums=(
     'SKIP'
@@ -167,6 +169,7 @@ sha256sums=(
     '752c0af39c9fef258870c1ac1d7cf90d645c4d94c9e0fba445724a5e73b8da5b'
     'dcf954cec741f19e7dd678cd46c48fc00b97d231bb0b444e46684382ff4ccc64'
     '25cdbb5434810ad461d02ec1ff3e95d496e0db1ae4b3daf8864f1b60c066165b'
+    'dfd3c52ac25bb09b8201ef095388fb98db6e59b032f2224825ec1cc2a3f13e15'
 )
 # tb322fc: renamed build; stand in for the repo package, so a rolling Arch
 # Linux ARM update cannot clobber the patched compositor. 3.16.31.ogc1 sorts
@@ -224,6 +227,10 @@ package() {
 
     meson install -C build --skip-subprojects --destdir "$pkgdir"
 
+    # Y700 Gen4 internal panel: expose HDR to clients (10-bit Gamma 2.2 LCD,
+    # model-level static metadata taken from the downstream device tree).
+    install -Dm644 "$srcdir"/csot.pp8807hb1-1.lua \
+        "$pkgdir/usr/share/gamescope/scripts/00-gamescope/displays/csot.pp8807hb1-1.lua"
 
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
     install -Dm644 "$srcdir"/reshade/LICENSE.md "$pkgdir/usr/share/licenses/$pkgname/LICENSE.reshade"
