@@ -14,7 +14,7 @@ on:
       arch_rootfs_url:
         description: 'Arch Linux ARM generic AArch64 archive (verified with its .sig)'
         type: string
-        default: http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
+        default: https://arch-linux-repo.drzee.net/arch/tarballs/os/aarch64/archlinux-bootstrap-latest-aarch64.tar.zst
       arch_rootfs_sha256:
         description: 'Optional exact archive SHA256 instead of OpenPGP verification'
         type: string
@@ -139,8 +139,8 @@ jobs:
             rootfs-pkgs-${{ runner.os }}-
       - name: Build Arch rootfs and native device userspace
         run: |
-          sudo env ARCH_ROOTFS_ARCHIVE="$PWD/build/ArchLinuxARM-aarch64.tar.gz" \
-            ARCH_ROOTFS_SHA256="$(cut -d ' ' -f 1 build/ArchLinuxARM-aarch64.sha256)" \
+          sudo env ARCH_ROOTFS_ARCHIVE="$PWD/build/archlinux-aarch64.tar.zst" \
+            ARCH_ROOTFS_SHA256="$(cut -d ' ' -f 1 build/archlinux-aarch64.sha256)" \
             ROOTFS_SIZE="$ROOTFS_SIZE" JOBS="$(nproc)" bash scripts/ci/build-rootfs.sh
       - name: Save rootfs package cache
         if: always() && steps.rootfs-cache.outputs.cache-hit != 'true' && hashFiles('build/rootfs-cache/**') != ''

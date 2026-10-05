@@ -3,8 +3,8 @@
 set -euo pipefail
 cd -- "$(dirname -- "$0")/../.."
 mkdir -p build artifacts
-url=${ARCH_ROOTFS_URL:-http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz}
-archive=build/ArchLinuxARM-aarch64.tar.gz
+url=${ARCH_ROOTFS_URL:-https://arch-linux-repo.drzee.net/arch/tarballs/os/aarch64/archlinux-bootstrap-latest-aarch64.tar.zst}
+archive=build/archlinux-aarch64.tar.zst
 [[ "$url" == http://* || "$url" == https://* ]] || { echo 'ARCH_ROOTFS_URL must use HTTP or HTTPS' >&2; exit 1; }
 curl --fail --location --retry 5 --proto '=http,https' --proto-redir '=http,https' \
     --output "$archive.part" "$url"
@@ -14,8 +14,9 @@ if [[ -n ${ARCH_ROOTFS_SHA256:-} ]]; then
     printf '%s  %s\n' "$ARCH_ROOTFS_SHA256" "$archive" | sha256sum --check -
     printf 'verification=explicit-sha256\n' > artifacts/arch-bootstrap.txt
 else
-    # Fingerprint published at https://archlinuxarm.org/about/downloads.
-    fingerprint=68B3537F39A313B3E574D06777193F152BDBE6A6
+    # Arch Linux Ports signing key (forge/core/extra packages are signed with
+    # it); published at the repository root next to the packages.
+    fingerprint=9B2C213B21883BB65CE2FB900CF25682E6BA0751
     gnupg_home=$(mktemp -d)
     trap 'rm -rf "$gnupg_home"' EXIT
     chmod 700 "$gnupg_home"
@@ -23,7 +24,7 @@ else
         --output "$archive.sig" "$url.sig"
     curl --fail --location --retry 5 --proto '=https' --proto-redir '=https' \
         --output "$gnupg_home/signer.asc" \
-        "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$fingerprint"
+        "https://arch-linux-repo.drzee.net/arch/extra/os/aarch64/public.key"
     gpg --homedir "$gnupg_home" --batch --import "$gnupg_home/signer.asc"
     gpg --homedir "$gnupg_home" --batch --status-fd 1 --verify "$archive.sig" "$archive" \
         > "$gnupg_home/status"
@@ -32,5 +33,5 @@ else
         "$gnupg_home/status"
     printf 'verification=openpgp\nsigner=%s\n' "$fingerprint" > artifacts/arch-bootstrap.txt
 fi
-sha256sum "$archive" > build/ArchLinuxARM-aarch64.sha256
-cut -d ' ' -f 1 build/ArchLinuxARM-aarch64.sha256 | sed 's/^/sha256=/' >> artifacts/arch-bootstrap.txt
+sha256sum "$archive" > build/archlinux-aarch64.sha256
+cut -d ' ' -f 1 build/archlinux-aarch64.sha256 | sed 's/^/sha256=/' >> artifacts/arch-bootstrap.txt

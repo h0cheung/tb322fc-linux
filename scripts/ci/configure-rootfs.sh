@@ -13,19 +13,36 @@ JOBS=${JOBS:-$(nproc)}
 # Disable CheckSpace in chroot where cachedir mount point cannot be probed via /proc/mounts.
 sed -i 's/^[[:space:]]*CheckSpace/#CheckSpace/' /etc/pacman.conf
 
-# The ALARM bootstrap carries the distro's own linux-aarch64 kernel and its
-# initramfs tooling. This image boots the kernel and module tree built by this
-# repository instead (extracted from kernel-modules.tar.gz below), so neither
-# is ever used - and mkinitcpio's autodetect hook cannot work inside the build
-# chroot, aborting with "failed to detect root filesystem" on every kernel
-# upgrade. Drop them before the rolling upgrade would touch the kernel.
-pacman -Rcns --noconfirm linux-aarch64 mkinitcpio
+# The bootstrap may carry the distro's own kernel and its initramfs tooling.
+# This image boots the kernel and module tree built by this repository instead
+# (extracted from kernel-modules.tar.gz below), so neither is ever used - and
+# mkinitcpio's autodetect hook cannot work inside the build chroot, aborting
+# with "failed to detect root filesystem" on every kernel upgrade. Drop them,
+# if present, before the rolling upgrade would touch the kernel.
+for package in linux-aarch64 mkinitcpio; do
+    if pacman -Q "$package" >/dev/null 2>&1; then
+        pacman -Rcns --noconfirm "$package"
+    fi
+done
 
 # Keep package signatures enabled. The authenticated bootstrap contains the
 # distro keyring; update it before the full rolling-release upgrade.
 pacman-key --init
-pacman-key --populate archlinuxarm
-pacman -Sy --noconfirm archlinuxarm-keyring
+pacman-key --populate archlinux
+pacman -Sy --noconfirm archlinux-keyring
+
+# forge/core/extra are signed by the Arch Linux Ports key, which the bootstrap
+# does not ship. Install the keyring package (its post_install hook runs
+# pacman-key --populate archports): LocalFileSigLevel is Optional, and the
+# [forge] repo is marked Optional only for this single fetch, after which the
+# key is trusted and the original configuration is restored.
+cp /etc/pacman.conf /etc/pacman.conf.tb322fc-keyring
+sed -i '/^\[forge\]/a SigLevel = Optional' /etc/pacman.conf
+pacman -Sy --noconfirm
+pacman -S --noconfirm archports-keyring
+cp /etc/pacman.conf.tb322fc-keyring /etc/pacman.conf
+rm -f /etc/pacman.conf.tb322fc-keyring
+pacman-key --populate archports
 pacman -Syu --noconfirm
 runtime_packages=(
     base systemd systemd-sysvcompat linux-firmware kmod sudo nano less

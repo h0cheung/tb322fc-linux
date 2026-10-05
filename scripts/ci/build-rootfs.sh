@@ -51,7 +51,9 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-tar --numeric-owner --xattrs --acls -xpf "$ARCH_ROOTFS_ARCHIVE" -C "$ROOTFS"
+# The Arch Linux Ports bootstrap tarball stores everything under a
+# root.aarch64/ prefix; strip it so the tree lands directly in $ROOTFS.
+tar --numeric-owner --xattrs --acls --strip-components=1 -xpf "$ARCH_ROOTFS_ARCHIVE" -C "$ROOTFS"
 chmod 755 "$ROOTFS"
 [[ -x $ROOTFS/usr/bin/bash && -x $ROOTFS/usr/bin/pacman ]] || die 'Archive is not an Arch Linux ARM root filesystem.'
 STAGE="$ROOTFS/root/tb322fc-build"
