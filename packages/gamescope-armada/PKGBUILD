@@ -1,6 +1,7 @@
 # Maintainer: h0cheung <hcheunh@gmail.com>
 # Arch aarch64 build of the OpenGamingCollective (OGC) gamescope fork at the
-# revision ArmadaOS ships, plus the twenty patches ArmadaOS carries on top.
+# revision ArmadaOS ships (3.16.31-ogc1), plus the 25 patches ArmadaOS carries
+# on top and three Y700-local patches.
 #
 # Why not Arch's own gamescope: the Y700's internal DSI panel exposes no EDID,
 # so upstream's CDRMConnector::ParseEDID() bails out early and never populates
@@ -8,15 +9,15 @@
 # mode, which is why Steam shows no refresh-rate selector at all and the frame
 # limiter stops at 120 Hz. ArmadaOS fixes that with a synthetic-EDID path and
 # known-display profiles (patches 0002/0003) and layers its HDR / DRM-lease
-# work (0004-0017) and a few arm64 fixes on the same fork. All twenty of those
+# work (0004-0017, 0021) and a few arm64 fixes on the same fork. All of those
 # are written against this exact fork revision, so the fork is the base rather
-# than a backport target. 0021 is local: the synthetic-EDID generator rejected
-# any mode whose pixel clock did not fit EDID's 16-bit field, and the Y700's
-# 1904x3040@120 runs at 915.6 MHz, so without it none of the above takes effect.
-# 0023 is local too: the touch-to-connector association only recognised an i2c
-# or usb udev ancestor, so the Y700's SPI digitizer was never tied to the
-# internal connector and the panel-orientation transform was skipped for touch,
-# leaving it rotated 90 degrees against the portrait-native panel.
+# than a backport target. The last three patches are Y700-local: 0027 clamps the
+# synthetic EDID's pixel clock (the Y700's 1904x3040@120 runs at 915.6 MHz, past
+# EDID's 16-bit 10 kHz field, so without it the whole EDID was dropped and none
+# of the above took effect); 0028 writes the session's real refresh range into
+# the EDID range descriptor so Steam's slider spans the panel; and 0029 ties the
+# SPI digitizer to the internal connector so the panel-orientation transform
+# reaches touch.
 #
 # Renamed build: the package carries -armada and stands in for "gamescope" via
 # provides/conflicts/replaces, so a rolling Arch Linux ARM update cannot clobber
@@ -24,9 +25,9 @@
 # are applied by the rootfs tmpfiles entry, not here, because makepkg runs
 # unprivileged.
 _pkgname=gamescope
-_commit=4b50dd7a719c09acb1a0141ff6eac9dab1ab4f2f # tag 3.16.29-ogc2
+_commit=afd6eac6e1b5045119831b63854bad68ec4fd92c # tag 3.16.31-ogc1
 pkgname=gamescope-armada
-pkgver=3.16.29.ogc2
+pkgver=3.16.31.ogc1
 pkgrel=1
 pkgdesc="SteamOS session compositing window manager (OGC fork, ArmadaOS patches)"
 arch=('aarch64')
@@ -104,7 +105,6 @@ source=(
     0005-wsi-filter-hdr-formats-by-underlying-support.patch
     0006-color-scale-sdr-white-on-gamma22-hdr-output.patch
     0007-expose-client-sampleable-formats.patch
-    0008-fix-arm64-steam-night-mode.patch
     0009-main-add-opt-in-force-vulkan-realtime.patch
     0010-color-fall-back-to-app-hdr-metadata-for-tonemapping.patch
     0011-wlserver-implement-drm-lease-v1.patch
@@ -117,9 +117,17 @@ source=(
     0018-steamcompmgr-arm64-virtual-white.patch
     0019-color-p3-red-is-wide-gamut.patch
     0020-libliftoff-fix-multiple-primary-plane-stacking.patch
-    0021-drm-clamp-synthetic-edid-pixel-clock.patch
-    0022-edid-widen-display-range-limits.patch
-    0023-wlserver-associate-spi-touchscreen.patch
+    0021-drm-per-plane-color-management-through-msm-plane-color-pipelines.patch
+    0022-mangoapp-keep-a-lease-client-off-the-shared-queue.patch
+    0023-drm-power-down-an-idle-lease-companion-output.patch
+    0024-steamcompmgr-report-wayland-windows-to-steam.patch
+    0025-wlserver-pass-touch-through-to-native-wayland-windows.patch
+    0026-upscale-use-sgsr-for-sdr-fsr-requests.patch
+    # Y700-local patches (not carried by ArmadaOS). 0008 was an arm64 Steam
+    # night-mode workaround ArmadaOS has since dropped as obsolete.
+    0027-drm-clamp-synthetic-edid-pixel-clock.patch
+    0028-edid-widen-display-range-limits.patch
+    0029-wlserver-associate-spi-touchscreen.patch
 )
 sha256sums=(
     'SKIP'
@@ -132,16 +140,15 @@ sha256sums=(
     'SKIP'
     'SKIP'
     '611989049383b9d3a5d30f908a5dbe164c7ee5a4d451bebb9c108d6ba9a2d02b'
-    'd60c38f35e7dde79e20acb01a1666671b7abdf250ce5997dcfdb0866ff69dbe2'
-    'd639ea9070de5ad7e500a0377827004f7a48360fc92f917f2cee5f50bc06d365'
-    'f0ba25b5c28e138aa5075d4e053c8b0a818e22fc890025803a66bfa1d003cdf9'
+    'bc93e3e745120f3d9548729924c4d6fb66bcae78dfece6e5df429c81986e0584'
+    'edea07f37837fb2d1d9b0f60de97774b7ecd2a16ba60ff3751ea9f07d22a8381'
+    'f5a1a98bbf05ced89cf3f0d0f13ef397e26196191a22f9167948ef22b27ec1d3'
     'c690d73870e96b82853f0c98f6f1bc87fb9717a971351225a7bf03512eeb39c3'
     '0c0d40fedf343d5d306d74046aa961d8d2cdc4025cc5254c0517a5ea000436cf'
-    'ee897b0a565ff36b2220f84a32f2f4024ea7fb5e5df967fffa5e3fdc5f144e6a'
-    '201ca8388f5376f03e5d001b3dbb8e5c404b38b81d443f456ae4fac17365866e'
+    'b85507822dcfc6da716b345325aa3f7f490028b5da6411fbcc3272b7995ead58'
     'f48a38311e529288a032b298ae8f6ba06450aee1ded46defcf274a7da9b06a15'
     'df12ed81efa245a642a62a1b724fb76ec6a0234aaedc9f75ce1f9f3f7b93827d'
-    'ecb845fbbfb9d0161977718ae90837ccf11070fb2ea255b255f37b2371e25c5f'
+    'ba655641e65dbc605029f935d6b1c40701854af7d33e63e96196700759b44bc8'
     '4fd7fa651093164a87fb42adf1fabc66a5402b83c729b26382e2c2ee52814e94'
     'f79f309df9ac11743a438f35feef6cce864cb47ebf93c012cfe69fd123d24899'
     '3222ee686fa87c9e059f3aca4ec077a104396df7e8d6f52054342674df28f126'
@@ -151,12 +158,20 @@ sha256sums=(
     '2eb8d5e6a8e8c97be18771cd80c5680dd924646b87c854f5e8e047edb78978cd'
     '13211242ab9a04d5d76d85326b77b3f972e106fddebb6f45ae1ad43c7b178b14'
     'a195edfee890c5c2976742104e52c6ca31463d7368a94d2b2d5d303417d82938'
+    '70713c4a8b730a6749c8287cf2e666b715e8b1156a0b027dec80d09b87879e86'
+    'fdcaae16c50d9ffa50b4d8832ab0ae7b3858af46465f0583fd785fca76df9253'
+    'f945211b2a16e3a1b263ef8cafe698c20a269e11d9d5baf23c29e5c2d293fd97'
+    '4cbae1ff0e91f945bb27a421ad9b2ca4fdd2548f2ed82b1216f2e523e78f946a'
+    '34cb70ec81cbd11d15e7c4a942bfe3538f9639dac9586d53b98b6afbcdb1fd1f'
+    '7b1bac6d47a5dea52cd4d5f470df64437143dcadce307833063b0b8ace5fecc2'
     '752c0af39c9fef258870c1ac1d7cf90d645c4d94c9e0fba445724a5e73b8da5b'
     'dcf954cec741f19e7dd678cd46c48fc00b97d231bb0b444e46684382ff4ccc64'
     '25cdbb5434810ad461d02ec1ff3e95d496e0db1ae4b3daf8864f1b60c066165b'
 )
-# tb322fc: renamed build; stand in for the repo package at any version, since
-# the fork's 3.16.29.ogc2 sorts below the stock 3.16.30.
+# tb322fc: renamed build; stand in for the repo package, so a rolling Arch
+# Linux ARM update cannot clobber the patched compositor. 3.16.31.ogc1 sorts
+# above the stock 3.16.31 (the extra .ogc1 segment wins), but provides/conflicts
+# still keep the two packages from ever being installed side by side.
 provides=('gamescope')
 conflicts=('gamescope')
 replaces=('gamescope')
@@ -208,6 +223,7 @@ package() {
     chmod -R 755 "$pkgdir/usr/share/gamescope"
 
     meson install -C build --skip-subprojects --destdir "$pkgdir"
+
 
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
     install -Dm644 "$srcdir"/reshade/LICENSE.md "$pkgdir/usr/share/licenses/$pkgname/LICENSE.reshade"
