@@ -29,11 +29,11 @@ done
 # distro keyring; update it before the full rolling-release upgrade.
 pacman-key --init
 pacman-key --populate archlinux
-pacman -Sy --noconfirm archlinux-keyring
 
-# forge/core/extra are signed by the Arch Linux Ports key, which the bootstrap
-# does not ship. Install the keyring package (its post_install hook runs
-# pacman-key --populate archports): LocalFileSigLevel is Optional, and the
+# forge/core/extra packages - archlinux-keyring included - are signed by the
+# Arch Linux Ports key, which the bootstrap does not ship. Install the keyring
+# package before anything else: its post_install hook runs
+# pacman-key --populate archports. LocalFileSigLevel is Optional, and the
 # [forge] repo is marked Optional only for this single fetch, after which the
 # key is trusted and the original configuration is restored.
 cp /etc/pacman.conf /etc/pacman.conf.tb322fc-keyring
@@ -43,6 +43,9 @@ pacman -S --noconfirm archports-keyring
 cp /etc/pacman.conf.tb322fc-keyring /etc/pacman.conf
 rm -f /etc/pacman.conf.tb322fc-keyring
 pacman-key --populate archports
+
+# The Ports key is trusted now, so every later download can be verified.
+pacman -Sy --noconfirm archlinux-keyring
 pacman -Syu --noconfirm
 runtime_packages=(
     base systemd systemd-sysvcompat linux-firmware kmod sudo nano less
