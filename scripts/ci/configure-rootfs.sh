@@ -199,7 +199,7 @@ install -d -m 700 /var/lib/hexagonrpc /var/lib/hexagonrpc/sensors
 ln -s /sys/devices/soc0 /var/lib/hexagonrpc/socinfo
 
 # Device thermal policy.  Both files are written by the overlay, not owned by
-# the thermald package, so a future ALARM thermald package cannot drop them.
+# the thermald package, so a future Ports thermald package cannot drop them.
 # The config must be root-owned and not group/world-writable, or thermald's
 # open_validated_xml_file() refuses it with EPERM; regenerate it with
 # rootfs/thermald/gen_thermal_conf.py when the policy changes.  The drop-in
@@ -552,7 +552,7 @@ for package in mesa-y700-gen4-git vulkan-freedreno-y700-gen4-git; do
 done
 
 cat > /etc/issue <<'EOF'
-Arch Linux ARM on Lenovo Y700 Gen 4 (TB322FC)
+Arch Linux Ports on Lenovo Y700 Gen 4 (TB322FC)
 Initial login: alarm / alarm. Change the password at first login.
 EOF
 

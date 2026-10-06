@@ -4,8 +4,8 @@
 The daemon and the boot-time scripts need the account that owns the graphical
 session: to run session commands as that user, and to locate its home for
 per-user state. Upstream ArmadaOS is a single-user image with a fixed account
-("armada"); this port runs on a normal ALARM install, so the account is
-discovered instead of assumed. $ARMADA_SESSION_USER overrides the lookup.
+("armada"); this port runs on a normal Arch Linux Ports install, so the account
+is discovered instead of assumed. $ARMADA_SESSION_USER overrides the lookup.
 """
 import os
 import pwd

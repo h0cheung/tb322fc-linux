@@ -1,4 +1,4 @@
-# 四代 Arch Linux ARM 镜像 CI
+# 四代 Arch Linux Ports 镜像 CI
 
 目标设备是 **Y700 四代 / TB322FC / elden / SM8750**。构建产物为直接启动
 Linux 的 Android v4 `boot.img` 和带 KDE Plasma 的 ext4 `rootfs.img`。
@@ -78,7 +78,7 @@ SHA256 优先使用手动输入。下载器和构建元数据不会主动记录 
 
 ## 2. 运行 Actions
 
-选择 **Build Arch Linux ARM images → Run workflow**。
+选择 **Build Arch Linux Ports images → Run workflow**。
 
 | 输入 | 默认值 / 含义 |
 | --- | --- |
@@ -92,8 +92,8 @@ SHA256 优先使用手动输入。下载器和构建元数据不会主动记录 
 流程为：固件校验 → 精确源码与补丁树校验 → Arch 基础包认证 → 内核及模块编译 →
 Arch 包安装与设备服务编译 → ext4 镜像制作及检查 → zstd 压缩。
 
-Arch 下载签名使用[官方公布的密钥](https://archlinuxarm.org/about/downloads)
-`68B3537F39A313B3E574D06777193F152BDBE6A6`。默认 rootfs 和软件仓库是滚动的；
+Arch 基础包与归档签名使用 [Arch Linux Ports 公布的密钥](https://arch-linux-repo.drzee.net/arch/extra/os/aarch64/public.key)
+`9B2C213B21883BB65CE2FB900CF25682E6BA0751`。默认 rootfs 和软件仓库是滚动的；
 源码固定不等于整个用户空间可逐字节复现。产物记录归档 SHA256、内核配置、
 源码版本与完整 pacman 包清单，方便定位变化。Mesa 不满足设备要求时应修复
 软件源或等待仓库同步，不应把构建失败当作已可运行的桌面镜像。
@@ -177,8 +177,8 @@ python3 scripts/fetch-sources.py
 python3 scripts/ci/firmware-bundle.py verify inputs/firmware
 bash scripts/ci/fetch-arch.sh
 JOBS=4 bash scripts/ci/build-kernel.sh
-sudo env ARCH_ROOTFS_ARCHIVE="$PWD/build/ArchLinuxARM-aarch64.tar.gz" \
-    ARCH_ROOTFS_SHA256="$(cut -d ' ' -f 1 build/ArchLinuxARM-aarch64.sha256)" \
+sudo env ARCH_ROOTFS_ARCHIVE="$PWD/build/archlinux-aarch64.tar.zst" \
+    ARCH_ROOTFS_SHA256="$(cut -d ' ' -f 1 build/archlinux-aarch64.sha256)" \
     ROOTFS_SIZE=12G JOBS=4 bash scripts/ci/build-rootfs.sh
 ```
 

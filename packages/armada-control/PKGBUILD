@@ -11,7 +11,7 @@
 # Upstream: https://github.com/armada-os/armada (GPL-2.0-or-later, Copyright the Armada contributors)
 pkgname=armada-control
 pkgver=20260929
-pkgrel=1
+pkgrel=2
 pkgdesc="Armada privileged settings daemon for the armada-control Decky plugin"
 arch=('aarch64')
 url="https://github.com/armada-os/armada"

@@ -17,5 +17,5 @@
     "ambient_light": 17
   },
   "non_rootfs_ufs_readonly": true,
-  "rootfs": "Existing prepared Arch Linux ARM system; clean distribution install not tested."
+  "rootfs": "Existing prepared Arch Linux Ports system; clean distribution install not tested."
 }

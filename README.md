@@ -35,10 +35,10 @@ See the [support matrix](docs/hardware.md) for test scope and unverified feature
 
 ## Build and use
 
-### Automated Arch Linux ARM images
+### Automated Arch Linux Ports images
 
-The **Build Arch Linux ARM images** Actions workflow builds a direct Android
-`boot.img` and an Arch Linux ARM Plasma `rootfs.img` from pinned device sources.
+The **Build Arch Linux Ports images** Actions workflow builds a direct Android
+`boot.img` and an Arch Linux Ports Plasma `rootfs.img` from pinned device sources.
 It requires a matching firmware bundle; no GRUB or Debian device packages are
 used. See the [CI setup and image guide](docs/ci.md) for input preparation,
 artifact verification and first boot. This new pipeline still needs a full

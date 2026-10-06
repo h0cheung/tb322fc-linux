@@ -6,15 +6,15 @@
 # time_to_empty_avg, plus one local patch that turns preset 2's dead power rows
 # into CPU/GPU clock rows. gamescope-session-plus and OGC's sessions.d/steam
 # already export STEAM_USE_MANGOAPP=1, so Steam's Performance Overlay needs this
-# package to exist - it is not packaged by Arch Linux ARM at all.
+# package to exist - it is not packaged by Arch Linux Ports at all.
 #
 # Renamed build: the package carries -armada and stands in for "mangohud" via
-# provides/conflicts/replaces, so a rolling Arch Linux ARM update cannot clobber
+# provides/conflicts/replaces, so a rolling Arch Linux Ports update cannot clobber
 # the patched overlay (same scheme as mesa-y700-gen4-git and gamescope-armada).
 _pkgname=MangoHud
 pkgname=mangohud-armada
 pkgver=0.8.4
-pkgrel=2
+pkgrel=3
 pkgdesc="Vulkan/OpenGL overlay for monitoring FPS, temperatures, CPU/GPU load and more (Adreno/SM8750 build)"
 arch=('aarch64')
 url="https://github.com/flightlessmango/MangoHud"

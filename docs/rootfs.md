@@ -1,7 +1,7 @@
 # Rootfs setup
 
 Use an AArch64 Linux userspace with systemd/udev on an already prepared ext4
-partition named `rootfs`. Arch Linux ARM has been used for hardware testing.
+partition named `rootfs`. Arch Linux Ports has been used for hardware testing.
 This project does not repartition the tablet. The [Arch image workflow](ci.md)
 automates this setup and produces a rootfs artifact when supplied with matching
 firmware; the rest of this page also documents manual integration.

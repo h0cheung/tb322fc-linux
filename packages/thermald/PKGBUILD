@@ -1,16 +1,16 @@
 # Maintainer: h0cheung <hcheunh@gmail.com>
-# Unmodified upstream release of the Linux Thermal Daemon, rebuilt for
-# aarch64/ALARM.  Arch Linux ARM ships no thermald package at all (checked
-# against the extra repository on 2026-09-30), so this is the only source of
-# thermald for the image.
+# Unmodified upstream release of the Linux Thermal Daemon, rebuilt for aarch64.
+# It was added because the distro shipped no thermald package (checked against
+# the extra repository on 2026-09-30); Arch Linux Ports now ships one
+# (thermald 2:2.5.13-1), so this package is a candidate to drop.
 #
 # The package is deliberately identical to upstream: the device thermal policy
 # (thermal-conf.xml plus the --exclusive-control systemd drop-in) is written by
-# the rootfs overlay into /etc, so a future ALARM thermald package cannot drop
+# the rootfs overlay into /etc, so a future distro thermald package cannot drop
 # it.  See rootfs/thermald/ and scripts/ci/configure-rootfs.sh.
 pkgname=thermald
 pkgver=2.5.13
-pkgrel=1
+pkgrel=2
 epoch=2
 pkgdesc="The Linux Thermal Daemon program from 01.org (aarch64 build)"
 arch=('aarch64')
@@ -36,7 +36,7 @@ sha256sums=(
 build() {
     cd "$srcdir/thermal_daemon-$pkgver"
     # --disable-doc: no gtk-doc output is shipped in the image.
-    # --disable-werror: upstream turns on -Werror and the rolling ALARM
+    # --disable-werror: upstream turns on -Werror and the rolling Ports
     # toolchain emits new warnings that are not defects in this code.
     ./autogen.sh \
         --prefix=/usr \

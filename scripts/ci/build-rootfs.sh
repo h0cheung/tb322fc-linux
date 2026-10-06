@@ -55,7 +55,7 @@ trap 'exit 143' TERM
 # root.aarch64/ prefix; strip it so the tree lands directly in $ROOTFS.
 tar --numeric-owner --xattrs --acls --strip-components=1 -xpf "$ARCH_ROOTFS_ARCHIVE" -C "$ROOTFS"
 chmod 755 "$ROOTFS"
-[[ -x $ROOTFS/usr/bin/bash && -x $ROOTFS/usr/bin/pacman ]] || die 'Archive is not an Arch Linux ARM root filesystem.'
+[[ -x $ROOTFS/usr/bin/bash && -x $ROOTFS/usr/bin/pacman ]] || die 'Archive is not an Arch Linux Ports root filesystem.'
 STAGE="$ROOTFS/root/tb322fc-build"
 mkdir -p "$STAGE/sources" "$ROOTFS/usr/share/tb322fc"
 

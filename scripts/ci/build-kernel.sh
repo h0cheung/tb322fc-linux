@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Build a direct Android boot image and matching Arch Linux ARM modules.
+# Build a direct Android boot image and matching Arch Linux Ports modules.
 set -euo pipefail
 PROJECT=$(cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$PROJECT"

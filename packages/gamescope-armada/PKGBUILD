@@ -20,7 +20,7 @@
 # reaches touch.
 #
 # Renamed build: the package carries -armada and stands in for "gamescope" via
-# provides/conflicts/replaces, so a rolling Arch Linux ARM update cannot clobber
+# provides/conflicts/replaces, so a rolling Arch Linux Ports update cannot clobber
 # the patched compositor (same scheme as mesa-y700-gen4-git). The file capabilities
 # are applied by the rootfs tmpfiles entry, not here, because makepkg runs
 # unprivileged.
@@ -28,7 +28,7 @@ _pkgname=gamescope
 _commit=afd6eac6e1b5045119831b63854bad68ec4fd92c # tag 3.16.31-ogc1
 pkgname=gamescope-armada
 pkgver=3.16.31.ogc1
-pkgrel=2
+pkgrel=3
 pkgdesc="SteamOS session compositing window manager (OGC fork, ArmadaOS patches)"
 arch=('aarch64')
 url="https://github.com/OpenGamingCollective/gamescope"

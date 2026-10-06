@@ -1,4 +1,4 @@
-name: Build Arch Linux ARM images
+name: Build Arch Linux Ports images
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ on:
         type: string
         required: false
       arch_rootfs_url:
-        description: 'Arch Linux ARM generic AArch64 archive (verified with its .sig)'
+        description: 'Arch Linux Ports generic AArch64 archive (verified with its .sig)'
         type: string
         default: https://arch-linux-repo.drzee.net/arch/tarballs/os/aarch64/archlinux-bootstrap-latest-aarch64.tar.zst
       arch_rootfs_sha256:
@@ -67,7 +67,7 @@ jobs:
         run: bash scripts/build-topology.sh
       - name: Fetch and verify pinned sources
         run: python3 scripts/fetch-sources.py
-      - name: Download and authenticate Arch Linux ARM
+      - name: Download and authenticate Arch Linux Ports
         run: bash scripts/ci/fetch-arch.sh
       - name: Restore kernel build cache
         id: restore-kernel-cache
@@ -208,7 +208,7 @@ jobs:
           TAG="v$(date -u +'%Y%m%d%H%M%S')"
           KERNEL_RELEASE="$(cat artifacts/release/kernel.release 2>/dev/null || echo '7.2.0-y700+')"
           cat << 'EOF' > artifacts/release/RELEASE-NOTES.md
-          # Lenovo Legion Y700 Gen 4 (TB322FC) - Arch Linux ARM Pre-Release
+          # Lenovo Legion Y700 Gen 4 (TB322FC) - Arch Linux Ports Pre-Release
 
           **Release Tag:** `__TAG__`  
           **Kernel Version:** `__KERNEL_RELEASE__`  
@@ -281,7 +281,7 @@ jobs:
           cat rootfs.img | adb shell "dd of=/dev/block/by-name/rootfs bs=4M status=progress conv=fsync"
           ```
 
-          #### Step 4: Boot into Arch Linux ARM
+          #### Step 4: Boot into Arch Linux Ports
           1. Reboot the tablet to Fastboot mode:
              ```bash
              adb reboot bootloader
@@ -386,7 +386,7 @@ jobs:
           cat rootfs.img | adb shell "dd of=/dev/block/by-name/rootfs bs=4M status=progress conv=fsync"
           ```
 
-          #### 步骤 4：引导启动 Arch Linux ARM
+          #### 步骤 4：引导启动 Arch Linux Ports
           1. 平板重启至 Fastboot 模式：
              ```bash
              adb reboot bootloader
@@ -443,7 +443,7 @@ jobs:
           done
 
           gh release create "${TAG}" \
-            --title "Arch Linux ARM Pre-Release (${TAG})" \
+            --title "Arch Linux Ports Pre-Release (${TAG})" \
             --notes-file artifacts/release/RELEASE-NOTES.md \
             --prerelease \
             "${assets[@]}"
