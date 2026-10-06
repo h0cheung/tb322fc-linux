@@ -1,0 +1,19 @@
+# UPower charge-threshold support for the Lenovo Legion Y700 Gen4 (TB322FC).
+#
+# UPower's /usr/lib/udev/rules.d/60-upower-battery.rules derives its hwdb lookup
+# key from the DMI modalias:
+#
+#     battery:$kernel:$attr{model_name}:$attr{[dmi/id]modalias}
+#
+# and the stock entry in 60-upower-battery.hwdb is "battery:*:*:dmi:*", which
+# requires a literal "dmi:" segment.  This tablet is a device-tree platform with
+# no DMI, so $attr{[dmi/id]modalias} is empty, the key ends in ":" and the stock
+# entry never matches.  UPower then imports no CHARGE_LIMIT, reports
+# ChargeThresholdSupported=false, and KDE hides its charge-limit control.
+#
+# This entry matches the same key without the DMI segment.  y700-charged keeps
+# the CHARGE_LIMIT value in sync with the configured threshold.
+#
+# To apply: systemd-hwdb update && udevadm trigger --subsystem-match=power_supply
+battery:qcom-battmgr-bat:*:
+ CHARGE_LIMIT=70,80

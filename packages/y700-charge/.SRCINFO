@@ -1,0 +1,13 @@
+pkgbase = y700-charge
+	pkgdesc = Standalone Decky plugin + daemon for Y700 Gen4 battery charge control (bypass charging + charge protection)
+	pkgver = 20261006
+	pkgrel = 1
+	url = https://github.com/h0cheung/tb322fc-linux
+	arch = aarch64
+	license = GPL-2.0-only
+	makedepends = nodejs
+	makedepends = npm
+	depends = python
+	depends = upower
+
+pkgname = y700-charge

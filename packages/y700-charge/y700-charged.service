@@ -1,0 +1,12 @@
+[Unit]
+Description=y700 battery charge control daemon (bypass + charge protection)
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/y700-charge/y700-charged
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target

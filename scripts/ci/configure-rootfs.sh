@@ -186,8 +186,9 @@ install -Dm644 overlay/sensors/hexagonrpcd-sensors.service /etc/systemd/system/h
 install -Dm644 overlay/sensors/iio-sensor-proxy.conf /etc/systemd/system/iio-sensor-proxy.service.d/ssc.conf
 install -Dm644 overlay/sensors/61-sensor-matrix.rules /etc/udev/rules.d/61-sensor-matrix.rules
 install -Dm644 overlay/sensors/81-iio-sensor-proxy-proximity.rules /etc/udev/rules.d/81-iio-sensor-proxy-proximity.rules
-install -Dm644 overlay/power/80-battery-charge-threshold.rules /etc/udev/rules.d/80-battery-charge-threshold.rules
-install -Dm644 overlay/power/battery-charge-threshold.conf /etc/tmpfiles.d/battery-charge-threshold.conf
+# Battery charge thresholds are owned at runtime by y700-charged
+# (packages/y700-charge): it applies the configured limit and re-applies it on
+# USB events, and ships the UPower hwdb entry that exposes the limit to KDE.
 # Steam Game Mode charging ETA: a small bridge republishes UPower's battery
 # estimates into the vpower files Game Mode reads (ported from armada PR #463).
 install -Dm755 overlay/power/armada-steam-charging-eta /usr/libexec/armada/armada-steam-charging-eta
@@ -562,7 +563,7 @@ for service in systemd-networkd.service systemd-networkd.socket systemd-networkd
         systemctl disable "$service"
     fi
 done
-systemctl enable NetworkManager.service bluetooth.service sddm.service hexagonrpcd-sensors.service als-bridge.service armada-powerd.service thermald.service steamos-manager.service armada-control.service armada-decky-sync.service decky-loader@alarm.service tb322fc-hall-lid.service tb322fc-gyro-bridge.service
+systemctl enable NetworkManager.service bluetooth.service sddm.service hexagonrpcd-sensors.service als-bridge.service armada-powerd.service thermald.service steamos-manager.service armada-control.service armada-decky-sync.service decky-loader@alarm.service tb322fc-hall-lid.service tb322fc-gyro-bridge.service y700-charged.service
 systemctl set-default graphical.target
 systemctl --global enable pipewire.socket pipewire-pulse.socket wireplumber.service armada-steam-charging-eta.service
 

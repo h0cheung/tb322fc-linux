@@ -1,0 +1,47 @@
+# Maintainer: h0cheung <hcheunh@gmail.com>
+# Standalone Decky plugin + daemon for battery charge control on the Lenovo
+# Legion Y700 Gen4 (TB322FC).  Deliberately NOT part of armada-control /
+# armada-decky-plugins: it is a self-contained tool for this device.
+#
+# The daemon owns the charge sysfs -- bypass charging is constant_charge_current=0,
+# charge protection is charge_control_end/start_threshold -- and runs as a system
+# service so the settings apply in Steam Game Mode and on the KDE desktop alike.
+# The Decky plugin is only a UI over the daemon's control socket.
+#
+# 61-battery-local.hwdb teaches UPower about the charge threshold on this
+# DMI-less device-tree tablet, which is what makes KDE's native charge limit
+# appear (UPower's stock hwdb entry requires a DMI modalias segment).
+pkgname=y700-charge
+pkgver=20261006
+pkgrel=1
+pkgdesc="Standalone Decky plugin + daemon for Y700 Gen4 battery charge control (bypass charging + charge protection)"
+arch=('aarch64')
+url="https://github.com/h0cheung/tb322fc-linux"
+license=('GPL-2.0-only')
+depends=('python' 'upower')
+makedepends=('nodejs' 'npm')
+
+build() {
+    cd "$startdir/decky"
+    npm ci --ignore-scripts
+    npm run build
+}
+
+package() {
+    install -Dm755 "$startdir/y700-charged" "$pkgdir/usr/libexec/y700-charge/y700-charged"
+    install -Dm755 "$startdir/y700-charge" "$pkgdir/usr/bin/y700-charge"
+    install -Dm644 "$startdir/y700-charged.service" \
+        "$pkgdir/usr/lib/systemd/system/y700-charged.service"
+    install -Dm644 "$startdir/61-battery-local.hwdb" \
+        "$pkgdir/etc/udev/hwdb.d/61-battery-local.hwdb"
+
+    dest="$pkgdir/usr/share/decky-plugins/y700-charge"
+    install -d -m0755 "$dest"
+    cd "$startdir/decky"
+    install -m644 plugin.json package.json "$dest/"
+    install -m755 main.py "$dest/"
+    cp -a py_modules "$dest/"
+    cp -a dist "$dest/"
+    rm -f "$dest/dist/"*.map
+    find "$dest" -name __pycache__ -type d -prune -exec rm -rf {} +
+}

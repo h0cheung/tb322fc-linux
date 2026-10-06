@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0
+"""y700-charge -- control the y700-charged battery charge daemon.
+
+Usage:
+    y700-charge status
+    y700-charge bypass on|off        bypass charging (run off the adapter)
+    y700-charge protect on|off       charge protection (charge limit)
+    y700-charge limit <55..100>      charge protection threshold
+"""
+
+import json
+import socket
+import sys
+
+SOCKET_PATH = "/run/y700-charge.sock"
+
+
+def call(request):
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.settimeout(5.0)
+    sock.connect(SOCKET_PATH)
+    sock.sendall((json.dumps(request) + "\n").encode("utf-8"))
+    data = b""
+    while b"\n" not in data:
+        chunk = sock.recv(4096)
+        if not chunk:
+            break
+        data += chunk
+    sock.close()
+    return json.loads(data.split(b"\n", 1)[0].decode("utf-8"))
+
+
+def _onoff(value):
+    if value in ("on", "true", "1", "yes"):
+        return True
+    if value in ("off", "false", "0", "no"):
+        return False
+    raise ValueError("expected on|off, got %r" % value)
+
+
+def _print_state(state):
+    print("bypass charging : %s" % ("on" if state["bypass"] else "off"))
+    print("charge protection: %s" % ("on" if state["protection"] else "off"))
+    print("protection limit : %s%% (start %s%%)"
+          % (state["end_threshold"], state["start_threshold"]))
+    print("battery          : %s%% %s%s"
+          % (state["capacity"], state["status"],
+             " charging" if state["charging"] else ""))
+    if not state["supported"]:
+        print("warning: qcom-battmgr battery not found")
+
+
+def main(argv):
+    if len(argv) < 2:
+        print(__doc__.strip())
+        return 2
+    command = argv[1]
+    try:
+        if command == "status":
+            _print_state(call({"op": "get"}))
+            return 0
+        if command == "bypass":
+            _print_state(call({"op": "set", "bypass": _onoff(argv[2])}))
+            return 0
+        if command == "protect":
+            _print_state(call({"op": "set", "protection": _onoff(argv[2])}))
+            return 0
+        if command == "limit":
+            _print_state(call({"op": "set", "threshold": int(argv[2])}))
+            return 0
+    except (IndexError, ValueError) as exc:
+        print("error: %s" % exc, file=sys.stderr)
+        return 2
+    except OSError as exc:
+        print("error: cannot reach y700-charged (%s)" % exc, file=sys.stderr)
+        return 1
+    print("error: unknown command %r" % command, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

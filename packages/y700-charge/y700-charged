@@ -1,0 +1,479 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0
+"""y700-charged -- battery charge control daemon for the Lenovo Legion Y700 Gen4.
+
+Owns three controls and is the *single* writer of the charge sysfs:
+
+  * bypass charging       -> constant_charge_current = 0
+  * charge protection     -> charge_control_end_threshold / _start_threshold
+  * protection threshold  -> the end threshold value
+
+It runs as a system service, so the settings apply identically in Steam Game Mode
+and on the KDE desktop.  It watches power_supply uevents so that
+
+  * a USB replug re-applies the config (the charger firmware resets the charge
+    limit on replug), and
+  * a threshold changed elsewhere -- e.g. KDE's native charge limit going through
+    UPower -- is adopted into the config, keeping the Decky UI in sync.
+
+The Decky plugin talks to it over a root-only Unix socket; it never writes sysfs
+itself.
+"""
+
+import json
+import os
+import selectors
+import signal
+import socket
+import subprocess
+import sys
+import threading
+import time
+
+BAT = "/sys/class/power_supply/qcom-battmgr-bat"
+USB = "/sys/class/power_supply/qcom-battmgr-usb"
+
+# Python's socket module stopped exporting NETLINK_KOBJECT_UEVENT in 3.13; the
+# value is fixed by the kernel uapi.
+NETLINK_KOBJECT_UEVENT = getattr(socket, "NETLINK_KOBJECT_UEVENT", 15)
+
+CONFIG_DIR = "/etc/y700-charge"
+CONFIG_PATH = os.path.join(CONFIG_DIR, "config.json")
+HWDB_PATH = "/etc/udev/hwdb.d/61-battery-local.hwdb"
+SOCKET_PATH = "/run/y700-charge.sock"
+
+# charge_control_*_threshold is clamped by the driver to [55,100] / [50,95].
+THRESHOLD_MIN = 55
+THRESHOLD_MAX = 100
+DEFAULT_THRESHOLD = 80
+START_GAP = 10          # start threshold = end - gap, the usual battery-care pairing
+NO_LIMIT_END = 100      # "protection off" == charge to full
+NO_LIMIT_START = 95
+
+# After we write the sysfs, the driver reports back with a change uevent; ignore
+# events for this long so we never mistake our own write for an external change.
+SELF_WRITE_GRACE = 4.0
+# The charger firmware drops the charge limit around a replug; ignore threshold
+# changes for this long after a USB online transition so the reset is not
+# mistaken for an external (KDE) change.
+REPLUG_GRACE = 8.0
+RECONCILE_INTERVAL = 15.0
+
+DEFAULT_CONFIG = {"bypass": False, "protection": True, "threshold": DEFAULT_THRESHOLD}
+
+_lock = threading.Lock()
+_last_write = 0.0
+_usb_online = None
+_replug_at = 0.0
+
+
+# --------------------------------------------------------------------------- #
+# sysfs helpers
+# --------------------------------------------------------------------------- #
+
+def _read(path, default=None):
+    try:
+        with open(path) as fh:
+            return fh.read().strip()
+    except OSError:
+        return default
+
+
+def _write(path, value):
+    with open(path, "w") as fh:
+        fh.write(str(value))
+
+
+def _write_if_changed(path, value):
+    """Write only when the value differs; return True if a write happened."""
+    if _read(path) == str(value):
+        return False
+    try:
+        _write(path, value)
+    except OSError:
+        return False
+    return True
+
+
+def _read_int(path, default=None):
+    raw = _read(path)
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return default
+
+
+def battery_present():
+    return os.path.exists(os.path.join(BAT, "constant_charge_current"))
+
+
+# --------------------------------------------------------------------------- #
+# config
+# --------------------------------------------------------------------------- #
+
+def _clamp_threshold(value):
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        value = DEFAULT_THRESHOLD
+    return max(THRESHOLD_MIN, min(THRESHOLD_MAX, value))
+
+
+def load_config():
+    cfg = dict(DEFAULT_CONFIG)
+    try:
+        with open(CONFIG_PATH) as fh:
+            stored = json.load(fh)
+        if isinstance(stored, dict):
+            if isinstance(stored.get("bypass"), bool):
+                cfg["bypass"] = stored["bypass"]
+            if isinstance(stored.get("protection"), bool):
+                cfg["protection"] = stored["protection"]
+            if "threshold" in stored:
+                cfg["threshold"] = _clamp_threshold(stored["threshold"])
+    except (OSError, ValueError):
+        pass
+    return cfg
+
+
+def save_config(cfg):
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    tmp = CONFIG_PATH + ".tmp"
+    with open(tmp, "w") as fh:
+        json.dump(cfg, fh, indent=2, sort_keys=True)
+        fh.write("\n")
+    os.replace(tmp, CONFIG_PATH)
+
+
+def desired_thresholds(cfg):
+    if cfg["protection"]:
+        end = _clamp_threshold(cfg["threshold"])
+        return end - START_GAP, end
+    return NO_LIMIT_START, NO_LIMIT_END
+
+
+# --------------------------------------------------------------------------- #
+# hwdb mirror
+#
+# UPower's /usr/lib/udev/rules.d/60-upower-battery.rules builds its hwdb lookup
+# key as "battery:$kernel:$model_name:$attr{[dmi/id]modalias}".  The stock entry
+# is "battery:*:*:dmi:*", which needs a literal "dmi:" segment -- this tablet is
+# device-tree with an empty modalias, so that entry never matches, no CHARGE_LIMIT
+# is imported, and UPower reports the charge threshold as unsupported (which makes
+# KDE hide its charge-limit control).  Our local entry matches without DMI.
+#
+# CHARGE_LIMIT is what UPower writes when a client calls EnableChargeThreshold(),
+# so mirroring the configured value keeps KDE's control consistent with the UI.
+# --------------------------------------------------------------------------- #
+
+def _hwdb_body(start, end):
+    return (
+        "# Written by y700-charged -- do not edit by hand.\n"
+        "# UPower's 60-upower-battery.rules derives its hwdb key from the DMI\n"
+        "# modalias, which is empty on this device-tree tablet, so the stock\n"
+        "# 'battery:*:*:dmi:*' entry never matches and UPower would report the\n"
+        "# charge threshold as unsupported.  This entry matches without DMI.\n"
+        "battery:qcom-battmgr-bat:*:\n"
+        " CHARGE_LIMIT=%d,%d\n" % (start, end)
+    )
+
+
+def mirror_hwdb(start, end):
+    body = _hwdb_body(start, end)
+    try:
+        with open(HWDB_PATH) as fh:
+            if fh.read() == body:
+                return
+    except OSError:
+        pass
+    try:
+        os.makedirs(os.path.dirname(HWDB_PATH), exist_ok=True)
+        with open(HWDB_PATH, "w") as fh:
+            fh.write(body)
+        subprocess.run(["systemd-hwdb", "update"], check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["udevadm", "trigger", "--subsystem-match=power_supply"],
+                       check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # UPower reads CHARGE_LIMIT once, when the battery device is added, so it
+        # needs a restart to pick up a changed value.
+        subprocess.run(["systemctl", "try-restart", "upower.service"], check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        pass
+
+
+# --------------------------------------------------------------------------- #
+# apply / read
+# --------------------------------------------------------------------------- #
+
+def apply_config(cfg):
+    """Push cfg to the hardware.  Caller holds _lock.
+
+    Idempotent: only the sysfs nodes that differ are written, and _last_write is
+    only bumped when something actually changed.  Otherwise a periodic poll or a
+    chatty uevent stream would keep the self-write grace window permanently open
+    and external changes (KDE) could never be adopted.
+    """
+    global _last_write
+    start, end = desired_thresholds(cfg)
+    wrote = False
+
+    if battery_present():
+        if cfg["bypass"]:
+            limit = 0
+        else:
+            limit = _read_int(os.path.join(BAT, "constant_charge_current_max"))
+            if limit is None:
+                limit = _read_int(os.path.join(BAT, "constant_charge_current"), 10000000)
+        wrote |= _write_if_changed(os.path.join(BAT, "constant_charge_current"), limit)
+        wrote |= _write_if_changed(os.path.join(BAT, "charge_control_end_threshold"), end)
+        wrote |= _write_if_changed(os.path.join(BAT, "charge_control_start_threshold"), start)
+
+    mirror_hwdb(start, end)
+    if wrote:
+        _last_write = time.monotonic()
+
+
+def read_state(cfg):
+    """Return the full state the UI needs.  Caller holds _lock."""
+    start, end = desired_thresholds(cfg)
+    current = _read_int(os.path.join(BAT, "current_now"))
+    return {
+        "bypass": cfg["bypass"],
+        "protection": cfg["protection"],
+        "threshold": cfg["threshold"],
+        "start_threshold": _read_int(os.path.join(BAT, "charge_control_start_threshold"), start),
+        "end_threshold": _read_int(os.path.join(BAT, "charge_control_end_threshold"), end),
+        "capacity": _read_int(os.path.join(BAT, "capacity")),
+        "status": _read(os.path.join(BAT, "status")),
+        "current_now": current,
+        # Positive current_now means charging into the pack on this driver.
+        "charging": bool(current is not None and current > 0),
+        "usb_online": _read(os.path.join(USB, "online")) == "1",
+        "supported": battery_present(),
+    }
+
+
+def set_config(**changes):
+    with _lock:
+        cfg = load_config()
+        if "bypass" in changes and changes["bypass"] is not None:
+            cfg["bypass"] = bool(changes["bypass"])
+        if "protection" in changes and changes["protection"] is not None:
+            cfg["protection"] = bool(changes["protection"])
+        if "threshold" in changes and changes["threshold"] is not None:
+            cfg["threshold"] = _clamp_threshold(changes["threshold"])
+        save_config(cfg)
+        apply_config(cfg)
+        return read_state(cfg)
+
+
+def get_state():
+    with _lock:
+        return read_state(load_config())
+
+
+# --------------------------------------------------------------------------- #
+# external-change adoption (KDE / UPower -> our config)
+# --------------------------------------------------------------------------- #
+
+def adopt_external():
+    """Pull a threshold changed outside this daemon into the config."""
+    with _lock:
+        now = time.monotonic()
+        if now - _last_write < SELF_WRITE_GRACE:
+            return
+        if now - _replug_at < REPLUG_GRACE:
+            return
+        if not battery_present():
+            return
+        cfg = load_config()
+        end = _read_int(os.path.join(BAT, "charge_control_end_threshold"))
+        start = _read_int(os.path.join(BAT, "charge_control_start_threshold"))
+        if end is None:
+            return
+        _, want_end = desired_thresholds(cfg)
+        if end == want_end:
+            return
+        if end >= NO_LIMIT_END:
+            cfg["protection"] = False
+        else:
+            cfg["protection"] = True
+            cfg["threshold"] = _clamp_threshold(end)
+        save_config(cfg)
+        apply_config(cfg)
+        print("adopted external threshold change: end=%s start=%s" % (end, start), flush=True)
+
+
+def reconcile():
+    """Periodic safety net: heal a dropped bypass, otherwise adopt changes."""
+    with _lock:
+        cfg = load_config()
+        if cfg["bypass"] and battery_present():
+            if _read_int(os.path.join(BAT, "constant_charge_current")) != 0:
+                apply_config(cfg)
+                return
+    adopt_external()
+
+
+# --------------------------------------------------------------------------- #
+# udev (netlink) monitor
+# --------------------------------------------------------------------------- #
+
+def _open_uevent_socket():
+    sock = socket.socket(socket.AF_NETLINK, socket.SOCK_DGRAM, NETLINK_KOBJECT_UEVENT)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1 << 20)
+    sock.bind((0, 1))  # group 1: kernel uevents
+    sock.setblocking(False)
+    return sock
+
+
+def _parse_uevent(data):
+    info = {}
+    for chunk in data.split(b"\x00"):
+        if b"=" in chunk:
+            key, _, value = chunk.partition(b"=")
+            info[key.decode("utf-8", "replace")] = value.decode("utf-8", "replace")
+    return info
+
+
+def _handle_uevent(data):
+    global _usb_online, _replug_at
+    info = _parse_uevent(data)
+    if info.get("SUBSYSTEM") != "power_supply":
+        return
+    name = os.path.basename(info.get("DEVPATH", ""))
+    if name == "qcom-battmgr-usb":
+        online = _read(os.path.join(USB, "online")) == "1"
+        if online != _usb_online:
+            _usb_online = online
+            # A supply transition usually means the charger firmware dropped the
+            # charge limit; re-apply on reconnect and suppress adoption for a
+            # moment so the resulting reset is not read as an external change.
+            _replug_at = time.monotonic()
+            if online:
+                with _lock:
+                    apply_config(load_config())
+    elif name == "qcom-battmgr-bat":
+        if info.get("ACTION") == "add":
+            # The battery registered after us (boot ordering): apply the stored
+            # config now that the sysfs nodes exist.
+            with _lock:
+                apply_config(load_config())
+        else:
+            adopt_external()
+
+
+# --------------------------------------------------------------------------- #
+# control socket
+# --------------------------------------------------------------------------- #
+
+def _serve_client(conn):
+    try:
+        conn.settimeout(5.0)
+        data = b""
+        while b"\n" not in data and len(data) < 65536:
+            chunk = conn.recv(4096)
+            if not chunk:
+                break
+            data += chunk
+        if not data:
+            return
+        request = json.loads(data.split(b"\n", 1)[0].decode("utf-8"))
+        op = request.get("op", "get")
+        if op == "get":
+            response = get_state()
+        elif op == "set":
+            response = set_config(
+                bypass=request.get("bypass"),
+                protection=request.get("protection"),
+                threshold=request.get("threshold"),
+            )
+        else:
+            response = {"error": "unknown op %r" % op}
+    except Exception as exc:  # noqa: BLE001 - report any failure back to the client
+        response = {"error": str(exc)}
+    try:
+        conn.sendall((json.dumps(response) + "\n").encode("utf-8"))
+    except OSError:
+        pass
+    finally:
+        conn.close()
+
+
+def _open_socket():
+    try:
+        os.unlink(SOCKET_PATH)
+    except FileNotFoundError:
+        pass
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.bind(SOCKET_PATH)
+    os.chmod(SOCKET_PATH, 0o600)
+    sock.listen(8)
+    sock.setblocking(False)
+    return sock
+
+
+# --------------------------------------------------------------------------- #
+# main
+# --------------------------------------------------------------------------- #
+
+def main():
+    global _usb_online
+    stopping = threading.Event()
+
+    def _stop(_signum, _frame):
+        stopping.set()
+
+    signal.signal(signal.SIGTERM, _stop)
+    signal.signal(signal.SIGINT, _stop)
+
+    _usb_online = _read(os.path.join(USB, "online")) == "1"
+    with _lock:
+        apply_config(load_config())
+
+    selector = selectors.DefaultSelector()
+    uevent_sock = _open_uevent_socket()
+    ctrl_sock = _open_socket()
+    selector.register(uevent_sock, selectors.EVENT_READ, "uevent")
+    selector.register(ctrl_sock, selectors.EVENT_READ, "client")
+
+    print("y700-charged started", flush=True)
+    last_reconcile = time.monotonic()
+    while not stopping.is_set():
+        for key, _ in selector.select(timeout=1.0):
+            if key.data == "uevent":
+                try:
+                    while True:
+                        data = uevent_sock.recv(1 << 16)
+                        _handle_uevent(data)
+                except BlockingIOError:
+                    pass
+                except OSError:
+                    pass
+            else:
+                try:
+                    conn, _ = ctrl_sock.accept()
+                except BlockingIOError:
+                    continue
+                except OSError:
+                    continue
+                threading.Thread(target=_serve_client, args=(conn,), daemon=True).start()
+
+        now = time.monotonic()
+        if now - last_reconcile >= RECONCILE_INTERVAL:
+            last_reconcile = now
+            try:
+                reconcile()
+            except Exception as exc:  # noqa: BLE001
+                print("reconcile failed: %s" % exc, flush=True)
+
+    try:
+        os.unlink(SOCKET_PATH)
+    except OSError:
+        pass
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
