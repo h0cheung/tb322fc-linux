@@ -2,7 +2,7 @@
 # Upstream: https://github.com/armada-os/armada (GPL-2.0-or-later, Copyright the Armada contributors)
 pkgname=armada-powerd
 pkgver=1.0.0
-pkgrel=1
+pkgrel=2
 pkgdesc="ArmadaOS power policy daemon with PowerProfiles D-Bus support for Lenovo Y700 Gen 4"
 arch=('any')
 url="https://github.com/armada-os/armada"
