@@ -430,13 +430,23 @@ if (( ${#repo_install[@]} )); then
     pacman -S --needed --noconfirm "${repo_install[@]}"
 fi
 
+# Collect the packages a successful makepkg run just produced. The version is
+# read back from the checked-out tree (makepkg --packagelist re-runs pkgver())
+# instead of from the pre-scan above: a -git package tracking a moving branch
+# can resolve to a newer version during the build than it did during the
+# pre-scan, and globbing by the stale version then matches nothing - which used
+# to hand pacman an empty argument ("error: '': wrong or NULL argument
+# passed"). Filtering by the PKGBUILD's split names also drops makepkg's
+# auto-generated -debug package, which is built but never installed.
 _collect_built() {
-    local _s _ff _pattern
-    for _s in ${pkg_splits[$1]}; do
-        _pattern="$_s-${pkg_fullver[$1]//:/?}-*.pkg.tar.*"
-        mapfile -t _ff < <(compgen -G "$CACHE/pkgs/$_pattern" || true)
-        printf '%s\n' "${_ff[@]}"
-    done
+    local _pkg=$1 _workdir=$2 _path _base _split
+    while IFS= read -r _path; do
+        [[ -n $_path ]] || continue
+        _base=${_path##*/}
+        for _split in ${pkg_splits[$_pkg]}; do
+            [[ $_base == "$_split"-* && $_base != "$_split"-debug-* ]] && { printf '%s\n' "$_path"; break; }
+        done
+    done < <(sudo -u alarm bash -c "cd '$_workdir' && makepkg --packagelist" 2>/dev/null)
 }
 
 pending=("${to_build[@]}")
@@ -469,7 +479,7 @@ for _pass in 1 2 3; do
         pkg_log=$(sudo -u alarm mktemp -p /home/alarm "mk-$pkg_name.XXXXXX")
         echo "Building $pkg_name with makepkg..."
         if sudo -u alarm bash -c "cd '$pkg_workdir' && makepkg -f >'$pkg_log' 2>&1" \
-            && mapfile -t built < <(_collect_built "$pkg_name") \
+            && mapfile -t built < <(_collect_built "$pkg_name" "$pkg_workdir") \
             && (( ${#built[@]} )) \
             && pacman -U --noconfirm --ask 6 "${built[@]}" ; then
             rm -rf "$pkg_workdir" "$pkg_log"
