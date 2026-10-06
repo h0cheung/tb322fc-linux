@@ -1,0 +1,59 @@
+# Maintainer: h0cheung <hcheunh@gmail.com>
+# Y700 Gen4 (tb322fc-linux): iio-sensor-proxy built from the pinned upstream
+# tree plus the device patch, renamed so it stands in for the repo package via
+# exact-version provides + conflicts/replaces - the same scheme as
+# mesa-y700-gen4-git. The repo package is pulled in as a dependency of
+# powerdevil, so a plain source build (the old build_component step) was
+# silently reverted whenever the package was reinstalled or upgraded.
+#
+# The patch carries a startup-race fix: allocate the delayed-claim arrays
+# before the D-Bus interface is exposed (bus_acquired, not inside the
+# discovery loop), gate claim acceptance on the device actually being open
+# (DEVICE_FOR_TYPE() != NULL rather than driver_type_exists()), and start
+# polling for clients that claimed during discovery. Without it a Claim() that
+# arrives while another sensor is still being opened touches a NULL array /
+# device and is never answered, so the claimant (e.g. KWin for auto-rotate)
+# never gets readings. It also advertises the SSC accelerometer in the udev
+# rules.
+pkgname=iio-sensor-proxy-y700
+pkgver=3.9
+pkgrel=1
+pkgdesc='IIO accelerometer sensor to input device proxy (Y700 build with the startup-claim fix)'
+arch=('aarch64')
+url='https://gitlab.freedesktop.org/hadess/iio-sensor-proxy/'
+license=('GPL-3.0-only')
+depends=('glib2' 'glibc' 'libgcc' 'libgudev' 'libssc' 'polkit')
+makedepends=('git' 'meson')
+# Pinned to the upstream 3.9 tag - the same tree sources.json recorded before
+# this package replaced the build_component step. The patch is applied in
+# prepare().
+_iio_commit=0085ddf8ecb173a1c5fcf2344aa40e561125354f
+source=("iio-sensor-proxy::git+https://gitlab.freedesktop.org/hadess/iio-sensor-proxy#commit=$_iio_commit"
+        iio-sensor-proxy.patch)
+sha256sums=('SKIP'
+            'e3d8201bbdd4f5f7693843f5cf7291cdf905c2622034390a62d6e238b5698a11')
+
+# tb322fc: renamed build; stand in for the repo package at the same version.
+provides=("iio-sensor-proxy=$pkgver-$pkgrel")
+conflicts=('iio-sensor-proxy')
+replaces=('iio-sensor-proxy')
+
+prepare() {
+    cd iio-sensor-proxy
+    patch -Np1 -i "$srcdir/iio-sensor-proxy.patch"
+}
+
+build() {
+    cd iio-sensor-proxy
+    meson setup build --prefix=/usr --libdir=lib \
+        --buildtype=release --wrap-mode=nodownload -Dwerror=false \
+        -Dc_args="-Wno-error" -Dcpp_args="-Wno-error -Wno-error=array-bounds" \
+        --libexecdir=libexec -Dssc-support=enabled \
+        -Dtests=false -Dgtk-tests=false -Dgtk_doc=false
+    meson compile -C build
+}
+
+package() {
+    cd iio-sensor-proxy
+    meson install -C build --destdir "$pkgdir" --no-rebuild
+}

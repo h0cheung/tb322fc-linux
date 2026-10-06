@@ -16,12 +16,6 @@
     "tree": "a730bca2b0c9f623cd1fde161efa9dcdccc658ee",
     "patch": "patches/hexagonrpc.patch"
   },
-  "iio-sensor-proxy": {
-    "url": "https://gitlab.freedesktop.org/hadess/iio-sensor-proxy.git",
-    "commit": "0085ddf8ecb173a1c5fcf2344aa40e561125354f",
-    "tree": "a79db2cf056093b0e2e5074c6d1c481cc4b0c7b1",
-    "patch": "patches/iio-sensor-proxy.patch"
-  },
   "libssc": {
     "url": "https://codeberg.org/DylanVanAssche/libssc.git",
     "commit": "54dd13e36d65c21263cf5b0f4a70c230a77b26bc",

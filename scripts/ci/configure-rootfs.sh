@@ -135,8 +135,6 @@ build_component() {
 }
 build_component hexagonrpc
 build_component libssc
-build_component iio-sensor-proxy --libexecdir=libexec -Dssc-support=enabled \
-    -Dtests=false -Dgtk-tests=false -Dgtk_doc=false
 build_component libcamera -Dpipelines=simple -Dipas=softisp -Dqcam=enabled -Dcam=enabled \
     -Ddocumentation=disabled -Dgstreamer=disabled -Dpycamera=disabled \
     -Dlc-compliance=disabled -Dv4l2=disabled -Dsoftisp-gpu=disabled \
@@ -146,7 +144,9 @@ build_component libcamera -Dpipelines=simple -Dipas=softisp -Dqcam=enabled -Dcam
 # Keep pacman upgrades from replacing the patched libraries with distro builds.
 # Manual installation of a conflicting package must first remove this guard
 # and rebuild the device support; these builds are recorded in sources.json.
-sed -i '/^\[options\]$/a IgnorePkg = hexagonrpc libssc iio-sensor-proxy libcamera libcamera-ipa libcamera-tools' /etc/pacman.conf
+# iio-sensor-proxy is not listed: it ships as a renamed package
+# (iio-sensor-proxy-y700) that provides/conflicts/replaces the repo package.
+sed -i '/^\[options\]$/a IgnorePkg = hexagonrpc libssc libcamera libcamera-ipa libcamera-tools' /etc/pacman.conf
 # The device thermal policy is written by this script and is not owned by the
 # thermald package, so pin it: a future package that ships its own
 # thermal-conf.xml must never overwrite it (pacman drops the package's copy as
@@ -565,7 +565,7 @@ pacman -Q > /usr/share/tb322fc/rootfs.packages
     printf 'hexagonrpc=from-sources.json\n'
     printf 'libssc=%s\n' "$(pkg-config --modversion libssc)"
     printf 'libcamera=%s\n' "$(pkg-config --modversion libcamera)"
-    printf 'iio-sensor-proxy=from-sources.json\n'
+    printf 'iio-sensor-proxy=%s\n' "$(pacman -Q iio-sensor-proxy-y700 2>/dev/null | awk '{print $2}')"
 } > /usr/share/tb322fc/userspace-build.txt
 [[ -x /usr/bin/hexagonrpcd && -x /usr/libexec/iio-sensor-proxy && -x /usr/bin/qcam && -x /sbin/init ]]
 [[ -f /usr/share/wayland-sessions/plasma.desktop ]]

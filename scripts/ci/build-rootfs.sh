@@ -70,7 +70,7 @@ import subprocess
 
 project, rootfs = Path(os.environ['PROJECT']), Path(os.environ['ROOTFS'])
 manifest = json.loads((project / 'sources.json').read_text())
-for name in ('hexagonrpc', 'libssc', 'iio-sensor-proxy', 'libcamera'):
+for name in ('hexagonrpc', 'libssc', 'libcamera'):
     source = project / 'sources' / name
     command = ['git', '-c', f'safe.directory={source}', '-C', str(source)]
     actual = subprocess.check_output(command + ['write-tree'], text=True).strip()
@@ -89,7 +89,7 @@ for item in json.loads((project / 'firmware.json').read_text())['files']:
     shutil.copyfile(source, target)
     target.chmod(0o644)
 PY
-for component in hexagonrpc libssc iio-sensor-proxy libcamera; do
+for component in hexagonrpc libssc libcamera; do
     mkdir -p "$STAGE/sources/$component"
     git -c "safe.directory=$PROJECT/sources/$component" -C "sources/$component" ls-files -z |
         tar -C "sources/$component" --null -T - -cf - |
