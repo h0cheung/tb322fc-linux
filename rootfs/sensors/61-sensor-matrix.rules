@@ -1,9 +1,11 @@
 # Accelerometer mount matrix: flip X and Y (180 deg about Z).
-# iio-sensor-proxy uses the tb322fc-gyro-bridge uinput device via the
-# "input-accel" driver, not the SSC accelerometer, because the bridge holds the
-# SSC device exclusively - so the SUBSYSTEM=="input" line is the one that
-# actually takes effect (input-accel reads ACCEL_MOUNT_MATRIX from the input
-# device). The fastrpc line covers the SSC path for when the bridge is not
-# running, in which case iio-sensor-proxy opens the SSC accelerometer directly.
+# iio-sensor-proxy consumes the accelerometer through the tb322fc-gyro-bridge
+# uinput device (the "input-accel" driver): the bridge holds the SSC
+# accelerometer exclusively, and we deliberately do not advertise `ssc-accel`
+# on fastrpc-adsp* (see packages/iio-sensor-proxy-y700), so the daemon always
+# picks the input device. The SUBSYSTEM=="input" line is therefore the one that
+# takes effect - drv-input-accel reads ACCEL_MOUNT_MATRIX from the input device.
+# The fastrpc line is kept as a fallback for the SSC path; it only applies if
+# `ssc-accel` is ever advertised on that device again.
 ACTION=="add|change", KERNEL=="fastrpc-adsp*", ENV{ACCEL_MOUNT_MATRIX}="-1, 0, 0; 0, -1, 0; 0, 0, 1"
 ACTION=="add|change", SUBSYSTEM=="input", ATTRS{name}=="Lenovo Legion Y700 Motion Sensors", ENV{ACCEL_MOUNT_MATRIX}="-1, 0, 0; 0, -1, 0; 0, 0, 1"

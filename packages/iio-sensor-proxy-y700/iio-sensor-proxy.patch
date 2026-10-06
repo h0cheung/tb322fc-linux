@@ -1,18 +1,3 @@
-diff --git a/data/80-iio-sensor-proxy.rules b/data/80-iio-sensor-proxy.rules
-index fa8a4b3..e604109 100644
---- a/data/80-iio-sensor-proxy.rules
-+++ b/data/80-iio-sensor-proxy.rules
-@@ -21,8 +21,8 @@ SUBSYSTEM=="input", ENV{ID_INPUT_ACCELEROMETER}=="1", ENV{IIO_SENSOR_PROXY_TYPE}
- # Set the sensor type for all the types we recognise for SDSP/ADSP with libssc.
- # Some devices expose the sensors via a separate SDSP while others re-use ADSP.
- # These DSPs expose itself as /dev/fastrpc-* in the misc subsystem.
--SUBSYSTEM=="misc", KERNEL=="fastrpc-adsp*", ENV{IIO_SENSOR_PROXY_TYPE}+="ssc-light ssc-compass"
--SUBSYSTEM=="misc", KERNEL=="fastrpc-sdsp*", ENV{IIO_SENSOR_PROXY_TYPE}+="ssc-light ssc-compass"
-+SUBSYSTEM=="misc", KERNEL=="fastrpc-adsp*", ENV{IIO_SENSOR_PROXY_TYPE}+="ssc-light ssc-accel ssc-compass"
-+SUBSYSTEM=="misc", KERNEL=="fastrpc-sdsp*", ENV{IIO_SENSOR_PROXY_TYPE}+="ssc-light ssc-accel ssc-compass"
- 
- ENV{IIO_SENSOR_PROXY_TYPE}=="", GOTO="iio_sensor_proxy_end"
- 
 diff --git a/src/iio-sensor-proxy.c b/src/iio-sensor-proxy.c
 index 9c7e8cd..44f2b7b 100644
 --- a/src/iio-sensor-proxy.c
