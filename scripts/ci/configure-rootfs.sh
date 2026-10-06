@@ -426,9 +426,17 @@ done
 
 # Install all packages that exist in the repository with matching versions.
 # pacman resolves intra-repo dependencies automatically.
+#
+# --ask 6 (REPLACE_PKG | CONFLICT_PKG) is required here for the same reason the
+# makepkg path below uses it: several of our packages are renamed builds that
+# stand in for their repo counterpart via provides + conflicts/replaces (mesa,
+# gamescope, iio-sensor-proxy). In a fresh rootfs the repo counterpart is pulled
+# in as a dependency (e.g. iio-sensor-proxy via powerdevil), so installing ours
+# has to auto-remove it. Without --ask, --noconfirm answers the "Remove X?" prompt
+# with its default (No) and pacman aborts with "unresolvable package conflicts".
 if (( ${#repo_install[@]} )); then
     echo "Installing ${#repo_install[@]} package(s) from tb322fc repository..."
-    pacman -S --needed --noconfirm "${repo_install[@]}"
+    pacman -S --needed --noconfirm --ask 6 "${repo_install[@]}"
 fi
 
 # Collect the packages a successful makepkg run just produced. The version is
