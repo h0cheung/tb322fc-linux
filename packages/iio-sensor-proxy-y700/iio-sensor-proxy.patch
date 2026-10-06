@@ -1,5 +1,5 @@
 diff --git a/src/iio-sensor-proxy.c b/src/iio-sensor-proxy.c
-index 9c7e8cd..44f2b7b 100644
+index 9c7e8cd..6989b84 100644
 --- a/src/iio-sensor-proxy.c
 +++ b/src/iio-sensor-proxy.c
 @@ -522,7 +522,7 @@ handle_generic_method_call (SensorData            *data,
@@ -23,7 +23,24 @@ index 9c7e8cd..44f2b7b 100644
  
  	data->connection = g_object_ref (connection);
  }
-@@ -765,8 +767,6 @@ name_acquired_handler (GDBusConnection *connection,
+@@ -756,17 +758,20 @@ name_acquired_handler (GDBusConnection *connection,
+ 	SensorData *data = user_data;
+ 	guint i;
+ 
+-	if (!find_sensors (data->client, data))
+-		goto bail;
+-
++	/* Connect the uevent handler before discovering: a sensor device that
++	 * appears while find_sensors() is running would otherwise be missed, and
++	 * with no fallback source the accelerometer (the gyro bridge's uinput
++	 * device, which has no ordering relative to this service) would never be
++	 * added. */
+ 	g_signal_connect (G_OBJECT (data->client), "uevent",
+ 			  G_CALLBACK (sensor_changes), data);
+ 
++	if (!find_sensors (data->client, data))
++		goto bail;
++
  	for (i = 0; i < NUM_SENSOR_TYPES; i++) {
  		SensorDevice *sensor_device;
  
@@ -32,7 +49,7 @@ index 9c7e8cd..44f2b7b 100644
  		if (!driver_type_exists (data, i))
  			continue;
  
-@@ -779,6 +779,10 @@ name_acquired_handler (GDBusConnection *connection,
+@@ -779,6 +784,10 @@ name_acquired_handler (GDBusConnection *connection,
  		}
  
  		DEVICE_FOR_TYPE(i) = sensor_device;

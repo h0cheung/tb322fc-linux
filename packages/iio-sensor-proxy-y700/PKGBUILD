@@ -6,14 +6,20 @@
 # powerdevil, so a plain source build (the old build_component step) was
 # silently reverted whenever the package was reinstalled or upgraded.
 #
-# The patch carries a startup-race fix: allocate the delayed-claim arrays
-# before the D-Bus interface is exposed (bus_acquired, not inside the
-# discovery loop), gate claim acceptance on the device actually being open
-# (DEVICE_FOR_TYPE() != NULL rather than driver_type_exists()), and start
-# polling for clients that claimed during discovery. Without it a Claim() that
-# arrives while another sensor is still being opened touches a NULL array /
-# device and is never answered, so the claimant (e.g. KWin for auto-rotate)
-# never gets readings.
+# The patch carries two upstream fixes:
+#  - a startup-claim race: allocate the delayed-claim arrays before the D-Bus
+#    interface is exposed (bus_acquired, not inside the discovery loop), gate
+#    claim acceptance on the device actually being open (DEVICE_FOR_TYPE() !=
+#    NULL rather than driver_type_exists()), and start polling for clients that
+#    claimed during discovery. Without it a Claim() that arrives while another
+#    sensor is still being opened touches a NULL array/device and is never
+#    answered, so the claimant (e.g. KWin for auto-rotate) never gets readings.
+#  - a hotplug race: connect the udev "uevent" handler before find_sensors()
+#    rather than after. Upstream connects it afterwards, so a sensor device that
+#    appears while find_sensors() is running is missed and never added - which
+#    matters here because the accelerometer has no fallback source (the gyro
+#    bridge's uinput device and this service have no ordering relative to each
+#    other), so a missed event means no accelerometer until the daemon restarts.
 #
 # We deliberately do NOT advertise `ssc-accel` on the fastrpc device (nor does
 # upstream): the gyro-bridge holds the SSC accelerometer exclusively, so
@@ -23,8 +29,8 @@
 # first used to win).
 pkgname=iio-sensor-proxy-y700
 pkgver=3.9
-pkgrel=2
-pkgdesc='IIO accelerometer sensor to input device proxy (Y700 build with the startup-claim fix)'
+pkgrel=3
+pkgdesc='IIO accelerometer sensor to input device proxy (Y700 build with startup-claim and hotplug-race fixes)'
 arch=('aarch64')
 url='https://gitlab.freedesktop.org/hadess/iio-sensor-proxy/'
 license=('GPL-3.0-only')
@@ -37,7 +43,7 @@ _iio_commit=0085ddf8ecb173a1c5fcf2344aa40e561125354f
 source=("iio-sensor-proxy::git+https://gitlab.freedesktop.org/hadess/iio-sensor-proxy#commit=$_iio_commit"
         iio-sensor-proxy.patch)
 sha256sums=('SKIP'
-            '2e7f6c93bcee3db98008f8138d74f9fe6cc7c56c7e7137a02e1d34e94ba997ef')
+            'af24ee780788d556c5fb9493414627e36133b2cf6aa0112bf7cc776f5242a260')
 
 # tb322fc: renamed build; stand in for the repo package at the same version.
 provides=("iio-sensor-proxy=$pkgver-$pkgrel")
