@@ -31,7 +31,10 @@ KERNEL_CC=clang
 if command -v ccache >/dev/null 2>&1; then
     KERNEL_CC="ccache clang"
     export CCACHE_DIR="$PROJECT/.ccache"
-    export CCACHE_MAXSIZE=2G
+    # A full build emits ~11.8k objects (~5.5 GB). The old 2G cap filled up
+    # after a third of the build and then evicted its own entries, so the hit
+    # rate stayed low and CI kept paying for a near-cold kernel build.
+    export CCACHE_MAXSIZE=6G
     export CCACHE_COMPILERCHECK=content
     export CCACHE_SLOPPINESS=file_stat_matches
     mkdir -p "$CCACHE_DIR"
