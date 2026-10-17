@@ -1,0 +1,57 @@
+# Maintainer: h0cheung <hcheunh@gmail.com>
+pkgname=lsfg-vk-dual-runtime
+pkgver=2.0.0
+pkgrel=1
+pkgdesc="LSFG Classic and 2.0 ARM64 layers, x86 payloads and native control CLI"
+arch=('aarch64')
+url="https://github.com/hashtagbasit/SteamOS-ARM-Port"
+license=('MIT' 'CC-BY-NC-ND-4.0')
+depends=('glibc' 'gcc-libs' 'vulkan-icd-loader')
+makedepends=('git' 'cmake' 'ninja' 'gcc')
+options=('!strip')
+_port_commit=e54dac93afccf76e5fefe998399b6c1b1a23f3a1
+_cli_commit=2333707d55b68ddd8066fd95404c3b7d07e00d3a
+_raw="https://raw.githubusercontent.com/hashtagbasit/SteamOS-ARM-Port/$_port_commit"
+_plugins="$_raw/external-and-mods/Decky/Plug-ins/homebrew/plugins"
+source=(
+    "lsfg-vk::git+https://git.lsfg-vk.dev/lsfg-vk.git#commit=$_cli_commit"
+    "liblsfg-vk-classic-arm64.so::$_raw/sm8650-overlay/usr/lib/liblsfg-vk-classic-arm64.so"
+    "liblsfg-vk-layer-arm64.so::$_raw/sm8650-overlay/usr/lib/liblsfg-vk-layer-arm64.so"
+    "lsfg-vk_noui.zip::$_plugins/decky-lsfg-vk-classic/bin/lsfg-vk_noui.zip"
+    "lsfg-vk-2.0.0.tar.xz::$_plugins/decky-lsfg-vk/bin/lsfg-vk-2.0.0.tar.xz"
+    "classic-LICENSE.md::$_raw/sm8650-overlay/usr/share/licenses/lsfg-vk-classic/LICENSE.md"
+    "v2-LICENSE.txt::$_raw/sm8650-overlay/usr/share/licenses/lsfg-vk/LICENSE.txt"
+)
+noextract=('lsfg-vk_noui.zip' 'lsfg-vk-2.0.0.tar.xz')
+sha256sums=('SKIP'
+    '6409b8a138b29139b2f46da6a7ebcd3f3eaa65cc49960018a67294c156362ac3'
+    '9e9b52dae38750852cddce97c1bc3e5ababa928ace44c52bbfa41a694c9b41d6'
+    'a406b3730144c2011e2c2acd3cf44f3ec6c048ee86099bc9c3ac90aa1515e5ec'
+    '08bdbdf373a111022df87dac7aa87e3b564bb841f961552e3ca85fea12b5aa74'
+    '81fd6d483875f1d1520fa327f2139eda0bae28106863953ec57171d60a356b2f'
+    'f7f28b8c7a1af76b9874ca6d040e8b1eb6768fd1043106c9d315090ea96754e7')
+
+build() {
+    cmake -S "$srcdir/lsfg-vk" -B "$srcdir/build" -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
+        -DLSFGVK_BUILD_LAYER=OFF -DLSFGVK_BUILD_UI=OFF -DLSFGVK_BUILD_CLI=ON
+    cmake --build "$srcdir/build" --target lsfg-vk-cli
+}
+
+package() {
+    install -Dm755 "$srcdir/build/lsfg-vk-cli/lsfg-vk-cli" "$pkgdir/usr/bin/lsfg-vk-cli"
+    for lib in liblsfg-vk-classic-arm64.so liblsfg-vk-layer-arm64.so; do
+        install -Dm644 "$srcdir/$lib" "$pkgdir/usr/lib/$lib"
+    done
+    for archive in lsfg-vk_noui.zip lsfg-vk-2.0.0.tar.xz; do
+        install -Dm644 "$srcdir/$archive" "$pkgdir/usr/share/lsfg-vk/payloads/$archive"
+    done
+    install -Dm644 "$srcdir/classic-LICENSE.md" "$pkgdir/usr/share/licenses/$pkgname/classic-LICENSE.md"
+    install -Dm644 "$srcdir/v2-LICENSE.txt" "$pkgdir/usr/share/licenses/$pkgname/v2-LICENSE.txt"
+    cd "$startdir"
+    for manifest in VkLayer_LSFGVK_frame_generation_arm64.json VkLayer_LS_frame_generation_classic_arm64.json; do
+        install -Dm644 "$manifest" "$pkgdir/usr/share/vulkan/implicit_layer.d/$manifest"
+    done
+    install -Dm755 lsfg-v2 "$pkgdir/usr/bin/lsfg-v2"
+    install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

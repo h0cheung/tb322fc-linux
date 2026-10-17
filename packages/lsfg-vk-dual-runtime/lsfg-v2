@@ -1,0 +1,13 @@
+#!/bin/bash
+set -euo pipefail
+if (( $# == 0 )); then
+    echo '用法：lsfg-v2 <游戏命令> [参数...]' >&2
+    exit 2
+fi
+unset LSFG_CLASSIC LSFG_PROCESS LSFGVK_PROFILE LSFGVK_ENV DISABLE_LSFGVK
+export DISABLE_LSFG=1
+export LSFGVK_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/lsfg-vk/conf.toml"
+if [[ -x "$HOME/.lsfg" ]]; then
+    exec "$HOME/.lsfg" "$@"
+fi
+exec "$@"

@@ -1,0 +1,35 @@
+# Maintainer: h0cheung <hcheunh@gmail.com>
+# Vendored from SteamOS-ARM-Port e54dac93afccf76e5fefe998399b6c1b1a23f3a1.
+pkgname=decky-lsfg-plugins
+pkgver=0.14.4
+pkgrel=1
+pkgdesc="Decky LSFG 2.0 and Frame Gen Classic plugins for Y700 ARM64"
+arch=('aarch64')
+url="https://github.com/hashtagbasit/SteamOS-ARM-Port"
+license=('BSD-3-Clause')
+depends=('python' 'decky-loader' 'armada-decky-plugins' 'lsfg-vk-dual-runtime')
+
+check() {
+    cd "$startdir"
+    python -m unittest discover -s tests -p 'test_*.py'
+}
+
+package() {
+    cd "$startdir"
+    for plugin in decky-lsfg-vk decky-lsfg-vk-classic; do
+        install -d "$pkgdir/usr/share/decky-plugins/$plugin"
+        cp -a "plugins/$plugin/." "$pkgdir/usr/share/decky-plugins/$plugin/"
+        install -d "$pkgdir/usr/share/decky-plugins/$plugin/bin"
+        if [[ "$plugin" == decky-lsfg-vk ]]; then
+            archive=lsfg-vk-2.0.0.tar.xz
+        else
+            archive=lsfg-vk_noui.zip
+        fi
+        ln -s "/usr/share/lsfg-vk/payloads/$archive" "$pkgdir/usr/share/decky-plugins/$plugin/bin/$archive"
+        install -Dm644 "plugins/$plugin/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/$plugin-LICENSE"
+    done
+    find "$pkgdir/usr/share/decky-plugins" -name __pycache__ -type d -prune -exec rm -rf {} +
+    install -Dm755 lsfg-sync "$pkgdir/usr/lib/decky-loader/lsfg-sync"
+    install -Dm644 lsfg-runtime.conf "$pkgdir/usr/lib/systemd/system/decky-loader@.service.d/lsfg-runtime.conf"
+    install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

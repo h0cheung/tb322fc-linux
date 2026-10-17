@@ -1,0 +1,16 @@
+#!/bin/bash
+set -euo pipefail
+session_user=$(/usr/libexec/armada/session-user)
+user_home=$(getent passwd "$session_user" | cut -d: -f6)
+[[ -n "$session_user" && -n "$user_home" ]] || exit 1
+plugin_root="$user_home/.local/var/opt/decky-loader/plugins"
+install -d -m0755 "$plugin_root"
+for name in decky-lsfg-vk decky-lsfg-vk-classic; do
+    source_dir="/usr/share/decky-plugins/$name"
+    [[ -d "$source_dir" ]] || continue
+    staging_dir=$(mktemp -d "$plugin_root/.$name.XXXXXX")
+    cp -a "$source_dir/." "$staging_dir/"
+    chown -R "$session_user:$(id -gn "$session_user")" "$staging_dir"
+    rm -rf "$plugin_root/$name"
+    mv "$staging_dir" "$plugin_root/$name"
+done
