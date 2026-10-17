@@ -12,4 +12,6 @@
 
 Classic 的 DLL 可单独保存为 `~/.local/share/lsfg-vk-classic/Lossless.dll`，供两个 Steam 分支切换后继续使用；新版需要测试分支中的 `lsfg-vk.dll`。默认不自动导入或覆盖旧 Odin3 插件的配置与启动器。
 
+本轮实测 Classic 开启 Gamescope WSI 时在退出清理阶段崩溃；关闭后通过直接运行和生成启动器两条路径的有限帧测试，因此本机 Classic 保持 WSI 关闭。新版通过实际交换链和原生计算测试；两者的真实游戏画质与收益仍需分别验证。Classic 的 Flatpak 扩展压缩包不在本次移植范围内，当前验证针对本机原生/Proton 游戏路径。
+
 卸载前可备份 `~/.config/lsfg-vk*`、`~/.lsfg` 与 `~/lsfg-classic`，再卸载本包并清理其两个 Decky 运行目录；用户配置和 DLL 应按需保留。完整验证范围见中文系统文档。
