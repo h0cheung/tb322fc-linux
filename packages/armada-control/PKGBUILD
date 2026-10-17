@@ -11,12 +11,12 @@
 # Upstream: https://github.com/armada-os/armada (GPL-2.0-or-later, Copyright the Armada contributors)
 pkgname=armada-control
 pkgver=20260929
-pkgrel=2
+pkgrel=3
 pkgdesc="Armada privileged settings daemon for the armada-control Decky plugin"
 arch=('aarch64')
 url="https://github.com/armada-os/armada"
 license=('GPL-2.0-or-later')
-depends=('python' 'python-gobject')
+depends=('python' 'python-gobject' 'inputplumber')
 makedepends=()
 backup=('etc/armada/game-tweaks.json')
 
@@ -31,6 +31,18 @@ package() {
     ln -s ../../lib/armada/armada_session.py "$pkgdir/usr/libexec/armada/session-user"
     install -Dm644 armada-control.service \
         "$pkgdir/usr/lib/systemd/system/armada-control.service"
+
+    # Controller type selection: the daemon side (controller-type), the
+    # calibration overlay helper, the boot-time apply unit, and the udev rules
+    # that give Steam access to the emulated Deck hidraw and /dev/uinput.
+    install -Dm755 controller-type "$pkgdir/usr/libexec/armada/controller-type"
+    install -Dm755 inputplumber-intercept "$pkgdir/usr/libexec/armada/inputplumber-intercept"
+    install -Dm644 armada-controller-type.service \
+        "$pkgdir/usr/lib/systemd/system/armada-controller-type.service"
+    install -Dm644 70-armada-inputplumber.rules \
+        "$pkgdir/usr/lib/udev/rules.d/70-armada-inputplumber.rules"
+    install -Dm644 70-armada-uinput.rules \
+        "$pkgdir/usr/lib/udev/rules.d/70-armada-uinput.rules"
 
     # Data the plugin backend and daemon read (game tweak defaults, FEX
     # contract, env presets).

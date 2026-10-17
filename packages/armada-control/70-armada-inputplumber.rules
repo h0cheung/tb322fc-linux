@@ -1,0 +1,4 @@
+# Steam needs group access to the deck-uhid hidraw node.
+# InputPlumber emulates the Steam Deck controller as 28DE:12F0, which only
+# exposes hidraw (no evdev); Steam reads it through this node.
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", KERNELS=="0003:28DE:12F0.*", GROUP="input", MODE="0660"
