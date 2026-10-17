@@ -1,6 +1,6 @@
 # Maintainer: h0cheung <hcheunh@gmail.com>
 # Arch aarch64 build of the OpenGamingCollective (OGC) gamescope fork at the
-# revision ArmadaOS ships (3.16.31-ogc1), plus the 25 patches ArmadaOS carries
+# revision ArmadaOS ships (3.16.31-ogc1), plus the 27 patches ArmadaOS carries
 # on top and three Y700-local patches.
 #
 # Why not Arch's own gamescope: the Y700's internal DSI panel exposes no EDID,
@@ -9,13 +9,14 @@
 # mode, which is why Steam shows no refresh-rate selector at all and the frame
 # limiter stops at 120 Hz. ArmadaOS fixes that with a synthetic-EDID path and
 # known-display profiles (patches 0002/0003) and layers its HDR / DRM-lease
-# work (0004-0017, 0021) and a few arm64 fixes on the same fork. All of those
-# are written against this exact fork revision, so the fork is the base rather
-# than a backport target. The last three patches are Y700-local: 0027 clamps the
+# work (0004-0017, 0021), the fixed-refresh FPS limiter and frame pacing
+# (0027/0028) and a few arm64 fixes on the same fork. All of those are written
+# against this exact fork revision, so the fork is the base rather than a
+# backport target. The last three patches are Y700-local: 0030 clamps the
 # synthetic EDID's pixel clock (the Y700's 1904x3040@120 runs at 915.6 MHz, past
 # EDID's 16-bit 10 kHz field, so without it the whole EDID was dropped and none
-# of the above took effect); 0028 writes the session's real refresh range into
-# the EDID range descriptor so Steam's slider spans the panel; and 0029 ties the
+# of the above took effect); 0031 writes the session's real refresh range into
+# the EDID range descriptor so Steam's slider spans the panel; and 0032 ties the
 # SPI digitizer to the internal connector so the panel-orientation transform
 # reaches touch.
 #
@@ -28,7 +29,7 @@ _pkgname=gamescope
 _commit=afd6eac6e1b5045119831b63854bad68ec4fd92c # tag 3.16.31-ogc1
 pkgname=gamescope-armada
 pkgver=3.16.31.ogc1
-pkgrel=3
+pkgrel=4
 pkgdesc="SteamOS session compositing window manager (OGC fork, ArmadaOS patches)"
 arch=('aarch64')
 url="https://github.com/OpenGamingCollective/gamescope"
@@ -123,11 +124,14 @@ source=(
     0024-steamcompmgr-report-wayland-windows-to-steam.patch
     0025-wlserver-pass-touch-through-to-native-wayland-windows.patch
     0026-upscale-use-sgsr-for-sdr-fsr-requests.patch
+    0027-steamcompmgr-elapsed-time-fps-limiter.patch
+    0028-improve-frame-pacing.patch
     # Y700-local patches (not carried by ArmadaOS). 0008 was an arm64 Steam
-    # night-mode workaround ArmadaOS has since dropped as obsolete.
-    0027-drm-clamp-synthetic-edid-pixel-clock.patch
-    0028-edid-widen-display-range-limits.patch
-    0029-wlserver-associate-spi-touchscreen.patch
+    # night-mode workaround ArmadaOS has since dropped as obsolete. Renumbered
+    # from 0027-0029 so ArmadaOS's own 0027/0028 can keep their numbers.
+    0030-drm-clamp-synthetic-edid-pixel-clock.patch
+    0031-edid-widen-display-range-limits.patch
+    0032-wlserver-associate-spi-touchscreen.patch
     # Device profile: HDR static metadata for the Y700 Gen4 internal panel.
     csot.pp8807hb1-1.lua
 )
@@ -166,6 +170,8 @@ sha256sums=(
     '4cbae1ff0e91f945bb27a421ad9b2ca4fdd2548f2ed82b1216f2e523e78f946a'
     '34cb70ec81cbd11d15e7c4a942bfe3538f9639dac9586d53b98b6afbcdb1fd1f'
     '7b1bac6d47a5dea52cd4d5f470df64437143dcadce307833063b0b8ace5fecc2'
+    '1dced0fb0272c6a671d2988e1f60fb09dc45a933bb220110b2a62d98fb6e1210'
+    '60c4646f88f7d2d39699caccfc018da921a147b67e568e9c930903fbb4f98ce4'
     '752c0af39c9fef258870c1ac1d7cf90d645c4d94c9e0fba445724a5e73b8da5b'
     'dcf954cec741f19e7dd678cd46c48fc00b97d231bb0b444e46684382ff4ccc64'
     '25cdbb5434810ad461d02ec1ff3e95d496e0db1ae4b3daf8864f1b60c066165b'
