@@ -1,0 +1,29 @@
+# Maintainer: h0cheung <hcheunh@gmail.com>
+# Vendored from mydanyi/armadaos-freedom, commit
+# 2c8c433e806e5bc0a0e7195f450af305c1bca460; see README.md.
+pkgname=armada-rgb
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Armada RGB controller with Lenovo Y700 Gen4 / G9 2026 support"
+arch=('aarch64')
+url="https://github.com/mydanyi/armadaos-freedom"
+license=('GPL-3.0-or-later')
+depends=('glibc' 'gcc-libs')
+makedepends=('rust')
+
+build() {
+    cd "$startdir"
+    CARGO_TARGET_DIR="$srcdir/target" cargo build --locked --release
+}
+
+check() {
+    cd "$startdir"
+    CARGO_TARGET_DIR="$srcdir/target" cargo test --locked --release
+}
+
+package() {
+    cd "$startdir"
+    install -Dm755 "$srcdir/target/release/armada-rgb" "$pkgdir/usr/bin/armada-rgb"
+    install -Dm644 profiles.json "$pkgdir/usr/share/armada-rgb/profiles.json"
+    install -Dm644 README.md "$pkgdir/usr/share/doc/armada-rgb/README.md"
+}
