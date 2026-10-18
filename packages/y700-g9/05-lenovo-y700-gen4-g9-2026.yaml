@@ -1,6 +1,14 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Based on mydanyi/armadaos-freedom 2c8c433e, G9 2026 mapping.
-# Only the exact Gen4 model and 3537:1136 controller are matched.
+# Only the exact Gen4 model and the default (Android) USB identity 3537:1136
+# are matched; DS mode (054c:0ce6) has its own config in
+# 06-lenovo-y700-gen4-g9-ds.yaml.
+#
+# This identity has no hardware force feedback, so games do not rumble in this
+# mode. Since 2026-10-18 the tablet motors are deliberately NOT claimed here:
+# a source that exists in every mode would keep a composite alive across mode
+# switches and would also receive rumble in DS mode, where the pad rumbles
+# itself. Game rumble therefore requires the controller's PS5/DS mode.
 # Tablet sensors are deliberately absent: the existing sensor bridge is shared
 # with iio-sensor-proxy and must retain its current readers and units.
 version: 1
@@ -30,15 +38,6 @@ source_devices:
       product_id: "1136"
       handler: event*
     capability_map_id: y700_g9_consumer
-  # Both tablet motors receive the same ordinary game rumble effect. This does
-  # not implement separate left/right channels or HD haptic waveforms.
-  - group: haptics
-    evdev:
-      name: aw86927-haptics
-      vendor_id: "0000"
-      product_id: "0000"
-      handler: event*
-    unique: false
 target_devices:
   - deck-uhid
   - keyboard

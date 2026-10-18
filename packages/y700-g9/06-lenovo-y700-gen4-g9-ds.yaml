@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# G9 2026 in DS (PS5) mode: the controller presents the Sony-compatible
+# identity 054c:0ce6 and is driven by the kernel hid-playstation driver. It
+# exposes the standard DualSense button/axis set plus FF_RUMBLE, so game
+# rumble reaches the pad itself - this is the only mode with rumble.
+#
+# The evdev name keeps the pad's own USB product string, so it cannot collide
+# with a real DualSense, and the tablet's own motion bridge (which also uses
+# 054c:0ce6) is matched away by name.
+version: 1
+kind: CompositeDevice
+name: Lenovo Legion Y700 Gen4 + Legion G9 2026 (DS mode)
+matches:
+  - udev:
+      sys_path: /sys/firmware/devicetree/base
+      attributes:
+        - name: model
+          value: Lenovo Legion Y700 Gen4
+maximum_sources: 0
+options:
+  auto_manage: true
+source_devices:
+  - group: gamepad
+    evdev:
+      name: Sony Interactive Entertainment Legion Gaming Controller G9 2026
+      vendor_id: "054c"
+      product_id: "0ce6"
+      handler: event*
+  # The DS identity also exposes a DualSense-compatible HID node. Without this
+  # entry Steam picks the pad up through SDL/hidraw (controller.txt logs a
+  # second "PS5 Controller" with type 054c:0ce6) next to the virtual Deck, so
+  # the pad would deliver input twice. Blocking it only hides the node; input
+  # and force feedback stay in the kernel hid-playstation driver.
+  - group: gamepad
+    blocked: true
+    hidraw:
+      vendor_id: 0x054c
+      product_id: 0x0ce6
+target_devices:
+  - deck-uhid
+  - keyboard

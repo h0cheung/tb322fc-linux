@@ -1,9 +1,9 @@
 # Maintainer: h0cheung <hcheunh@gmail.com>
 # G9 gamepad map: mydanyi/armadaos-freedom 2c8c433e806e5bc0a0e7195f450af305c1bca460.
 pkgname=y700-g9
-pkgver=1.0.0
+pkgver=1.1.0
 pkgrel=1
-pkgdesc="Lenovo Y700 Gen4 G9 2026 gamepad, tablet rumble and Quick Access mapping"
+pkgdesc="Lenovo Y700 Gen4 G9 2026 gamepad, DS-mode rumble and Quick Access mapping"
 arch=('any')
 url="https://github.com/h0cheung/tb322fc-linux"
 license=('GPL-2.0-or-later')
@@ -13,6 +13,8 @@ package() {
     cd "$startdir"
     install -Dm644 05-lenovo-y700-gen4-g9-2026.yaml \
         "$pkgdir/usr/share/inputplumber/devices/05-lenovo-y700-gen4-g9-2026.yaml"
+    install -Dm644 06-lenovo-y700-gen4-g9-ds.yaml \
+        "$pkgdir/usr/share/inputplumber/devices/06-lenovo-y700-gen4-g9-ds.yaml"
     install -Dm644 lenovo_legion_g9_2026.yaml \
         "$pkgdir/usr/share/inputplumber/capability_maps/lenovo_legion_g9_2026.yaml"
     install -Dm644 y700_g9_consumer.yaml \
