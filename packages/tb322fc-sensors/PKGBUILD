@@ -1,7 +1,7 @@
 # Maintainer: h0cheung <hcheunh@gmail.com>
 pkgname=tb322fc-sensors
 pkgver=20261001
-pkgrel=1
+pkgrel=2
 pkgdesc="Hardware sensor bridges for Lenovo Legion Y700 Gen 4 (gyro Cemuhook DSU/uinput and folio Hall switch)"
 arch=('aarch64')
 license=('GPL-3.0-or-later')
@@ -13,8 +13,10 @@ source=(
     'tb322fc-gyro-bridge.c'
     'tb322fc-hall-lid.service'
     'tb322fc-gyro-bridge.service'
+    '90-tb322fc-no-controller-imu.rules'
 )
 sha256sums=(
+    'SKIP'
     'SKIP'
     'SKIP'
     'SKIP'
@@ -30,4 +32,8 @@ build() {
 package() {
     cd "$srcdir"
     make DESTDIR="$pkgdir" install
+    # A controller IMU must not shadow the tablet accelerometer in
+    # iio-sensor-proxy (see the rule header).
+    install -Dm644 "$srcdir/90-tb322fc-no-controller-imu.rules" \
+        "$pkgdir/usr/lib/udev/rules.d/90-tb322fc-no-controller-imu.rules"
 }

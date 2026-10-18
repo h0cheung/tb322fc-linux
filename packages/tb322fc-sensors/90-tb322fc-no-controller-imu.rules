@@ -1,0 +1,6 @@
+# The G9 2026 in DS mode exposes its own IMU through hid-playstation, which
+# udev marks as an accelerometer. iio-sensor-proxy takes the first
+# accelerometer it discovers, so the controller's would shadow the tablet's
+# gyro-bridge device: auto-rotate would follow the controller instead of the
+# tablet. Drop both properties so the proxy never claims it.
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{id/vendor}=="054c", ATTRS{id/product}=="0ce6", ATTRS{name}=="Sony Interactive Entertainment Legion Gaming Controller G9 2026 Motion Sensors", ENV{ID_INPUT_ACCELEROMETER}="", ENV{IIO_SENSOR_PROXY_TYPE}=""
