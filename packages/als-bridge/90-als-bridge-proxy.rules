@@ -1,0 +1,7 @@
+# Keep iio-sensor-proxy away from the synthetic als-bridge device. The real
+# light sensor lives in the SSC, but the proxy takes the first light sensor it
+# finds, and this fake IIO device is one: the daemon then mirrors the proxy's
+# own value back into the module parameter, a loop that stays at 0 lux and
+# also blocks auto-brightness. With this rule the proxy serves the SSC sensor
+# and the daemon mirrors real lux into the fake device for Steam.
+SUBSYSTEM=="iio", ATTR{name}=="als", ENV{IIO_SENSOR_PROXY_TYPE}=""

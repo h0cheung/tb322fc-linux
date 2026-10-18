@@ -5,7 +5,7 @@
 # service unit and the modules-load.d entry.
 pkgname=als-bridge
 pkgver=20260929
-pkgrel=1
+pkgrel=2
 pkgdesc="Mirror SensorProxy ambient-light levels into the als-bridge sysfs IIO device so Steam can offer adaptive brightness"
 arch=('any')
 license=('GPL-2.0')
@@ -13,8 +13,10 @@ depends=('python-gobject')
 source=(
     'als-bridge-daemon.py'
     'als-bridge.service'
+    '90-als-bridge-proxy.rules'
 )
 sha256sums=(
+    'SKIP'
     'SKIP'
     'SKIP'
 )
@@ -22,6 +24,9 @@ sha256sums=(
 package() {
     install -Dm755 "$srcdir/als-bridge-daemon.py" "$pkgdir/usr/lib/alsbridge/als-bridge-daemon.py"
     install -Dm644 "$srcdir/als-bridge.service" "$pkgdir/usr/lib/systemd/system/als-bridge.service"
+    # iio-sensor-proxy must not claim the synthetic device (see the rule header).
+    install -Dm644 "$srcdir/90-als-bridge-proxy.rules" \
+        "$pkgdir/usr/lib/udev/rules.d/90-als-bridge-proxy.rules"
     # Loaded through the regular modules-load machinery; depmod has already
     # indexed /usr/lib/modules/*/updates/ by the time services start.
     install -Dm644 /dev/null "$pkgdir/usr/lib/modules-load.d/als-bridge.conf"
