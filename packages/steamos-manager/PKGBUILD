@@ -1,7 +1,7 @@
 # Maintainer: h0cheung <hcheunh@gmail.com>
 pkgname=steamos-manager
 pkgver=26.4.1
-pkgrel=1
+pkgrel=2
 pkgdesc="Valve SteamOS daemon abstracting Steam's interactions with the OS (Armada patchset; hardware interfaces delegated to armada-powerd)"
 arch=('aarch64')
 url="https://gitlab.steamos.cloud/holo/steamos-manager"
@@ -102,8 +102,10 @@ package() {
 
     install -m644 data/user/com.steampowered.SteamOSManager1.service \
         "$pkgdir/usr/share/dbus-1/services/"
+    # orca.service is shipped by the 'orca' package (same unit name); installing
+    # our copy conflicts with it and would delete the file on package removal.
     for unit in steamos-manager steamos-manager-session-cleanup \
-                steamos-manager-configure-cecd orca; do
+                steamos-manager-configure-cecd; do
         install -m644 "data/user/$unit.service" "$pkgdir/usr/lib/systemd/user/"
     done
 
