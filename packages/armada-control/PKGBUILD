@@ -10,8 +10,8 @@
 # callers (armada-decky-sync, the sleep-debug hook).
 # Upstream: https://github.com/armada-os/armada (GPL-2.0-or-later, Copyright the Armada contributors)
 pkgname=armada-control
-pkgver=20260929
-pkgrel=3
+pkgver=20261024
+pkgrel=1
 pkgdesc="Armada privileged settings daemon for the armada-control Decky plugin"
 arch=('aarch64')
 url="https://github.com/armada-os/armada"
@@ -20,12 +20,35 @@ depends=('python' 'python-gobject' 'inputplumber')
 makedepends=()
 backup=('etc/armada/game-tweaks.json')
 
+source=(
+    "armada-control.upstream::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/244b74516d99d06cb0518609ce4b842ab278be8a/system_files/usr/libexec/armada/armada-control"
+    "armada-game-launch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/244b74516d99d06cb0518609ce4b842ab278be8a/system_files/usr/libexec/armada/armada-game-launch"
+    "armada_game_tweaks.py::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/244b74516d99d06cb0518609ce4b842ab278be8a/system_files/usr/lib/armada/armada_game_tweaks.py"
+    "armada_turnip.py::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/244b74516d99d06cb0518609ce4b842ab278be8a/system_files/usr/lib/armada/armada_turnip.py"
+    "env-presets.json::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/244b74516d99d06cb0518609ce4b842ab278be8a/system_files/usr/share/armada/env-presets.json"
+    arch-control-compat.patch
+)
+sha256sums=(
+    '836b1c8264b49812e92a6a875bb004f68234fab5c3e465f2421db58717ed75c5'
+    '6f9131f9db3b340c5be2d2545d988072cb50ebeec9348431f13508ab27e703ca'
+    'fef819d936e072fb6c71a0d2e2a139e5c2ff9ccc35e3b2ff8df789096e6f7443'
+    'ca4d3ea19aeff9cda156a878d26328c60bc6f969d1ef4ff649bb6a327a8a4fc9'
+    'f26d1b9cccbc65142f106c6c94d5e1814f43721b7b30e57817fea6242087c5cc'
+    'a12fe8a57d4179eb2196eb1fbde5d93bd1ca1c78a90fb9d8cb36ae9656ce95fd'
+)
+prepare() {
+    cp "$srcdir/armada-control.upstream" "$srcdir/armada-control"
+    patch -Np1 --fuzz=0 -d "$srcdir" -i "$srcdir/arch-control-compat.patch"
+}
+
 package() {
     cd "$startdir"
-    install -Dm755 armada-control "$pkgdir/usr/libexec/armada/armada-control"
-    install -Dm755 armada-game-launch "$pkgdir/usr/libexec/armada/armada-game-launch"
+    install -Dm755 "$srcdir/armada-control" "$pkgdir/usr/libexec/armada/armada-control"
+    install -Dm755 "$srcdir/armada-game-launch" "$pkgdir/usr/libexec/armada/armada-game-launch"
+    install -Dm644 "$srcdir/armada_turnip.py" "$pkgdir/usr/lib/armada/armada_turnip.py"
+    install -Dm644 "$srcdir/env-presets.json" "$pkgdir/usr/share/armada/env-presets.json"
     install -Dm755 armada-power "$pkgdir/usr/bin/armada-power"
-    install -Dm644 armada_game_tweaks.py "$pkgdir/usr/lib/armada/armada_game_tweaks.py"
+    install -Dm644 "$srcdir/armada_game_tweaks.py" "$pkgdir/usr/lib/armada/armada_game_tweaks.py"
     install -Dm755 armada_session.py "$pkgdir/usr/lib/armada/armada_session.py"
     # Shell callers want a command, not a python -c one-liner.
     ln -s ../../lib/armada/armada_session.py "$pkgdir/usr/libexec/armada/session-user"

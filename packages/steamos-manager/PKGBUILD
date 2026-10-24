@@ -1,7 +1,7 @@
 # Maintainer: h0cheung <hcheunh@gmail.com>
 pkgname=steamos-manager
 pkgver=26.4.1
-pkgrel=2
+pkgrel=7
 pkgdesc="Valve SteamOS daemon abstracting Steam's interactions with the OS (Armada patchset; hardware interfaces delegated to armada-powerd)"
 arch=('aarch64')
 url="https://gitlab.steamos.cloud/holo/steamos-manager"
@@ -10,41 +10,46 @@ depends=('glib2' 'systemd-libs' 'speech-dispatcher')
 makedepends=('rust' 'clang' 'git' 'pkgconf')
 # Fixed upstream commit; identical to the one ArmadaOS pins in packages/steamos-manager/BASE.env.
 _commit=8e2883d0d7e2fc3994e822ca9853c03561ca6eec
+_freedom_commit=244b74516d99d06cb0518609ce4b842ab278be8a
 source=(
     "git+$url.git#commit=$_commit"
-    'platform.toml'
-    'sm8750.toml'
+    "platform.toml::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_freedom_commit/packages/steamos-manager/platform.toml"
+    "sm8750.toml::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_freedom_commit/packages/steamos-manager/devices/sm8750.toml"
     'remotes.d-armada.toml'
-    '0001-Initial-support-for-Steam-Frame.patch'
-    '0002-Factor-out-platform-profiles-into-its-own-manager.patch'
-    '0003-Add-a-custom-platform-profile-mechanism.patch'
-    '0004-Explicitly-track-state-in-devfreq-gpu-driver.patch'
-    '0005-Add-instructions-to-resolve-common-build-issues.patch'
-    '0006-Add-gpufreq_limit-to-custom-profiles.patch'
-    '0007-Fix-a-bug-where-UI-could-latch-a-bad-manual-clock-va.patch'
-    '0008-Add-GPU-manual-clock-minimum-value.patch'
-    '0009-Rename-minfreq-field-to-min_freq-for-consistency.patch'
-    '0010-Allow-CpuScaling1-to-be-served-by-a-remote-interface.patch'
-    '0011-inputplumber-Only-manage-target-devices-when-configu.patch'
-    '0012-wifi-Always-write-wpa_supplicant-as-the-backend.patch'
+    "0001-Initial-support-for-Steam-Frame.patch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_freedom_commit/packages/steamos-manager/patches/0001-Initial-support-for-Steam-Frame.patch"
+    "0002-Factor-out-platform-profiles-into-its-own-manager.patch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_freedom_commit/packages/steamos-manager/patches/0002-Factor-out-platform-profiles-into-its-own-manager.patch"
+    "0003-Add-a-custom-platform-profile-mechanism.patch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_freedom_commit/packages/steamos-manager/patches/0003-Add-a-custom-platform-profile-mechanism.patch"
+    "0004-Explicitly-track-state-in-devfreq-gpu-driver.patch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_freedom_commit/packages/steamos-manager/patches/0004-Explicitly-track-state-in-devfreq-gpu-driver.patch"
+    "0005-Add-instructions-to-resolve-common-build-issues.patch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_freedom_commit/packages/steamos-manager/patches/0005-Add-instructions-to-resolve-common-build-issues.patch"
+    "0006-Add-gpufreq_limit-to-custom-profiles.patch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_freedom_commit/packages/steamos-manager/patches/0006-Add-gpufreq_limit-to-custom-profiles.patch"
+    "0007-Fix-a-bug-where-UI-could-latch-a-bad-manual-clock-va.patch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_freedom_commit/packages/steamos-manager/patches/0007-Fix-a-bug-where-UI-could-latch-a-bad-manual-clock-va.patch"
+    "0008-Add-GPU-manual-clock-minimum-value.patch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_freedom_commit/packages/steamos-manager/patches/0008-Add-GPU-manual-clock-minimum-value.patch"
+    "0009-Rename-minfreq-field-to-min_freq-for-consistency.patch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_freedom_commit/packages/steamos-manager/patches/0009-Rename-minfreq-field-to-min_freq-for-consistency.patch"
+    "0010-Allow-CpuScaling1-to-be-served-by-a-remote-interface.patch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_freedom_commit/packages/steamos-manager/patches/0010-Allow-CpuScaling1-to-be-served-by-a-remote-interface.patch"
+    "0011-inputplumber-Only-manage-target-devices-when-configu.patch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_freedom_commit/packages/steamos-manager/patches/0011-inputplumber-Only-manage-target-devices-when-configu.patch"
+    "0012-wifi-Always-write-wpa_supplicant-as-the-backend.patch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_freedom_commit/packages/steamos-manager/patches/0012-wifi-Always-write-wpa_supplicant-as-the-backend.patch"
+    '0013-bind-user-manager-to-graphical-session.patch'
+    'elden-device.patch'
 )
 sha256sums=(
     'SKIP'
-    'SKIP'
-    'SKIP'
-    'SKIP'
-    'SKIP'
-    'SKIP'
-    'SKIP'
-    'SKIP'
-    'SKIP'
-    'SKIP'
-    'SKIP'
-    'SKIP'
-    'SKIP'
-    'SKIP'
-    'SKIP'
-    'SKIP'
+    '550179b7c6323fc2021bdf1afa5dd02d34273485acc340f171c08de5ad04dd3e'
+    '69cae1bf5c77ac11ba81c4383733ac423cd2abd6c243a7db2bc0ffdf623ba7c0'
+    '0b8dd73ab57a043cd823c6e6fe185c8970ca0ac4b354e633f21ed2637c9bc9d8'
+    'bc665ceacccebfed28ccd124319452066a7e82b6c17bd0f7ff1c010fcc95578a'
+    '1b096d4aa9a9c682d1d58366477743a85745dbf89fb12f70fbf3bc8c80a0956e'
+    'eff364c19ed41dab264d73c55854d2e0bc2f81d2b0eaeeea00595ca0eabef0d8'
+    '2ac4d88d7762818a2294e10c55d758874197721193a16e6f3d4e8143959956f3'
+    '822b68a9498c21940d0ae1f41a84349f79a6a7d427b118bcff51eba1c4b0cf6d'
+    'd6cc2fc73ec1cd60a50efc187f9d245f61401bd1078c4e3a1a7e3716f0ba66a7'
+    '25bb849a2e4ec3d919074f8a513799b302f9a2ebce6b09ec0a8d1ac7b737f84e'
+    'b37373af19761db42551b4707fd2db82cd6b6f87f6bb4f1c1428854d8f52c462'
+    '76ad871cc61d6b583663ebe88f403a12b19fdbbf0e5a8c111a17a74ee052c461'
+    '7af566294452af1b4718fa21fba5d8ad9bfe641aee6e7103000ff94b6bbc43e1'
+    '77d7722458301b65ff9a8553d608aa1ad5426493de83622c82af46a5e202578d'
+    'de9615b3b2565abfb1e399d38e9244ed8de68ce5746ff8c6db58b7a974b492fe'
+    'f3640f156ffd32cedf1b7838044332b3f78847fc2a02734d94811ae0ad1253d2'
+    'b606ce4c1558377ea0ad8518c4dc576c9e6b3483b9485ba47c7dfa64b35286bf'
 )
 
 prepare() {
@@ -59,6 +64,7 @@ prepare() {
     # armada-powerd and relayed through /etc/steamos-manager/remotes.d/.
     install -m644 "$srcdir/platform.toml" data/platform.toml
     install -m644 "$srcdir/sm8750.toml" data/devices/sm8750.toml
+    patch -Np1 --fuzz=0 -i "$srcdir/elden-device.patch"
 }
 
 build() {
@@ -78,7 +84,6 @@ package() {
                       "$pkgdir/usr/share/dbus-1/system.d/" \
                       "$pkgdir/usr/share/steamos-manager/remotes.d/" \
                       "$pkgdir/usr/lib/systemd/system/" \
-                      "$pkgdir/usr/lib/systemd/system/sddm.service.d/" \
                       "$pkgdir/usr/lib/systemd/user/" \
                       "$pkgdir/etc/steamos-manager/remotes.d/"
 
@@ -97,8 +102,6 @@ package() {
     install -m644 data/system/com.steampowered.SteamOSManager1.conf \
         "$pkgdir/usr/share/dbus-1/system.d/"
     install -m644 data/system/steamos-manager.service "$pkgdir/usr/lib/systemd/system/"
-    install -Dm644 data/system/reset-oneshot-boot.conf \
-        "$pkgdir/usr/lib/systemd/system/sddm.service.d/"
 
     install -m644 data/user/com.steampowered.SteamOSManager1.service \
         "$pkgdir/usr/share/dbus-1/services/"

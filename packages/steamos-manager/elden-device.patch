@@ -1,0 +1,12 @@
+--- a/data/devices/sm8750.toml
++++ b/data/devices/sm8750.toml
+@@ -16,3 +16,9 @@
+ # armada-powerd owns the governor and serves CpuScaling1 over remotes.d.
+ [cpu_scaling]
+ driver = "none"
++
++[[device]]
++dt.compatible = "lenovo,elden"
++device        = "lenovo_y700_gen4"
++variant       = "Y700Gen4"
++friendly_name = "Lenovo Legion Y700 Gen 4"

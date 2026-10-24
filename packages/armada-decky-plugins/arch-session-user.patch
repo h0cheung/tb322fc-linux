@@ -1,0 +1,80 @@
+--- a/py_modules/armada_control/steam.py
++++ b/py_modules/armada_control/steam.py
+@@ -1,6 +1,8 @@
+ from pathlib import Path
+ 
+-STEAM_ROOT = Path("/var/home/armada/.local/share/Steam")
++from .paths import user_home
++
++STEAM_ROOT = user_home() / ".local/share/Steam"
+ STEAM_APPS_DIR = STEAM_ROOT / "steamapps"
+ CONFIG_VDF = STEAM_ROOT / "config/config.vdf"
+ 
+--- a/py_modules/armada_control/tweaks.py
++++ b/py_modules/armada_control/tweaks.py
+@@ -14,7 +14,9 @@
+ PLUGIN_FEX_PROFILES_CONFIG = Path(__file__).resolve().parent.parent / "fex-profiles.json"
+ ENV_PRESETS_CONFIG = Path("/usr/share/armada/env-presets.json")
+ ENV_PRESETS_OVERRIDE = Path("/etc/armada/env-presets.json")
+-USER_HOME = Path("/var/home/armada")
++from .paths import user_home
++
++USER_HOME = user_home()
+ 
+ 
+ def load_fex_contract():
+--- a/py_modules/armada_control/sleep_debug_hook.sh
++++ b/py_modules/armada_control/sleep_debug_hook.sh
+@@ -3,7 +3,8 @@
+ 
+ command=${ARMADA_SLEEP_DEBUG_COMMAND:-/usr/bin/armada-sleep-debug}
+ run_dir=${ARMADA_SLEEP_DEBUG_RUN_ROOT:-/run}/armada/sleep-debug
+-report_dir=${ARMADA_SLEEP_DEBUG_REPORT_DIR:-/var/home/armada/Documents/sleep-logs}
++# Defaults to <session user>/Documents/sleep-logs once the owner is resolved.
++report_dir=${ARMADA_SLEEP_DEBUG_REPORT_DIR:-}
+ cycle=${2:-${INVOCATION_ID:-}}
+ [[ $cycle =~ ^[a-f0-9]{32}$ ]] || exit 0
+ 
+@@ -32,7 +33,13 @@
+         "$command" report "$cycle" >"$report" 2>"$run_dir/$cycle/formatter.stderr" ||
+             echo 'report_incomplete=collector failed; partial output retained' >>"$report"
+         [[ -s $report ]] || exit 1
+-        owner=${ARMADA_SESSION_USER:-armada}
++        owner=${ARMADA_SESSION_USER:-$(/usr/libexec/armada/session-user 2>/dev/null)}
++        home=$(getent passwd "$owner" 2>/dev/null | cut -d: -f6)
++        if [[ -z $owner || -z $home ]]; then
++            echo 'report_incomplete=could not resolve the session user' >>"$report"
++            exit 1
++        fi
++        report_dir=${report_dir:-$home/Documents/sleep-logs}
+         parent=$(dirname -- "$report_dir")
+         if [[ ! -d $parent ]]; then
+             install -d -o "$owner" -g "$owner" -m 0755 -- "$parent" || exit 1
+--- /dev/null
++++ b/py_modules/armada_control/paths.py
+@@ -0,0 +1,25 @@
++import os
++import pwd
++from pathlib import Path
++
++
++def user_name():
++    # Decky exports the host (Steam) account to every plugin backend, including
++    # root-flagged ones, so this is the user whose Steam library we should read.
++    return os.environ.get("DECKY_USER") or ""
++
++
++def user_home():
++    # A root-flagged plugin runs with HOME=/root, so Path.home() points at root's
++    # home rather than the Steam user's. DECKY_USER_HOME is the host user's home
++    # regardless of the flag; fall back to the account lookup, then to $HOME.
++    env = os.environ.get("DECKY_USER_HOME")
++    if env:
++        return Path(env)
++    name = user_name()
++    if name:
++        try:
++            return Path(pwd.getpwnam(name).pw_dir)
++        except KeyError:
++            pass
++    return Path.home()

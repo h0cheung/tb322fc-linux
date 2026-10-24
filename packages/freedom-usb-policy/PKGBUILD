@@ -1,0 +1,13 @@
+# Maintainer: h0cheung
+pkgname=freedom-usb-policy
+pkgver=20261024
+pkgrel=1
+pkgdesc='Freedom DWC3 runtime power policy for Qualcomm USB controllers'
+arch=(any)
+license=(GPL-2.0-or-later)
+depends=(systemd)
+source=("60-armada-usb-autosuspend.rules::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/244b74516d99d06cb0518609ce4b842ab278be8a/system_files/usr/lib/udev/rules.d/60-armada-usb-autosuspend.rules")
+sha256sums=('6647af3dcbc8b12b41606e05f2e62e2a8a95f4c14e94dd727c449a38faa55212')
+package() {
+  install -Dm644 "$srcdir/60-armada-usb-autosuspend.rules" "$pkgdir/usr/lib/udev/rules.d/60-armada-usb-autosuspend.rules"
+}

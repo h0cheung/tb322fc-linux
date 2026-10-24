@@ -1,6 +1,6 @@
 # Maintainer: h0cheung <hcheunh@gmail.com>
 # The ArmadaOS armada-control and armada-store Decky plugins, built from the
-# vendored sources in this repo (copied from gitlab.com/armadaproject decky/).
+# fixed Freedom Control source plus the existing Arch store integration.
 # armada-control patch: steam.py's STEAM_ROOT derives from the Decky user's
 # home ($DECKY_USER_HOME) instead of the hardcoded /var/home/armada, since the
 # root-flagged plugin backend runs with HOME=/root.
@@ -9,23 +9,36 @@
 # the Install action is hidden for system apps, and /etc/armada-store/
 # catalog.json can override the catalog (the plugin dir is re-seeded from
 # /usr/share/decky-plugins on every boot by armada-decky-sync).
-# Upstream: https://github.com/armada-os/armada (GPL-2.0-or-later, Copyright the Armada contributors)
+# Control source: https://github.com/mydanyi/freedom-control
+# Store source: https://github.com/armada-os/armada (GPL-2.0-or-later)
 pkgname=armada-decky-plugins
-pkgver=20260929
+pkgver=20261024
 pkgrel=1
-pkgdesc="ArmadaOS Decky plugins (armada-control, armada-store) for the Steam Deck UI"
+pkgdesc="Freedom Control and Armada Store Decky plugins for Arch"
 arch=('aarch64')
 url="https://github.com/armada-os/armada"
 license=('GPL-2.0-or-later')
-depends=('armada-control' 'decky-loader' 'python')
-makedepends=('nodejs' 'npm')
+depends=('armada-control>=20261024-1' 'decky-loader' 'python')
+makedepends=('nodejs' 'npm' 'git')
 install=armada-decky-plugins.install
+
+source=("freedom-control::git+https://github.com/mydanyi/freedom-control.git#commit=6681a477feb2c7f048ecd0789f41678c3c2dbe3e"
+        arch-session-user.patch)
+sha256sums=(SKIP 'c1db4f387eb034c14cde1448e216a74bce009425ced5e3df351a0e32875b9435')
+prepare() {
+    patch -Np1 --fuzz=0 -d "$srcdir/freedom-control/decky/armada-control" -i "$srcdir/arch-session-user.patch"
+}
 
 build() {
     for plugin in armada-control armada-store; do
         (
-            cd "$startdir/$plugin"
+            if [[ $plugin == armada-control ]]; then
+                cd "$srcdir/freedom-control/decky/armada-control"
+            else
+                cd "$startdir/$plugin"
+            fi
             npm ci --ignore-scripts
+            [[ $plugin != armada-control ]] || npm test
             npm run build
         )
     done
@@ -35,7 +48,11 @@ package() {
     for plugin in armada-control armada-store; do
         dest="$pkgdir/usr/share/decky-plugins/$plugin"
         install -d -m0755 "$dest"
-        cd "$startdir/$plugin"
+        if [[ $plugin == armada-control ]]; then
+                cd "$srcdir/freedom-control/decky/armada-control"
+            else
+                cd "$startdir/$plugin"
+            fi
         install -m644 plugin.json package.json "$dest/"
         install -m755 main.py "$dest/"
         [[ -f catalog.json ]] && install -m644 catalog.json "$dest/"
@@ -45,9 +62,9 @@ package() {
         find "$dest" -name __pycache__ -type d -prune -exec rm -rf {} +
     done
 
-    install -Dm755 ../armada-decky-sync "$pkgdir/usr/lib/decky-loader/armada-decky-sync"
-    install -Dm644 ../armada-decky-sync.service \
+    install -Dm755 "$startdir/armada-decky-sync" "$pkgdir/usr/lib/decky-loader/armada-decky-sync"
+    install -Dm644 "$startdir/armada-decky-sync.service" \
         "$pkgdir/usr/lib/systemd/system/armada-decky-sync.service"
-    install -Dm644 ../decky-loader@.service.d/armada-sync.conf \
+    install -Dm644 "$startdir/decky-loader@.service.d/armada-sync.conf" \
         "$pkgdir/usr/lib/systemd/system/decky-loader@.service.d/armada-sync.conf"
 }

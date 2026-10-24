@@ -1,0 +1,340 @@
+--- a/armada-control
++++ b/armada-control
+@@ -17,10 +17,18 @@
+ sys.path.insert(0, "/usr/lib/armada")
+ import armada_game_tweaks
+ import armada_perf
++import armada_session
+ 
+ SOCKET = Path("/run/armada/control.sock")
+ SESSION_SOCKET = Path(armada_perf.SESSION_SOCKET)
++ABL_VERSION_TOOL = "/usr/lib/armada/abl-version"
+ RGB_TOOL = "/usr/bin/armada-rgb"
++ABL_CONFIG = Path("/etc/armada/abl.conf")
++ABL_MANIFEST = Path("/usr/lib/armada/abl/manifest")
++ABL_PARTITIONS = (
++    ("A", "/dev/disk/by-partlabel/abl_a"),
++    ("B", "/dev/disk/by-partlabel/abl_b"),
++)
+ MAX_REQUEST = 1024 * 1024
+ CLIENT_TIMEOUT = 5
+ CONTROLLER_TYPES = {"deck-uhid", "xbox-series", "xb360", "ds5"}
+@@ -31,14 +39,12 @@
+ NM_IGNORE_SLEEP = Path("/etc/NetworkManager/ignore-sleep")
+ MEM_SLEEP_PATH = Path("/sys/power/mem_sleep")
+ STEAMOSCTL = "/usr/bin/steamosctl"
+-STEAMOS_MANAGER_STATE = Path("/var/home/armada/.config/steamos-manager/state.toml")
+ DESKTOP_SESSION_FOR_MODE = {
+-    "desktop": "armada-plasma.desktop",
+-    "mobile": "armada-plasma-mobile.desktop",
++    "desktop": "plasma.desktop",
++    "mobile": "plasma-mobile.desktop",
+ }
+ BOTTOM_SCREEN_SERVICE = "armada-bottom-screen.service"
+ GAME_MODE_SERVICE = "gamescope-session-plus@steam.service"
+-PLASMA_SESSION = "/usr/libexec/armada/armada-plasma-session"
+ BOTTOM_SCREEN_BRIGHTNESS_PATH = Path("/etc/armada/bottom-screen-brightness")
+ BOTTOM_SCREEN_BRIGHTNESS_RESTORE_INTERVAL = 2
+ BACKLIGHT_ROOT = Path("/sys/class/backlight")
+@@ -155,10 +161,22 @@
+     else:
+         NM_IGNORE_SLEEP.touch()
+ 
++def steamos_manager_state():
++    # steamos-manager keeps its state under the session user's config dir; the
++    # account is discovered, not assumed (upstream ArmadaOS is single-user).
++    home = armada_session.session_home()
++    if home is None:
++        return None
++    return home / ".config" / "steamos-manager" / "state.toml"
++
++
+ def get_desktop_mode() -> str:
+     # steamos-manager (steamosctl set-default-desktop-session) is the source of truth
+-    try:
+-        text = STEAMOS_MANAGER_STATE.read_text(encoding="utf-8")
++    state = steamos_manager_state()
++    if state is None:
++        return "desktop"
++    try:
++        text = state.read_text(encoding="utf-8")
+     except OSError:
+         return "desktop"
+ 
+@@ -179,6 +197,23 @@
+ def select_mem_sleep(mode):
+     if mode == "s2idle":
+         MEM_SLEEP_PATH.write_text(f"{mode}\n", encoding="utf-8")
++
++
++def abl_auto_enabled():
++    for path, key in ((ABL_CONFIG, "auto_update_enabled"), (ABL_MANIFEST, "ARMADA_ABL_AUTO")):
++        try:
++            lines = path.read_text(encoding="utf-8").splitlines()
++        except OSError:
++            continue
++        value = ""
++        for line in lines:
++            name, sep, raw = line.partition("=")
++            if sep and name.strip() == key:
++                value = raw.strip()
++                break
++        if value in {"0", "1"}:
++            return value == "1"
++    return False
+ 
+ 
+ def device_env():
+@@ -204,8 +239,13 @@
+ 
+ 
+ def session_user_command(*command):
+-    user = os.environ.get("ARMADA_SESSION_USER", "armada")
+-    account = pwd.getpwnam(user)
++    user = armada_session.session_user()
++    if not user:
++        raise RuntimeError("could not determine the session user")
++    try:
++        account = pwd.getpwnam(user)
++    except KeyError as exc:
++        raise RuntimeError(f"session user {user!r} does not exist") from exc
+     return [
+         "/usr/bin/runuser", "-u", user, "--", "env",
+         f"HOME={account.pw_dir}",
+@@ -242,13 +282,6 @@
+     return result.stdout.strip()
+ 
+ 
+-def start_bottom_screen():
+-    subprocess.run(
+-        session_user_command(PLASMA_SESSION, "--start-bottom"),
+-        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30,
+-    )
+-
+-
+ def bottom_screen_enabled():
+     return session_systemctl(
+         "is-enabled", "--quiet", BOTTOM_SCREEN_SERVICE, check=False, timeout=5,
+@@ -334,6 +367,27 @@
+         pass
+ 
+ 
++def abl_version():
++    versions = []
++    for name, partition in ABL_PARTITIONS:
++        result = subprocess.run(
++            ["/usr/bin/python3", ABL_VERSION_TOOL, partition],
++            check=False,
++            text=True,
++            stdout=subprocess.PIPE,
++            stderr=subprocess.DEVNULL,
++            timeout=5,
++        )
++        version = result.stdout.strip() if result.returncode == 0 else ""
++        versions.append((name, version))
++    if versions[0][1] == versions[1][1]:
++        return f"ROCKNIX {versions[0][1]}" if versions[0][1] else "Unknown"
++    return ", ".join(
++        f"{name}: ROCKNIX {version}" if version else f"{name}: Unknown"
++        for name, version in versions
++    )
++
++
+ def action_set_controller_type(request):
+     value = str(request.get("value", ""))
+     if value not in CONTROLLER_TYPES:
+@@ -408,6 +462,15 @@
+     return {"value": value}
+ 
+ 
++def action_set_abl_auto_enabled(request):
++    atomic_write(ABL_CONFIG, f"auto_update_enabled={int(bool(request.get('enabled')))}\n")
++    return {"enabled": abl_auto_enabled()}
++
++
++def action_get_abl_auto_enabled(request):
++    return {"enabled": abl_auto_enabled()}
++
++
+ def action_get_swipe_gestures_enabled(request):
+     try:
+         lines = SWIPE_GESTURES_CONFIG.read_text(encoding="utf-8").splitlines()
+@@ -419,7 +482,6 @@
+         if match:
+             enabled = match.group(1) == "1"
+     return {"enabled": enabled}
+-
+ 
+ def gamescope_swipe_gestures(enabled):
+     # A valueless convar call resets it; use help to check support instead.
+@@ -436,7 +498,6 @@
+         ):
+             raise RuntimeError("Gamescope does not support the swipe gesture setting")
+ 
+-
+ def action_set_swipe_gestures_enabled(request):
+     enabled = request.get("enabled")
+     if not isinstance(enabled, bool):
+@@ -452,7 +513,6 @@
+             gamescope_swipe_gestures(previous)
+         raise
+     return {"enabled": enabled}
+-
+ 
+ def action_suspend_swipe_gestures(request):
+     # Armada Control turns the gestures off while a Steam side menu is open,
+@@ -465,6 +525,17 @@
+         gamescope_swipe_gestures(not suspended)
+     return {"suspended": suspended}
+ 
++def unit_active(unit):
++    return subprocess.run(["/usr/bin/systemctl", "is-active", "--quiet", unit], check=False, timeout=2).returncode == 0
++
++def action_reload_input_ranges(_request):
++    # InputPlumber reads evdev ranges only when it opens the controller.
++    if unit_active("inputplumber.service"):
++        run(["/usr/bin/systemctl", "restart", "inputplumber.service"], timeout=10)
++        # Joins the start job the restart queued, so this returns once the controller type is applied.
++        run(["/usr/bin/systemctl", "start", "armada-controller-type.service"], timeout=15)
++    return {"ok": True}
++
+ 
+ def action_get_device_env(request):
+     return {"env": device_env()}
+@@ -499,11 +570,19 @@
+ 
+     if enabled:
+         session_systemctl("enable", BOTTOM_SCREEN_SERVICE)
+-        start_bottom_screen()
++        game_mode = session_systemctl(
++            "is-active", "--quiet", GAME_MODE_SERVICE, check=False, timeout=5,
++        )
++        if game_mode.returncode == 0:
++            session_systemctl("start", BOTTOM_SCREEN_SERVICE)
+     else:
+         session_systemctl("disable", "--now", BOTTOM_SCREEN_SERVICE)
+ 
+     return {"enabled": bottom_screen_enabled()}
++
++
++def action_get_abl_version(request):
++    return {"version": abl_version()}
+ 
+ 
+ def rgb_supported():
+@@ -521,14 +600,7 @@
+ 
+ 
+ def run_rgb(command):
+-    environment = os.environ.copy()
+-    try:
+-        environment.update(device_env())
+-    except (OSError, subprocess.SubprocessError):
+-        pass
+-    output = subprocess.check_output(
+-        [RGB_TOOL, *command], text=True, timeout=5, env=environment
+-    )
++    output = subprocess.check_output([RGB_TOOL, *command], text=True, timeout=5)
+     config = json.loads(output)
+     if not isinstance(config, dict):
+         raise RuntimeError("invalid armada-rgb response")
+@@ -548,28 +620,12 @@
+     enabled = request.get("enabled")
+     if not isinstance(enabled, bool):
+         raise ValueError("invalid RGB enabled state")
+-    # Keep the legacy off payload working while callers migrate to the full
+-    # RGB settings payload.
+-    if not enabled and not any(
+-        key in request
+-        for key in ("linkBrightness", "color", "saturation", "maxBrightness", "brightness")
+-    ):
++    if not enabled:
+         return run_rgb(["off"])
+-    link_brightness = request.get("linkBrightness")
++
+     color = request.get("color")
+     saturation = request.get("saturation")
+     brightness = request.get("brightness")
+-    max_brightness = request.get("maxBrightness")
+-    if link_brightness is not None and not isinstance(link_brightness, bool):
+-        raise ValueError("invalid RGB screen-link state")
+-    if max_brightness is not None:
+-        valid_max_brightness = (
+-            isinstance(max_brightness, int)
+-            and not isinstance(max_brightness, bool)
+-            and 0 <= max_brightness <= 100
+-        )
+-        if not valid_max_brightness:
+-            raise ValueError("invalid RGB maximum brightness")
+     valid_color = (
+         isinstance(color, str)
+         and len(color) == 6
+@@ -593,16 +649,7 @@
+     if not valid_brightness:
+         raise ValueError("invalid RGB brightness")
+ 
+-    command = [
+-        "set",
+-        "--enabled",
+-        str(enabled).lower(),
+-    ]
+-    if link_brightness is not None:
+-        command.extend(["--link-brightness", str(link_brightness).lower()])
+-    if max_brightness is not None:
+-        command.extend(["--max-brightness", str(max_brightness)])
+-    command.extend(["--color", color])
++    command = ["set", "--color", color]
+     if saturation is not None:
+         command.extend(["--saturation", str(saturation)])
+     command.extend(["--brightness", str(brightness)])
+@@ -614,19 +661,6 @@
+     if mode not in INTERCEPT_MODES:
+         raise ValueError("invalid intercept mode")
+     run(["/usr/libexec/armada/inputplumber-intercept", mode], timeout=5)
+-    return {"ok": True}
+-
+-
+-def unit_active(unit):
+-    return subprocess.run(["/usr/bin/systemctl", "is-active", "--quiet", unit], check=False, timeout=2).returncode == 0
+-
+-
+-def action_reload_input_ranges(_request):
+-    # InputPlumber reads evdev ranges only when it opens the controller.
+-    if unit_active("inputplumber.service"):
+-        run(["/usr/bin/systemctl", "restart", "inputplumber.service"], timeout=10)
+-        # Joins the start job the restart queued, so this returns once the controller type is applied.
+-        run(["/usr/bin/systemctl", "start", "armada-controller-type.service"], timeout=15)
+     return {"ok": True}
+ 
+ 
+@@ -825,13 +859,16 @@
+     "get_swipe_gestures_enabled": action_get_swipe_gestures_enabled,
+     "set_swipe_gestures_enabled": action_set_swipe_gestures_enabled,
+     "suspend_swipe_gestures": action_suspend_swipe_gestures,
++    "reload_input_ranges": action_reload_input_ranges,
+     "set_controller_type": action_set_controller_type,
+     "get_controller_type": action_get_controller_type,
+     "get_device_env": action_get_device_env,
+     "get_bottom_screen_enabled": action_get_bottom_screen_enabled,
+     "get_bottom_screen_brightness": action_get_bottom_screen_brightness,
++    "get_abl_version": action_get_abl_version,
+     "get_rgb": action_get_rgb,
+     "set_rgb": action_set_rgb,
++    "get_abl_auto_enabled": action_get_abl_auto_enabled,
+     "get_ssh_enabled": action_get_ssh_enabled,
+     "get_mtp_enabled": action_get_mtp_enabled,
+     "inputplumber_intercept": action_inputplumber_intercept,
+@@ -839,12 +876,12 @@
+     "set_mtp_enabled": action_set_mtp_enabled,
+     "set_bottom_screen_enabled": action_set_bottom_screen_enabled,
+     "set_bottom_screen_brightness": action_set_bottom_screen_brightness,
++    "set_abl_auto_enabled": action_set_abl_auto_enabled,
+     "get_desktop_mode": action_get_desktop_mode,
+     "set_desktop_mode": action_set_desktop_mode,
+     "set_sleep_mode": action_set_sleep_mode,
+     "write_config": action_write_config,
+     "reapply_perf": action_reapply_perf,
+-    "reload_input_ranges": action_reload_input_ranges,
+     "restart_game_mode": action_restart_game_mode,
+ }
+ 

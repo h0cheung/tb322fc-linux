@@ -1,0 +1,11 @@
+diff --git a/data/user/steamos-manager.service b/data/user/steamos-manager.service
+--- a/data/user/steamos-manager.service
++++ b/data/user/steamos-manager.service
+@@ -1,5 +1,7 @@
+ [Unit]
+ Description=SteamOS Manager Daemon
++PartOf=graphical-session.target
++After=dbus.service
+ StartLimitIntervalSec=120
+ StartLimitBurst=5
+ 
