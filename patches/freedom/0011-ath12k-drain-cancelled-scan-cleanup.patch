@@ -1,0 +1,42 @@
+From: h0cheung <hcheunh@gmail.com>
+Subject: [PATCH] wifi: ath12k: drain scan completion before interface teardown
+
+Scan completion is deferred to vdev_clean_wk. cancel_hw_scan waits for
+firmware completion, but previously returned with that work still queued.
+A following stop could cancel it without notifying mac80211, leaving
+SCAN_HW_SCANNING set across suspend and all later scans returning EBUSY.
+The observed failure has a cfg80211 NETDEV_DOWN warning followed by
+"resume with hardware scan still in progress".
+
+Drain the cleanup work with the wiphy lock held, as the driver's existing
+cancel_remain_on_channel callback already does. If a range batch has
+finished but cleanup is pending, mark the logical request aborting so
+flushing the worker cannot start another batch during cancellation.
+Keep the timeout-vs-normal-completion guard unchanged.
+
+Link: https://github.com/mydanyi/armadaos-freedom/blob/244b74516d99d06cb0518609ce4b842ab278be8a/packages/kernel/patches/0188-wifi-ath12k-baldur-range-scans.patch
+Link: https://github.com/mydanyi/armadaos-freedom/blob/244b74516d99d06cb0518609ce4b842ab278be8a/packages/kernel/patches/1021-wifi-ath12k-convert-scan-timeout-to-wiphy-delayed-work.patch
+Signed-off-by: h0cheung <hcheunh@gmail.com>
+---
+diff --git a/drivers/net/wireless/ath/ath12k/mac.c b/drivers/net/wireless/ath/ath12k/mac.c
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -6228,7 +6228,18 @@
+ 
+ 		ath12k_scan_abort(ar);
+ 
++		/* A completed range batch may still have queued cleanup. Do not
++		 * start another batch while cancelling the logical scan.
++		 */
++		spin_lock_bh(&ar->data_lock);
++		if (ar->scan.range_req && ar->scan.finish_queued &&
++		    ar->scan.state == ATH12K_SCAN_RUNNING)
++			ar->scan.state = ATH12K_SCAN_ABORTING;
++		spin_unlock_bh(&ar->data_lock);
++
+ 		wiphy_delayed_work_cancel(hw->wiphy, &ar->scan.timeout);
++		/* Report completion before interface stop can cancel this work. */
++		wiphy_work_flush(hw->wiphy, &ar->scan.vdev_clean_wk);
+ 	}
+ }
+ EXPORT_SYMBOL(ath12k_mac_op_cancel_hw_scan);

@@ -1,0 +1,26 @@
+From: h0cheung <hcheunh@gmail.com>
+Subject: [PATCH] PCI: qcom: clear Elden fixed-slot hotplug capabilities
+
+Elden reports the same 0x0006007f Root Port slot capabilities as Baldur,
+even though its Wi-Fi endpoint is fixed. Extend the existing HPC/HPS
+clear to Elden so the PCI PM core can consider bridge D3. Leave other
+platforms unchanged. The resulting deeper suspend path needs device
+validation.
+
+Link: https://github.com/mydanyi/armadaos-freedom/tree/244b74516d99d06cb0518609ce4b842ab278be8a
+Link: https://github.com/mydanyi/armadaos-freedom/blob/244b74516d99d06cb0518609ce4b842ab278be8a/packages/kernel/patches/0214-pci-qcom-baldur-disable-slot-hotplug-capabilities.patch
+Signed-off-by: h0cheung <hcheunh@gmail.com>
+---
+diff --git a/drivers/pci/controller/dwc/pcie-qcom.c b/drivers/pci/controller/dwc/pcie-qcom.c
+--- a/drivers/pci/controller/dwc/pcie-qcom.c
++++ b/drivers/pci/controller/dwc/pcie-qcom.c
+@@ -372,7 +372,8 @@
+ 	 */
+ 	val = readl(pci->dbi_base + offset + PCI_EXP_SLTCAP);
+ 	val |= PCI_EXP_SLTCAP_NCCS;
+-	if (of_machine_is_compatible("lenovo,baldur"))
++	if (of_machine_is_compatible("lenovo,baldur") ||
++	    of_machine_is_compatible("lenovo,elden"))
+ 		val &= ~(PCI_EXP_SLTCAP_HPC | PCI_EXP_SLTCAP_HPS);
+ 	writel(val, pci->dbi_base + offset + PCI_EXP_SLTCAP);
+ 

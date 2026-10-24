@@ -1,0 +1,33 @@
+From: h0cheung <hcheunh@gmail.com>
+Subject: [PATCH] arm64: dts: qcom: describe Elden UFS MCQ resources
+
+Elden's stock SunP device tree describes MCQ SQD at 0x1da5000 (0x2000
+bytes), vendor status at 0x1da4000 (0x10 bytes), and ITS device ID 0x60.
+The controller's QCFGPTR 0xe0 places its MCQ configuration at
+0x1d84000 + 0xe0 * 0x200 = 0x1da0000. These match the runtime doorbell
+and vendor-status offsets used by the pinned Freedom UFS driver.
+
+Translate them into that driver's std/mcq resource layout. The 0x7000
+MCQ window covers configuration, vendor status and the stock SQD range;
+the existing separate ICE window ends at the MCQ base and is unchanged.
+Keep the override on the Elden board instead of all SM8750 systems.
+
+Link: https://github.com/mydanyi/armadaos-freedom/tree/244b74516d99d06cb0518609ce4b842ab278be8a
+Link: https://github.com/mydanyi/armadaos-freedom/blob/244b74516d99d06cb0518609ce4b842ab278be8a/packages/kernel/patches/0222-arm64-dts-qcom-kaanapali-describe-ufs-mcq.patch
+Signed-off-by: h0cheung <hcheunh@gmail.com>
+---
+diff --git a/arch/arm64/boot/dts/qcom/sm8750-lenovo-elden.dts b/arch/arm64/boot/dts/qcom/sm8750-lenovo-elden.dts
+--- a/arch/arm64/boot/dts/qcom/sm8750-lenovo-elden.dts
++++ b/arch/arm64/boot/dts/qcom/sm8750-lenovo-elden.dts
+@@ -2376,6 +2376,11 @@
+ };
+ 
+ &ufs_mem_hc {
++	reg = <0x0 0x01d84000 0x0 0x3000>,
++	      <0x0 0x01da0000 0x0 0x7000>;
++	reg-names = "std", "mcq";
++	msi-parent = <&gic_its 0x60>;
++
+ 	reset-gpios = <&tlmm 215 GPIO_ACTIVE_LOW>;
+ 
+ 	vcc-supply = <&vreg_l17b_2p5>;

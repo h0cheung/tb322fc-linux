@@ -1,0 +1,99 @@
+From: h0cheung <hcheunh@gmail.com>
+Subject: [PATCH] drm/msm: extend atomic state and refresh fixes to Elden
+
+Extend checked-state bandwidth, shared-CTL flush, VFP-only mode changes
+and idle refresh to Elden. The shared-CTL helper keeps its video and
+shared-controller checks. DPU13 PPB registers are unchanged.
+
+Elden modes up to 120 Hz share their pixel clock and horizontal timing;
+165 Hz does not. Do not arm idle refresh above 120 Hz, and clear an old
+encoder selection when re-enabling it at 165 Hz. VFP-only atomic checks
+still require matching clocks and horizontal timings.
+
+Keep Elden's existing display power management and bonded teardown.
+Earlier iface-clock runtime PM and unconfigured-PLL guards were dropped
+from our old kernel. Do not re-enable those branches as part of refresh
+support; the combined power-management candidate failed suspend testing.
+The underlying algorithms remain those in the referenced Freedom tree.
+
+Link: https://github.com/mydanyi/armadaos-freedom/tree/244b74516d99d06cb0518609ce4b842ab278be8a
+Link: https://github.com/mydanyi/armadaos-freedom/blob/244b74516d99d06cb0518609ce4b842ab278be8a/packages/kernel/patches/0190-drm-msm-baldur-vfp-switch.patch
+Link: https://github.com/mydanyi/armadaos-freedom/blob/244b74516d99d06cb0518609ce4b842ab278be8a/packages/kernel/patches/0191-drm-msm-baldur-idle-refresh.patch
+Link: https://github.com/mydanyi/armadaos-freedom/blob/244b74516d99d06cb0518609ce4b842ab278be8a/packages/kernel/patches/0193-drm-msm-baldur-new-state-bandwidth.patch
+Link: https://github.com/mydanyi/armadaos-freedom/blob/244b74516d99d06cb0518609ce4b842ab278be8a/packages/kernel/patches/0204-drm-msm-baldur-flush-shared-ctl-once.patch
+Signed-off-by: h0cheung <hcheunh@gmail.com>
+---
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c
+@@ -74,7 +74,8 @@
+ 	 * bandwidth of the frame being committed.  Other machines keep the
+ 	 * committed-plane aggregation.
+ 	 */
+-	if (of_machine_is_compatible("lenovo,baldur")) {
++	if (of_machine_is_compatible("lenovo,baldur") ||
++	    of_machine_is_compatible("lenovo,elden")) {
+ 		drm_atomic_crtc_state_for_each_plane_state(plane, plane_state,
+ 							   state) {
+ 			pstate = to_dpu_plane_state(plane_state);
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c
+@@ -1898,7 +1899,8 @@
+ 	struct dpu_encoder_phys *phys0, *phys1;
+ 	struct dpu_hw_ctl *ctl;
+ 
+-	if (!of_machine_is_compatible("lenovo,baldur"))
++	if (!of_machine_is_compatible("lenovo,baldur") &&
++	    !of_machine_is_compatible("lenovo,elden"))
+ 		return false;
+ 
+ 	if (dpu_enc->disp_info.intf_type != INTF_DSI ||
+@@ -2764,12 +2766,23 @@
+ {
+ 	static bool registered;
+ 
+-	if (!of_machine_is_compatible("lenovo,baldur"))
++	if (!of_machine_is_compatible("lenovo,baldur") &&
++	    !of_machine_is_compatible("lenovo,elden"))
+ 		return;
+ 
+ 	if (e->disp_info.intf_type != INTF_DSI || !e->num_phys_encs ||
+ 	    !e->phys_encs[0]->ops.update_vfp)
+ 		return;
++
++	/* Elden's 165 Hz mode uses a different clock and horizontal timing. */
++	if (of_machine_is_compatible("lenovo,elden") &&
++	    drm_mode_vrefresh(mode) > 120) {
++		if (READ_ONCE(idle_refresh_enc) == e)
++			WRITE_ONCE(idle_refresh_enc, NULL);
++		WRITE_ONCE(e->idle_refresh_live_vt, 0);
++		return;
++	}
++
+ 	drm_mode_copy(&e->idle_refresh_base_mode, mode);
+ 	e->idle_refresh_base_vt = mode->vtotal;
+ 	WRITE_ONCE(e->idle_refresh_live_vt, mode->vtotal);
+@@ -2815,7 +2828,8 @@
+ 	unsigned long next;
+ 	unsigned int i;
+ 
+-	if (!of_machine_is_compatible("lenovo,baldur"))
++	if (!of_machine_is_compatible("lenovo,baldur") &&
++	    !of_machine_is_compatible("lenovo,elden"))
+ 		return;
+ 
+ 	if (!drm_enc->crtc || !drm_enc->crtc->state || !dpu_enc->num_phys_encs)
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c
+@@ -1727,7 +1727,8 @@
+ 	struct drm_crtc_state *old = drm_atomic_get_old_crtc_state(state, crtc);
+ 	struct drm_encoder *enc;
+ 
+-	if (!of_machine_is_compatible("lenovo,baldur"))
++	if (!of_machine_is_compatible("lenovo,baldur") &&
++	    !of_machine_is_compatible("lenovo,elden"))
+ 		return false;
+ 
+ 	if (!new->mode_changed || new->active_changed ||

@@ -1,0 +1,24 @@
+From: h0cheung <hcheunh@gmail.com>
+Subject: [PATCH] wifi: ath12k: avoid synchronous MHI wake during Elden panic
+
+Extend the existing panic-context MHI wake guard to Elden's wifi7 PCI
+path. A failed wake also skips its matching release. Do not enable the
+periodic RX refill watchdog or alter normal scan/RX handling.
+
+Link: https://github.com/mydanyi/armadaos-freedom/tree/244b74516d99d06cb0518609ce4b842ab278be8a
+Link: https://github.com/mydanyi/armadaos-freedom/blob/244b74516d99d06cb0518609ce4b842ab278be8a/packages/kernel/patches/0194-wifi-ath12k-baldur-rx-panic.patch
+Signed-off-by: h0cheung <hcheunh@gmail.com>
+---
+diff --git a/drivers/net/wireless/ath/ath12k/wifi7/pci.c b/drivers/net/wireless/ath/ath12k/wifi7/pci.c
+--- a/drivers/net/wireless/ath/ath12k/wifi7/pci.c
++++ b/drivers/net/wireless/ath/ath12k/wifi7/pci.c
+@@ -72,7 +72,8 @@
+ 	 * return also skips the matching release.
+ 	 */
+ 	if (panic_in_progress() &&
+-	    of_machine_is_compatible("lenovo,baldur"))
++	    (of_machine_is_compatible("lenovo,baldur") ||
++	     of_machine_is_compatible("lenovo,elden")))
+ 		return -EBUSY;
+ 
+ 	return mhi_device_get_sync(ab_pci->mhi_ctrl->mhi_dev);

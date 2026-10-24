@@ -1,0 +1,122 @@
+From: h0cheung <hcheunh@gmail.com>
+Subject: [PATCH] usb: enable Elden suspend ordering and eUSB2 wake handling
+
+Extend the existing UCSI and PMIC GLINK freezable workqueue branches to
+Elden, whose resume trace accesses FSA4480 while I2C is still suspended.
+Elden uses the M31 eUSB2 PHY with a PTN3222 repeater. Select the
+existing eUSB2 IRQ handling as well. Keep the old QUSB2 fallback for
+other boards.
+
+Apply the USB GDSC retention policy to Elden's SM8750 domains at probe;
+other SM8750 boards keep their original power states. This does not turn
+DWC3 into a system wakeup source or change the dual-connector priority.
+The driver algorithms remain those of the linked Freedom patch.
+
+Link: https://github.com/mydanyi/armadaos-freedom/tree/244b74516d99d06cb0518609ce4b842ab278be8a
+Link: https://github.com/mydanyi/armadaos-freedom/blob/244b74516d99d06cb0518609ce4b842ab278be8a/packages/kernel/patches/0192-usb-baldur-runtime-pm.patch
+Signed-off-by: h0cheung <hcheunh@gmail.com>
+---
+diff --git a/drivers/soc/qcom/pmic_glink_altmode.c b/drivers/soc/qcom/pmic_glink_altmode.c
+--- a/drivers/soc/qcom/pmic_glink_altmode.c
++++ b/drivers/soc/qcom/pmic_glink_altmode.c
+@@ -451,7 +451,8 @@
+ 	alt_port->mode = mode;
+ 	alt_port->hpd_state = hpd_state;
+ 	alt_port->hpd_irq = hpd_irq;
+-	if (of_machine_is_compatible("lenovo,baldur"))
++	if (of_machine_is_compatible("lenovo,baldur") ||
++	    of_machine_is_compatible("lenovo,elden"))
+ 		queue_work(system_freezable_wq, &alt_port->work);
+ 	else
+ 		schedule_work(&alt_port->work);
+@@ -505,7 +506,8 @@
+ 		alt_port->tbt_data = *tbt;
+ 	}
+ 
+-	if (of_machine_is_compatible("lenovo,baldur"))
++	if (of_machine_is_compatible("lenovo,baldur") ||
++	    of_machine_is_compatible("lenovo,elden"))
+ 		queue_work(system_freezable_wq, &alt_port->work);
+ 	else
+ 		schedule_work(&alt_port->work);
+diff --git a/drivers/usb/typec/ucsi/ucsi.c b/drivers/usb/typec/ucsi/ucsi.c
+--- a/drivers/usb/typec/ucsi/ucsi.c
++++ b/drivers/usb/typec/ucsi/ucsi.c
+@@ -1574,7 +1574,8 @@
+ 	con = &ucsi->connector[num - 1];
+ 
+ 	if (!test_and_set_bit(EVENT_PENDING, &ucsi->flags)) {
+-		if (of_machine_is_compatible("lenovo,baldur"))
++		if (of_machine_is_compatible("lenovo,baldur") ||
++		    of_machine_is_compatible("lenovo,elden"))
+ 			queue_work(system_freezable_wq, &con->work);
+ 		else
+ 			schedule_work(&con->work);
+diff --git a/drivers/usb/dwc3/dwc3-qcom.c b/drivers/usb/dwc3/dwc3-qcom.c
+--- a/drivers/usb/dwc3/dwc3-qcom.c
++++ b/drivers/usb/dwc3/dwc3-qcom.c
+@@ -646,7 +646,8 @@
+ 		return -ENOMEM;
+ 
+ 	qcom->dev = &pdev->dev;
+-	qcom->has_eusb2_phy = of_machine_is_compatible("lenovo,baldur");
++	qcom->has_eusb2_phy = of_machine_is_compatible("lenovo,baldur") ||
++			      of_machine_is_compatible("lenovo,elden");
+ 
+ 	qcom->resets = devm_reset_control_array_get_optional_exclusive(dev);
+ 	if (IS_ERR(qcom->resets)) {
+diff --git a/drivers/clk/qcom/gcc-sm8750.c b/drivers/clk/qcom/gcc-sm8750.c
+--- a/drivers/clk/qcom/gcc-sm8750.c
++++ b/drivers/clk/qcom/gcc-sm8750.c
+@@ -5,6 +5,7 @@
+ 
+ #include <linux/clk-provider.h>
+ #include <linux/module.h>
++#include <linux/of.h>
+ #include <linux/platform_device.h>
+ #include <linux/regmap.h>
+ 
+@@ -2953,6 +2954,30 @@
+ 		.name = "gcc_usb3_phy_gdsc",
+ 	},
+ 	.pwrsts = PWRSTS_OFF_ON,
++	.flags = POLL_CFG_GDSCR | RETAIN_FF_ENABLE,
++};
++
++static struct gdsc elden_gcc_usb30_prim_gdsc = {
++	.gdscr = 0x39004,
++	.en_rest_wait_val = 0x2,
++	.en_few_wait_val = 0x2,
++	.clk_dis_wait_val = 0xf,
++	.pd = {
++		.name = "elden_gcc_usb30_prim_gdsc",
++	},
++	.pwrsts = PWRSTS_RET_ON,
++	.flags = POLL_CFG_GDSCR | RETAIN_FF_ENABLE,
++};
++
++static struct gdsc elden_gcc_usb3_phy_gdsc = {
++	.gdscr = 0x50018,
++	.en_rest_wait_val = 0x2,
++	.en_few_wait_val = 0x2,
++	.clk_dis_wait_val = 0x2,
++	.pd = {
++		.name = "elden_gcc_usb3_phy_gdsc",
++	},
++	.pwrsts = PWRSTS_RET_ON,
+ 	.flags = POLL_CFG_GDSCR | RETAIN_FF_ENABLE,
+ };
+ 
+@@ -3248,6 +3273,12 @@
+ 	qcom_branch_set_force_mem_core(regmap, gcc_ufs_phy_ice_core_clk, true);
+ 	qcom_branch_set_force_mem_core(regmap, gcc_ufs_phy_axi_clk, true);
+ 
++	/* Preserve the USB controller and PHY retention state on Elden. */
++	if (of_machine_is_compatible("lenovo,elden")) {
++		gcc_sm8750_gdscs[GCC_USB30_PRIM_GDSC] = &elden_gcc_usb30_prim_gdsc;
++		gcc_sm8750_gdscs[GCC_USB3_PHY_GDSC] = &elden_gcc_usb3_phy_gdsc;
++	}
++
+ 	return qcom_cc_really_probe(&pdev->dev, &gcc_sm8750_desc, regmap);
+ }
+ 

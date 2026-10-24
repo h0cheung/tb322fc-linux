@@ -1,0 +1,42 @@
+From: h0cheung <hcheunh@gmail.com>
+Subject: [PATCH] Bluetooth: qca: respect an explicitly configured Elden address
+
+Extend configured-address preservation to Elden. Remove its shared hard-
+coded DT example address at the same time: with no explicit address,
+setup must keep deriving the existing per-device address from the
+serial. A non-zero address configured through MGMT remains
+authoritative. Do not change the firmware download protocol or baud-rate
+quirks.
+
+Link: https://github.com/mydanyi/armadaos-freedom/tree/244b74516d99d06cb0518609ce4b842ab278be8a
+Link: https://github.com/mydanyi/armadaos-freedom/blob/244b74516d99d06cb0518609ce4b842ab278be8a/packages/kernel/patches/0223-Bluetooth-qca-baldur-preserve-configured-address.patch
+Signed-off-by: h0cheung <hcheunh@gmail.com>
+---
+diff --git a/drivers/bluetooth/btqca.c b/drivers/bluetooth/btqca.c
+--- a/drivers/bluetooth/btqca.c
++++ b/drivers/bluetooth/btqca.c
+@@ -1117,10 +1117,11 @@
+ 		break;
+ 	}
+ 
+-	/* Preserve a stable address configured by userspace (MGMT) on Baldur
++	/* Preserve a stable address configured by userspace on Baldur or Elden
+ 	 * instead of unconditionally regenerating it from the serial number.
+ 	 */
+-	if (of_machine_is_compatible("lenovo,baldur") &&
++	if ((of_machine_is_compatible("lenovo,baldur") ||
++	     of_machine_is_compatible("lenovo,elden")) &&
+ 	    bacmp(&hdev->public_addr, BDADDR_ANY)) {
+ 		bacpy(&generated_bdaddr, &hdev->public_addr);
+ 	} else {
+diff --git a/arch/arm64/boot/dts/qcom/sm8750-lenovo-elden.dts b/arch/arm64/boot/dts/qcom/sm8750-lenovo-elden.dts
+--- a/arch/arm64/boot/dts/qcom/sm8750-lenovo-elden.dts
++++ b/arch/arm64/boot/dts/qcom/sm8750-lenovo-elden.dts
+@@ -2355,7 +2355,6 @@
+ 
+ 		firmware-name = "brhbtnv20.bin", "brhbtfw20.tlv";
+ 		/* Android-assigned public address, stored little-endian in DT. */
+-		local-bd-address = [58 97 9c 62 22 22];
+ 
+ 		vddrfacmn-supply = <&vreg_wlan_pmu_rfa_cmn>;
+ 		vddaon-supply = <&vreg_wlan_pmu_aon_0p59>;

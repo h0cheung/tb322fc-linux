@@ -4,7 +4,7 @@
 
 ## 从源码构建
 
-先在系统源码仓库运行 `python scripts/sync-freedom-packaging.py`，同步共享配置、Wi-Fi 补丁和 ALS 源码的校验和。将本目录复制到 AArch64 构建环境，运行普通 `makepkg`。配方固定 Linux 7.2.6 和 Freedom commit，应用统一补丁及 Elden 扩展；本配方 release 为 `7.2.6-3-freedom`。升级通过 pkgver/pkgrel 和固定源码 commit 表达，不依赖工作目录的 dirty 标记。
+先在系统源码仓库运行 `python scripts/sync-freedom-packaging.py`，同步共享配置、Wi-Fi 补丁和 ALS 源码的校验和。将本目录复制到 AArch64 构建环境，运行普通 `makepkg`。配方固定 Linux 7.2.6 和 Freedom commit，应用统一补丁及 Elden 扩展；本配方 release 为 `7.2.6-7-freedom`。升级通过 pkgver/pkgrel 和固定源码 commit 表达，不依赖工作目录的 dirty 标记。
 
 ## 交叉编译后原生打包
 
@@ -45,3 +45,22 @@ kShim 声明在 `/etc/kshim-freedom/config.json`，按 pkgbase 自动找到内�
 ## 四代 USB 主机恢复（pkgrel 3）
 
 将 Freedom 0192 已有的 `xhci_power_lost` 状态跟踪和 xHCI 恢复通知扩展到 `lenovo,elden`。系统休眠实际关闭 DWC3 核心时，恢复侧重建 xHCI 状态；核心保留时仍走原保留路径。补丁只扩展三个机型条件，来源见 [0003 增量补丁](../../patches/freedom/0003-usb-dwc3-enable-elden-power-lost.patch)。构建产物与实机验证状态分别记录。
+
+## 四代共享修复与显示电源管理对照
+
+本地增量继续引用固定 Freedom 源码，扩展 USB 冻结排序/eUSB2 与电源域保留、显示 atomic 状态/VFP/idle refresh、固定 PCIe 插槽标志、panic 中 Wi-Fi 唤醒保护、蓝牙已配置地址和板级 UFS MCQ 资源。DP 插拔专用改动未扩展。
+
+pkgrel 4 合并测试中，MCQ 并发直接读校验和 VFP 切换路径通过，但内核接口及正常电源键休眠均发生重启。pkgrel 5 撤掉新增的显示 iface/GDSC/PLL 电源管理和 bonded 关闭顺序扩展，保留其余改动，用于对照验证；不能把 pkgrel 4 的正常启动或运行时读写通过当作休眠通过。Elden 的 idle refresh 只在不高于 120 Hz 的模式启用。 pkgrel 5 已启动，定时与电源键两轮短时 s2idle 均保持同一 boot ID，用户确认显示、触控和恢复正常；长期休眠未覆盖。恢复后数据校验通过，但 ESI 专用中断未增长、共享 UFS 中断继续增长，仍需独立核对 MCQ 中断恢复。
+
+## UFS 恢复修复（pkgrel 6）
+
+回移上游邮件 [Reprogram ESI after a host controller reset](https://lore.kernel.org/all/20261022165006.1275-1-26rote@gmail.com/)，保留 MSI 消息并在控制器重新配置时恢复 ESI 寄存器，IRQ 仍只申请一次。适配补丁保留作者、Fixes 和来源，见 [0010](../../patches/freedom/0010-ufs-qcom-restore-esi-after-reset.patch)。
+
+同时按固定提交 URL 和 SHA256 引用主线 [b52d695d062095327b944acf7daabbc816ab319b](https://github.com/torvalds/linux/commit/b52d695d062095327b944acf7daabbc816ab319b)：错误处理冻结正常 I/O 时，允许内部恢复命令继续执行，结束时平衡冻结计数。常规休眠通过不等于已覆盖人工注错的错误恢复分支。
+
+
+## 扫描取消与休眠（pkgrel 7）
+
+`ath12k-scan-cancel.patch` 为本地修复：取消扫描时同步完成待处理的扫描清理，且不允许已完成的 range batch 在取消期间启动下一段。原故障在进入休眠前已有 cfg80211 扫描残留警告，恢复后持续 `SCAN-FAILED ret=-16`；不是凭一次掉线认定 PCIe D3 导致。
+
+同一 7.2.6-6 内核上仅覆盖 ath12k 模块进行对照，模块导出符号校验值一致；扫描期间的 20/60 秒两轮 s2idle 均保持同 boot、联网和直接读校验通过，ESI 中断继续增长，原扫描警告未复现。正式配方升为 7，实际设备当时仍为 6 加测试模块，不能把该记录写成正式 7 内核已启动。F2FS 末尾段越界另行离线核对，本配方不裁剪 discard 来掩盖元数据问题。

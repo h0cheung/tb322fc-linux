@@ -9,3 +9,9 @@ Landlock 已在正式兼容配置中补齐；Image、模块与 headers 必须来
 Q6V5 handover 单次 IRQ 修复从 Linux 主线固定提交直接引用，见 [内核配方](../../packages/linux-freedom/PKGBUILD)。本地仅保存 [attach 适配补丁](../../packages/linux-freedom/q6v5-attach-keep-handover-masked.patch)，避免 Freedom 的 Baldur 分支绕过 IRQ 状态跟踪。其他旧内核候选保持不动。
 
 `0003` 将 Freedom 0192 的主机掉电跟踪和 xHCI 恢复通知扩展到四代 Elden。只扩展三个机型条件，保留其原有的核心掉电判断；用于验证长时间休眠恢复后的 USB DMA 地址翻译错误、Host System Error 和手柄无法重新枚举。其余五代条件单独评估。
+
+`0004` 至 `0009` 是后续四代兼容增量，补丁头引用对应 Freedom 实现。显示 `0005` 仅保留 atomic 带宽、共享 CTL flush、VFP 和带 120 Hz 上限的 idle refresh；新增显示电源管理在合并候选休眠失败后撤回。iface runtime PM 和未配置 PLL 提前返回在旧内核中已有撤补丁记录，不随刷新率支持重新启用。DP 专用插拔补丁未加入；这些增量的编译、启动、运行时效果和休眠测试须分别判断。
+
+`0010` 回移上游 ESI 恢复修复，调整上下文以适配固定 Freedom 源码，保留上游有效代码改动及邮件来源。UFS 内部恢复命令死锁修复另从主线固定提交直接引用，见 [内核配方](../../packages/linux-freedom/PKGBUILD)；两项均使用通用驱动修复，不新增机型判断。四代所需 UFS AXI/ICE 时钟保持位已存在，不重复引入五代 GCC 改动。
+
+`0011` 是本地扫描取消修复，同步完成延迟清理并阻止取消期间续启 range batch，保持原超时处理逻辑。已在同一内核上仅替换 ath12k 模块对照两轮扫描期间休眠；来源和范围见补丁头及内核配方说明。
