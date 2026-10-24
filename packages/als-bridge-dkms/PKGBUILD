@@ -1,10 +1,12 @@
 # Maintainer: h0cheung
 pkgname=als-bridge-dkms
 pkgver=20260929
-pkgrel=1
+pkgrel=2
 pkgdesc='DKMS kernel module for the Steam ambient-light bridge'
 arch=(any)
 license=(GPL-2.0-only)
+# This source-only package has no ELF files for makepkg to split debug symbols.
+options=(!debug)
 depends=(dkms)
 optdepends=('als-bridge: SensorProxy userspace daemon')
 source=(als-bridge.c Makefile dkms.conf)
