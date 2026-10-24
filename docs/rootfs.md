@@ -1,10 +1,12 @@
 # Rootfs setup
 
 Use an AArch64 Linux userspace with systemd/udev on an already prepared ext4
-partition named `rootfs`. Arch Linux Ports has been used for hardware testing.
-This project does not repartition the tablet. The [Arch image workflow](ci.md)
-automates this setup and produces a rootfs artifact when supplied with matching
-firmware; the rest of this page also documents manual integration.
+or F2FS root. The current kShim setup selects it by PARTUUID; the historical
+direct-boot fallback uses a partition named `rootfs`. Arch Linux Ports has been
+used for hardware testing. This project does not repartition the tablet.
+The [Arch package workflow](ci.md) validates the integration in an internal
+rootfs and publishes coordinated packages, not a flashable rootfs artifact.
+The rest of this page also documents manual integration.
 
 ## Base system
 

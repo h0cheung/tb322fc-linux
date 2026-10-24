@@ -9,9 +9,14 @@ set -euo pipefail
 JOBS=${JOBS:-$(nproc)}
 [[ $JOBS =~ ^[1-9][0-9]*$ ]] || exit 2
 export MAKEFLAGS="-j$JOBS"
+build_user_home=$(getent passwd alarm | cut -d: -f6)
+[[ -n $build_user_home ]] || exit 1
 # Headers are installed before DKMS source; kShim has no boot configuration in CI.
 for name in linux-freedom als-bridge-dkms kshim-freedom; do
-    work=$(mktemp -d -p /home/alarm "native-$name.XXXXXX")
+    # Stable paths keep debug-info cache keys reusable across clean CI roots.
+    work="$build_user_home/native-$name"
+    [[ ! -e $work ]] || { echo "Build directory already exists: $work" >&2; exit 1; }
+    mkdir "$work"
     cp -a "packages/$name/." "$work/"
     chown -R alarm:alarm "$work"
     mapfile -t deps < <(bash -c 'source "$1/PKGBUILD"; printf "%s\n" "${makedepends[@]}" "${depends[@]}"' _ "$work")

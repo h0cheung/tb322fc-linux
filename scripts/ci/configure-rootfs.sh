@@ -62,7 +62,7 @@ runtime_packages=(
     scx-scheds
 )
 build_packages=(
-    base-devel linux-api-headers meson ninja git python pkgconf clang llvm llvm-libs
+    base-devel linux-api-headers meson ninja git python pkgconf clang llvm llvm-libs ccache
     glib2-devel protobuf gobject-introspection vala gettext
     python-jinja python-ply python-yaml openssl
 )
@@ -74,11 +74,8 @@ pacman -S --needed --noconfirm "${runtime_packages[@]}" "${build_packages[@]}"
 # them instead of reusing stale objects. The cache lives outside /root because
 # makepkg runs as the unprivileged alarm user and has to write into it.
 CACHE=/var/cache/tb322fc-build
-mkdir -p "$CACHE/sources" "$CACHE/pkgs" "$CACHE/meson"
-{
-    echo "SRCDEST=$CACHE/sources"
-    echo "PKGDEST=$CACHE/pkgs"
-} >> /etc/makepkg.conf
+# shellcheck source=scripts/ci/configure-cache.sh
+source ./configure-cache.sh
 
 
 # Apply verified device firmware after distro package installation. Never copy
@@ -163,7 +160,7 @@ sed -i '/^\[options\]$/a IgnorePkg = hexagonrpc libssc libcamera libcamera-ipa l
 sed -i '/^\[options\]$/a NoUpgrade = etc/thermald/thermal-conf.xml' /etc/pacman.conf
 
 # Point the image at this project's rolling package repository: the CI publishes
-# every package it builds to the `repository` pre-release (see publish-repo.sh),
+# userspace packages to the `repository-freedom-v2` pre-release,
 # so the device can update them with plain pacman. Unsigned, like those assets.
 cat >> /etc/pacman.conf <<'EOF'
 
@@ -174,14 +171,12 @@ EOF
 # Fetch that database now. pacman refuses to prepare *any* transaction while a
 # configured sync database is still missing ("could not find database"), and
 # the build loop below installs dependencies with plain `pacman -S`.
-# Seed an empty project DB if the new repository has not been published yet.
-# It is built from trusted local input, not fetched from the legacy repository.
-if ! curl --fail --location --output /var/lib/pacman/sync/tb322fc.db \
-    https://github.com/h0cheung/tb322fc-linux/releases/download/repository-freedom-v2/tb322fc.db; then
-    empty=$(mktemp -d)
-    tar -czf /var/lib/pacman/sync/tb322fc.db --files-from /dev/null
-    rmdir "$empty"
-fi
+# init-repo.sh publishes valid empty databases before the first build.
+# A network/server failure must not silently masquerade as an empty repository.
+curl --fail --location --retry 5 --output /var/lib/pacman/sync/tb322fc.db.part \
+    https://github.com/h0cheung/tb322fc-linux/releases/download/repository-freedom-v2/tb322fc.db
+bsdtar -tf /var/lib/pacman/sync/tb322fc.db.part >/dev/null
+mv /var/lib/pacman/sync/tb322fc.db.part /var/lib/pacman/sync/tb322fc.db
 
 # Allow building AUR/local packages that only specify x86_64 in PKGBUILD arch array.
 echo 'IGNOREARCH=1' >> /etc/makepkg.conf
@@ -263,8 +258,8 @@ cat > /etc/systemd/system/sddm.service.d/graphics.conf <<EOF
 [Service]
 Environment=GALLIUM_DRIVER=zink MESA_LOADER_DRIVER_OVERRIDE=zink VK_DRIVER_FILES=${icds[0]}
 EOF
-# Keep ibus/msime available in Qt applications; Plasma Mobile supplies its own
-# on-screen keyboard through plasma-keyboard.
+# Keep IBus available to Steam without forcing Qt's input context globally.
+# Plasma Mobile supplies its own on-screen keyboard through plasma-keyboard.
 install -d /etc/xdg
 cat > /etc/xdg/kwinrc <<'EOF'
 [Wayland]
@@ -310,8 +305,9 @@ monitor.alsa.rules = [
 ]
 EOF
 cat > /etc/fstab <<'EOF'
-# The initramfs already mounts the existing partition named rootfs.
-PARTLABEL=rootfs / ext4 defaults,noatime 0 1
+# kShim's initramfs selects root by PARTUUID and probes ext4/F2FS itself.
+# Do not add a conflicting partition label or filesystem type here.
+binder /dev/binderfs binder defaults,nofail 0 0
 EOF
 
 # gamescope from the Arch repo ships without the filecap SteamOS bakes into
@@ -601,12 +597,14 @@ pacman -Q > /usr/share/tb322fc/rootfs.packages
 {
     printf 'kernel_release=%s\n' "$release"
     printf 'architecture=%s\n' "$(uname -m)"
+    printf 'ccache=%s\n' "$(ccache --version | head -1)"
     printf 'meson=%s\n' "$(meson --version)"
     printf 'hexagonrpc=from-sources.json\n'
     printf 'libssc=%s\n' "$(pkg-config --modversion libssc)"
     printf 'libcamera=%s\n' "$(pkg-config --modversion libcamera)"
     printf 'iio-sensor-proxy=%s\n' "$(pacman -Q iio-sensor-proxy-y700 2>/dev/null | awk '{print $2}')"
 } > /usr/share/tb322fc/userspace-build.txt
+ccache --show-stats > /usr/share/tb322fc/ccache.txt
 [[ -x /usr/bin/hexagonrpcd && -x /usr/libexec/iio-sensor-proxy && -x /usr/bin/qcam && -x /sbin/init ]]
 [[ -f /usr/share/wayland-sessions/plasma-mobile.desktop ]]
 # Leave build tools installed for diagnosis. Remove downloads, host identities

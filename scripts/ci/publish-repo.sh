@@ -11,6 +11,7 @@ TAG=${REPO_TAG:-repository-freedom-v2}
 [[ $TAG == repository-freedom-v2 ]] || { echo "Refusing to replace the legacy package repository" >&2; exit 1; }
 SLUG=${GITHUB_REPOSITORY:-h0cheung/tb322fc-linux}
 PKGS=${REPO_PKGS:-build/rootfs-cache/pkgs}
+PROJECT=$PWD
 
 [[ -d "$PKGS" ]] || { echo "publish-repo: no packages at $PKGS (run build-rootfs.sh first)" >&2; exit 1; }
 shopt -s nullglob
@@ -24,6 +25,7 @@ for f in "$PKGS"/*.pkg.tar.*; do
 done
 shopt -u nullglob
 (( ${#pkgs[@]} )) || { echo "publish-repo: no .pkg.tar.* files under $PKGS" >&2; exit 1; }
+bash "$PROJECT/scripts/ci/init-repo.sh"
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -50,18 +52,6 @@ for f in "$REPO.db" "$REPO.db.tar.gz" "$REPO.files" "$REPO.files.tar.gz" ./*.pkg
     [[ "$f" != *.sig ]] || continue
     keep[$(basename "$f")]=1
 done
-
-if ! gh release view "$TAG" --repo "$SLUG" >/dev/null 2>&1; then
-    cat > "$work/NOTES.md" <<EOF
-Rolling pacman repository of the packages this project builds.
-
-    [$REPO]
-    SigLevel = Optional TrustAll
-    Server = https://github.com/$SLUG/releases/download/$TAG
-EOF
-    gh release create "$TAG" --repo "$SLUG" --prerelease \
-        --title "Package repository" --notes-file "$work/NOTES.md"
-fi
 
 mapfile -t existing < <(gh release view "$TAG" --repo "$SLUG" --json assets -q '.assets[].name')
 declare -A existing_map=()

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Run as root on a native AArch64 host after build-kernel.sh and fetch-arch.sh.
+# Run as root on native AArch64 after fetching pinned sources and the bootstrap.
 set -euo pipefail
 PROJECT=$(cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$PROJECT"
@@ -99,7 +99,7 @@ cp -a rootfs "$STAGE/overlay"
 if [[ -d packages ]]; then
     cp -a packages "$STAGE/packages"
 fi
-cp scripts/ci/configure-rootfs.sh "$STAGE/configure-rootfs.sh"
+cp scripts/ci/configure-rootfs.sh scripts/ci/configure-cache.sh "$STAGE/"
 cp sources.json firmware.json configs/freedom-sources.json configs/freedom-wifi-firmware.json "$ROOTFS/usr/share/tb322fc/"
 cp scripts/ci/build-kernel.sh "$STAGE/build-freedom-kernel.sh"
 cp scripts/stage-freedom-wifi-firmware.py "$STAGE/stage-freedom-wifi-firmware.py"
@@ -132,24 +132,16 @@ mount -t sysfs -o ro,nosuid,nodev,noexec sysfs "$ROOTFS/sys"
 mounts+=("$ROOTFS/sys")
 mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs "$ROOTFS/run"
 mounts+=("$ROOTFS/run")
-# Inject the previous run's makepkg/meson caches (restored by the workflow).
-# They live outside /root so the unprivileged makepkg user can write them.
-if [[ -d build/rootfs-cache ]]; then
-    cp -a build/rootfs-cache "$ROOTFS/var/cache/tb322fc-build"
-fi
+# Bind the persistent cache so a later failure still preserves compiler work.
+mkdir -p build/rootfs-cache "$ROOTFS/var/cache/tb322fc-build"
+mount --bind "$PROJECT/build/rootfs-cache" "$ROOTFS/var/cache/tb322fc-build"
+mounts+=("$ROOTFS/var/cache/tb322fc-build")
 chroot "$ROOTFS" /usr/bin/env -i PATH=/usr/bin:/usr/sbin HOME=/root \
     LC_ALL=C.UTF-8 JOBS="$JOBS" /bin/bash /root/tb322fc-build/configure-rootfs.sh
 cp "$ROOTFS/usr/share/tb322fc/"{kernel.release,kernel.config,kernel-build.json} artifacts/
 cp "$ROOTFS/usr/share/tb322fc/rootfs.packages" artifacts/rootfs.packages
 cp "$ROOTFS/usr/share/tb322fc/userspace-build.txt" artifacts/userspace-build.txt
-# Hand the updated caches back to the host so the workflow can save them.
-# Replace, do not merge: merging would keep superseded packages from the
-# restored cache (for example an older -git mesa build) and publish-repo.sh
-# would then ship them alongside the freshly built ones.
-if [[ -d "$ROOTFS/var/cache/tb322fc-build" ]]; then
-    rm -rf build/rootfs-cache
-    cp -a "$ROOTFS/var/cache/tb322fc-build" build/rootfs-cache
-fi
+cp "$ROOTFS/usr/share/tb322fc/ccache.txt" artifacts/ccache.txt
 
 # Stop the keyring daemon before unmounting; pacman-key may leave it running.
 chroot "$ROOTFS" /usr/bin/gpgconf --homedir /etc/pacman.d/gnupg --kill all

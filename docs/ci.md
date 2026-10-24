@@ -30,6 +30,15 @@ kShim runtime、依赖、原生打包器与 BusyBox 由 `packages/kshim-freedom/
 因此安装钩子不会在runner写任何boot分区；只输出可供已初始化设备使用的软件包。
 内核包的原生headers工具与DKMS模块需通过构建检查。
 
+构建根安装 ccache，并通过 makepkg 的 `BUILDENV+=(ccache)` 启用官方编译器包装路径。
+因此 `LLVM=1` 选中的 clang 也经过 ccache，无需修改内核源码或设置交叉编译器；
+这与[内核 LLVM 构建文档](https://docs.kernel.org/kbuild/llvm.html#ccache)的缓存方式兼容。
+缓存目录为 `/var/cache/tb322fc-build/ccache`，最大4G，按编译器内容校验；
+内核使用固定构建目录，避免每轮随机路径破坏调试信息的缓存命中。
+CI bind 挂载整个构建缓存并在失败时也保存，key包含run ID，下一轮按源码key或ARM64前缀恢复。
+编译缓存会检查实际输入；Meson安装树另按发行版依赖版本戳失效，不沿用旧ABI。
+`artifacts/ccache.txt` 记录实际命中/未命中统计；ccache不缓存链接、BTF生成或打包工作。
+
 ## Release 结构与旧更新器边界
 
 版本 tag：`freedom-v2-YYYYmmddHHMMSS`。release 包含：
@@ -45,6 +54,14 @@ kShim runtime、依赖、原生打包器与 BusyBox 由 `packages/kshim-freedom/
 用户态滚动仓库改为 `repository-freedom-v2`。发布脚本拒绝覆盖旧 `repository`，
 且不把上述四个启动包放进滚动仓库，避免普通 `pacman -Syu` 或旧脚本只更新部分启动组件。
 旧仓库保留在自己的兼容范围内；不会用新版内容覆盖它。
+
+第一次构建前，`scripts/ci/init-repo.sh` 用 `repo-add` 生成空的Arch仓库，
+以draft上传 `.db`/`.db.tar.gz`/`.files`/`.files.tar.gz` 四个实体文件后才公开release。
+已有完整仓库不重置，已有不完整release或认证错误会停止，不能把请求失败误当作空库。
+chroot随后读取这一真实release数据库，不再临时伪造空库。四个启动包仍只进入版本release。
+
+内部验证rootfs不写死设备根分区标签或ext4类型；真实启动由本机kShim配置中的root PARTUUID
+和initramfs文件系统探测决定。内部ext4镜像仍仅用于构建检查，不作为发行资产。
 
 首次安装或旧版直接启动系统迁移需要单独完成本机引导初始化与启动验证。
 这版不发布可独立刷入的 boot/rootfs 组合，不能把 CI 内部 rootfs 当作完整安装镜像。

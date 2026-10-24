@@ -1,6 +1,6 @@
 # kShim 启动交付
 
-此包提供 AArch64 打包工具、已验证的 kShim runtime、AVB 工具、F2FS initramfs 生成器和 pacman hooks。构建时显式传入 `KSHIM_TOOLS_BUNDLE` 及其 SHA256；归档中的原生工具和 BusyBox 保持原字节，不再进行 makepkg strip。
+此包提供 AArch64 打包工具、kShim runtime、AVB 工具、F2FS initramfs 生成器和 pacman hooks。默认从固定来源原生构建；也支持显式传入 `KSHIM_TOOLS_BUNDLE` 及其 SHA256 使用已核验的工具归档。原生工具和 BusyBox 保持构建后的原字节，不再进行 makepkg strip。产物的实机验证状态需单独记录。
 
 原厂 boot 基底与 AVB 私钥不放入软件包。设备配置 `/etc/kshim-freedom/config.json` 指定其本地路径、原厂镜像哈希、根 PARTUUID、cmdline、早期固件及 pkgbase；私钥位于 root 限权目录，权限须为 0600。部署目标固定为本项目的 Linux boot_a，拒绝其他机型或根分区不匹配的环境。
 

@@ -61,18 +61,37 @@ jobs:
         run: bash scripts/build-topology.sh
       - name: Authenticate Arch bootstrap
         run: bash scripts/ci/fetch-arch.sh
+      - name: Initialize the separate userspace package repository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_TAG: repository-freedom-v2
+        run: bash scripts/ci/init-repo.sh
       - name: Restore source and compiler caches
-        uses: actions/cache@v4
+        id: build-cache
+        uses: actions/cache/restore@v4
         with:
           path: build/rootfs-cache
-          key: freedom-native-${{ runner.arch }}-${{ hashFiles('sources.json', 'configs/**', 'packages/**/PKGBUILD', 'scripts/ci/**') }}
+          key: freedom-native-v3-${{ runner.arch }}-${{ hashFiles('sources.json', 'configs/**', 'packages/**', 'scripts/ci/**') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            freedom-native-${{ runner.arch }}-
+            freedom-native-v3-${{ runner.arch }}-${{ hashFiles('sources.json', 'configs/**', 'packages/**', 'scripts/ci/**') }}-
+            freedom-native-v3-${{ runner.arch }}-
       - name: Build native kernel, headers, DKMS, kShim and device packages
         run: |
           sudo env ARCH_ROOTFS_ARCHIVE="$PWD/build/archlinux-aarch64.tar.zst" \
             ARCH_ROOTFS_SHA256="$(cut -d ' ' -f 1 build/archlinux-aarch64.sha256)" \
             ROOTFS_SIZE="$ROOTFS_SIZE" JOBS="$(nproc)" bash scripts/ci/build-rootfs.sh
+      - name: Make persistent caches readable to the runner
+        if: always() && steps.build-cache.outcome == 'success'
+        run: |
+          if test -d build/rootfs-cache; then
+            sudo chown -R "$(id -u):$(id -g)" build/rootfs-cache
+          fi
+      - name: Save source and compiler caches, including failed builds
+        if: always() && steps.build-cache.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: build/rootfs-cache
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
       - name: Validate complete release set
         run: |
           RELEASE_TAG="freedom-v2-$(date -u +'%Y%m%d%H%M%S')"
@@ -105,7 +124,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$RELEASE_TAG" --draft --prerelease \
+          gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --draft --prerelease \
             --title "Freedom Arch packages $RELEASE_TAG" \
             --notes-file docs/release-notes-v2.md artifacts/release/*
           gh release edit "$RELEASE_TAG" --draft=false

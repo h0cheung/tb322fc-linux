@@ -1,5 +1,9 @@
 # Build
 
+The current release path builds native Arch AArch64 packages, including the
+kernel and headers; see [CI and package updates](ci.md). The direct Android boot
+image builder and cross-compiler setup below are retained for historical work.
+
 ## Host dependencies
 
 The kernel and boot builder run on a Linux host. Required commands are:
