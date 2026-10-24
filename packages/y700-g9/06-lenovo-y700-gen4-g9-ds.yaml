@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # G9 2026 in DS (PS5) mode: the controller presents the Sony-compatible
 # identity 054c:0ce6 and is driven by the kernel hid-playstation driver. It
-# exposes the standard DualSense button/axis set plus FF_RUMBLE, so game
-# rumble reaches the pad itself - this is the only mode with rumble.
+# exposes the standard DualSense button/axis set plus FF_RUMBLE. The G9 firmware
+# reverses X/Y, so the DS-only capability map swaps West/North. Game rumble
+# reaches the pad itself; this is the only mode with rumble.
 #
 # The evdev name keeps the pad's own USB product string, so it cannot collide
 # with a real DualSense, and the tablet's own motion bridge (which also uses
@@ -26,6 +27,7 @@ source_devices:
       vendor_id: "054c"
       product_id: "0ce6"
       handler: event*
+    capability_map_id: y700_g9_ds_swap
   # The DS identity also exposes a DualSense-compatible HID node. Without this
   # entry Steam picks the pad up through SDL/hidraw (controller.txt logs a
   # second "PS5 Controller" with type 054c:0ce6) next to the virtual Deck, so

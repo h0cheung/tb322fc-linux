@@ -2,12 +2,12 @@
 # G9 gamepad map: mydanyi/armadaos-freedom 2c8c433e806e5bc0a0e7195f450af305c1bca460.
 pkgname=y700-g9
 pkgver=1.1.0
-pkgrel=1
+pkgrel=4
 pkgdesc="Lenovo Y700 Gen4 G9 2026 gamepad, DS-mode rumble and Quick Access mapping"
 arch=('any')
 url="https://github.com/h0cheung/tb322fc-linux"
 license=('GPL-2.0-or-later')
-depends=('inputplumber>=0.82.0' 'armada-rgb')
+depends=('inputplumber>=0.82.0' 'armada-rgb' 'python')
 
 package() {
     cd "$startdir"
@@ -15,9 +15,15 @@ package() {
         "$pkgdir/usr/share/inputplumber/devices/05-lenovo-y700-gen4-g9-2026.yaml"
     install -Dm644 06-lenovo-y700-gen4-g9-ds.yaml \
         "$pkgdir/usr/share/inputplumber/devices/06-lenovo-y700-gen4-g9-ds.yaml"
+    install -Dm644 y700_g9_ds_swap.yaml \
+        "$pkgdir/usr/share/inputplumber/capability_maps/y700_g9_ds_swap.yaml"
     install -Dm644 lenovo_legion_g9_2026.yaml \
         "$pkgdir/usr/share/inputplumber/capability_maps/lenovo_legion_g9_2026.yaml"
     install -Dm644 y700_g9_consumer.yaml \
         "$pkgdir/usr/share/inputplumber/capability_maps/y700_g9_consumer.yaml"
+    install -Dm644 72-y700-g9-hide-physical.rules \
+        "$pkgdir/usr/lib/udev/rules.d/72-y700-g9-hide-physical.rules"
+    install -Dm755 home-double-press.py "$pkgdir/usr/libexec/y700-g9/home-double-press"
+    install -Dm644 y700-g9-home.service "$pkgdir/usr/lib/systemd/system/y700-g9-home.service"
     install -Dm644 README.md "$pkgdir/usr/share/doc/y700-g9/README.md"
 }

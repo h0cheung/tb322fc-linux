@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# G9 DS 模式由 root 运行的 InputPlumber 接管。必须在 73-seat-late 分配
+# 用户 ACL 之前隐藏物理入口；daemon 稍后动态隐藏无法撤销 Steam 已打开的 fd。
+# USB 产品名与 VID/PID 同时限定，避免影响真正的 DualSense 和平板运动桥。
+ACTION!="add|change", GOTO="y700_g9_hide_end"
+
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="054c", ATTRS{idProduct}=="0ce6", ATTRS{product}=="Legion Gaming Controller G9 2026", MODE:="0000", GROUP:="root", TAG-="uaccess"
+SUBSYSTEM=="input", KERNEL=="event*|js*", ATTRS{name}=="Sony Interactive Entertainment Legion Gaming Controller G9 2026", ATTRS{id/vendor}=="054c", ATTRS{id/product}=="0ce6", MODE:="0000", GROUP:="root", TAG-="uaccess"
+
+LABEL="y700_g9_hide_end"
