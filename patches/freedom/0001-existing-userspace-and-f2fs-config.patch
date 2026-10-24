@@ -1,6 +1,6 @@
 --- a/packages/kernel/config/armada-kernel.config.overrides
 +++ b/packages/kernel/config/armada-kernel.config.overrides
-@@ -432,3 +432,25 @@
+@@ -432,3 +432,27 @@
  CONFIG_CRYPTO_SHA1=y
  CONFIG_CRYPTO_SHA256=y
  CONFIG_CRYPTO_SHA512=y
@@ -23,6 +23,8 @@
 +CONFIG_BLK_DEV_INITRD=y
 +CONFIG_RD_GZIP=y
 +CONFIG_DEBUG_INFO_BTF=y
++CONFIG_LTO_NONE=n
++CONFIG_LTO_CLANG_THIN=y
 +CONFIG_SCHED_CLASS_EXT=y
 +CONFIG_IIO=y
 +CONFIG_LOCALVERSION="-freedom-compat"

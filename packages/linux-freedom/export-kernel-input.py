@@ -18,7 +18,8 @@ assert not dest.exists(), dest
 release = (out / 'include/config/kernel.release').read_text().strip()
 assert re.fullmatch(r'\d+\.\d+\.\d+-\d+-freedom', release), release
 config = (out / '.config').read_text()
-for option in ('CONFIG_SECURITY_LANDLOCK', 'CONFIG_F2FS_FS_SECURITY', 'CONFIG_DEBUG_INFO_BTF_MODULES'):
+for option in ('CONFIG_SECURITY_LANDLOCK', 'CONFIG_F2FS_FS_SECURITY',
+               'CONFIG_DEBUG_INFO_BTF_MODULES', 'CONFIG_LTO_CLANG_THIN'):
     assert option + '=y\n' in config, option
 notes = subprocess.check_output(['readelf', '-n', str(out / 'vmlinux')], text=True)
 build_id = re.search(r'Build ID: ([0-9a-f]+)', notes)[1]

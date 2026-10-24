@@ -3,7 +3,7 @@
 pkgbase=linux-freedom
 pkgname=(linux-freedom linux-freedom-headers)
 pkgver=7.2.6
-pkgrel=7
+pkgrel=8
 pkgdesc='Linux with ArmadaOS Freedom hardware support'
 arch=(aarch64)
 url='https://github.com/mydanyi/armadaos-freedom'
@@ -47,10 +47,10 @@ else
   sha256sums=('039aef84f2b0994aeda3f4fcfc3d02ec9d7a9bbb9020ea264c43f446c860f606'
               'SKIP'
               'SKIP'
-              '70c0c8772f6b3f2397a78b6319b4a9a062d74a74459bffbdc5af1b2606833508'
+              'aefdd1a2e8cac7e6fabb8e06207a965c046b3dfe8bd64fe03f58a634521c4d75'
               'e413f0e0d26b2abbcb491d2810de1f60607f022f87be717071db74e487860c4e'
               'e6be1927bcb8391035cd8758fdae7b51d83b6624f8a828af92faac72b11f450f'
-              'cee7c8398f793452330fa1a7e840ca42411a2184ff8ed0e0623546acd0c64f15'
+              '0c05888e65d911d0ddfb0fc88a078071c819c5eece4837880c1b9ce1ece853de'
               '5419db1ed39454c6dea165374ec936990c1a2520213e1b221cca2e51d2bbc724'
               '4b69e6c5c8e1520bd3fcf388389cf98ac7fc77d96b0891e36187c9d29ca30ec3'
               '41e9cccb9169fee64604ca9c02abfbcd99517b17d77efbc72f6768e13004e415'
@@ -85,6 +85,7 @@ prepare() {
     "$srcdir/freedom.config" "$srcdir/freedom-compat.config"
   "$srcdir/linux-$pkgver/scripts/config" --file .config --disable LOCALVERSION_AUTO --set-str LOCALVERSION ''
   make -C "$srcdir/linux-$pkgver" O="$srcdir/build" ARCH=arm64 LLVM=1 olddefconfig
+  grep -qx 'CONFIG_LTO_CLANG_THIN=y' "$srcdir/build/.config"
 }
 
 build() {
@@ -104,6 +105,7 @@ assert m['release']==sys.argv[1],m['release']
 for name,expected in m['hashes'].items():
     assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
 assert bytes.fromhex(m['build_id']) in Path('Image').read_bytes()
+assert 'CONFIG_LTO_CLANG_THIN=y\n' in Path('headers/.config').read_text(), 'ThinLTO is required'
 # External module builds should default to the toolchain used by this kernel.
 # A caller can still override LLVM on the make command line.
 p=Path('headers/Makefile')

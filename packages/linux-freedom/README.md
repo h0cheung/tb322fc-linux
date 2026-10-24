@@ -4,7 +4,9 @@
 
 ## 从源码构建
 
-先在系统源码仓库运行 `python scripts/sync-freedom-packaging.py`，同步共享配置、Wi-Fi 补丁和 ALS 源码的校验和。将本目录复制到 AArch64 构建环境，运行普通 `makepkg`。配方固定 Linux 7.2.6 和 Freedom commit，应用统一补丁及 Elden 扩展；本配方 release 为 `7.2.6-7-freedom`。升级通过 pkgver/pkgrel 和固定源码 commit 表达，不依赖工作目录的 dirty 标记。
+先在系统源码仓库运行 `python scripts/sync-freedom-packaging.py`，同步共享配置、Wi-Fi 补丁和 ALS 源码的校验和。将本目录复制到 AArch64 构建环境，运行普通 `makepkg`。配方固定 Linux 7.2.6 和 Freedom commit，应用统一补丁及 Elden 扩展；本配方 release 为 `7.2.6-8-freedom`。升级通过 pkgver/pkgrel 和固定源码 commit 表达，不依赖工作目录的 dirty 标记。
+
+pkgrel 8 通过 Kbuild 的 `CONFIG_LTO_CLANG_THIN=y` 启用 ThinLTO；makepkg 的 `!lto` 保留，避免通用构建参数介入内核的 LTO 策略。配置合并和预编译输入打包均核对该选项，Image、模块和 headers 仍须使用同一次构建。ccache 继续缓存 Clang 的编译输出；完整 ThinLTO 构建和运行验证状态另行记录。
 
 ## 交叉编译后原生打包
 
