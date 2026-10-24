@@ -31,7 +31,8 @@ else
           freedom-compat.config elden-range-scans.patch
           prepare-source.py export-kernel-input.py build-native-helpers.sh
           "q6v5-handover-one-shot.patch::https://github.com/torvalds/linux/commit/bb7c5d6f5b41d192fa81ce404e463f5d3ce70cb3.patch"
-          q6v5-attach-keep-handover-masked.patch)
+          q6v5-attach-keep-handover-masked.patch
+          "tools-u128-types.patch::https://github.com/torvalds/linux/commit/10a47fb67340bca274276faf855d7d460afd9a7a.patch")
   # Local input hashes are refreshed by sync-recipe.py after source changes.
   sha256sums=('039aef84f2b0994aeda3f4fcfc3d02ec9d7a9bbb9020ea264c43f446c860f606'
               'SKIP'
@@ -40,9 +41,10 @@ else
               'e413f0e0d26b2abbcb491d2810de1f60607f022f87be717071db74e487860c4e'
               'e6be1927bcb8391035cd8758fdae7b51d83b6624f8a828af92faac72b11f450f'
               'cee7c8398f793452330fa1a7e840ca42411a2184ff8ed0e0623546acd0c64f15'
-              '0fac059a3e915bc4123fa29d4c822cd0629e695e59ca4b17defb3015161ee289'
+              '5419db1ed39454c6dea165374ec936990c1a2520213e1b221cca2e51d2bbc724'
               '4b69e6c5c8e1520bd3fcf388389cf98ac7fc77d96b0891e36187c9d29ca30ec3'
-              '41e9cccb9169fee64604ca9c02abfbcd99517b17d77efbc72f6768e13004e415')
+              '41e9cccb9169fee64604ca9c02abfbcd99517b17d77efbc72f6768e13004e415'
+              '30b45a34e029aee8cd57123300a83ab1dfe473cb6c88d87ad1b3cccd891e0648')
 fi
 
 prepare() {
@@ -50,7 +52,7 @@ prepare() {
   cd "$srcdir/linux-$pkgver"
   python "$srcdir/prepare-source.py" . "$srcdir/armadaos-freedom" \
     "$srcdir/elden-range-scans.patch" "$srcdir/q6v5-handover-one-shot.patch" \
-    "$srcdir/q6v5-attach-keep-handover-masked.patch"
+    "$srcdir/q6v5-attach-keep-handover-masked.patch" "$srcdir/tools-u128-types.patch"
   echo "-$pkgrel" > localversion.10-pkgrel
   echo '-freedom' > localversion.20-pkgname
   mkdir -p "$srcdir/build"

@@ -10,10 +10,7 @@ gcc -O2 -std=gnu11 -I scripts/include -I scripts/mod \
   scripts/mod/symsearch.c -o scripts/mod/modpost
 gcc -O2 scripts/mod/mk_elfconfig.c -o scripts/mod/mk_elfconfig
 gcc -O2 -I tools/include/uapi scripts/sign-file.c -o scripts/sign-file -lcrypto
-# Host libc can use newer UAPI integer types than this kernel's tools copy.
-# Load the host type definitions before the tools' private include paths.
-make -C tools/bpf/resolve_btfids -j4 HOSTCC=gcc HOSTLD=ld HOSTAR=ar \
-  HOSTCFLAGS='-include /usr/include/linux/types.h'
+make -C tools/bpf/resolve_btfids -j4 HOSTCC=gcc HOSTLD=ld HOSTAR=ar
 for program in scripts/basic/fixdep scripts/mod/modpost scripts/mod/mk_elfconfig \
                scripts/sign-file tools/bpf/resolve_btfids/resolve_btfids; do
   file "$program" | grep -q 'ARM aarch64'

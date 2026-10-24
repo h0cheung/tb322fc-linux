@@ -20,6 +20,7 @@ values = ['039aef84f2b0994aeda3f4fcfc3d02ec9d7a9bbb9020ea264c43f446c860f606',
           'SKIP', 'SKIP'] + hashes + [
     '4b69e6c5c8e1520bd3fcf388389cf98ac7fc77d96b0891e36187c9d29ca30ec3',
     hashlib.sha256((here / 'q6v5-attach-keep-handover-masked.patch').read_bytes()).hexdigest(),
+    '30b45a34e029aee8cd57123300a83ab1dfe473cb6c88d87ad1b3cccd891e0648',
 ]
 s = s[:start] + '  sha256sums=(' + '\n              '.join(repr(x) for x in values) + ')' + s[end:]
 p.write_text(s)

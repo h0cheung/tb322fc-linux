@@ -37,3 +37,7 @@ kShim 声明在 `/etc/kshim-freedom/config.json`，按 pkgbase 自动找到内�
 `q6v5-attach-keep-handover-masked.patch` 适配 Freedom 的 Baldur attach 分支：接管已经运行的远端时未取得 proxy 资源，保持 handover 屏蔽；后续实际启动仍由 prepare 管理。依据上游 SMP2P 软件屏蔽的评审意见，来源链接保留在补丁头。Elden 的正常 start 路径使用主线修复。没有修改 AudioReach、Iris、USB、SMP2P 状态检测等其他机制。
 
 构建与静态/模拟检查不代表新内核已经部署或完成实机验证；运行版本应通过 uname、build ID 和启动结果另行确认。
+
+## 新版 ARM64 UAPI 与宿主工具
+
+引用主线 `10a47fb67340bca274276faf855d7d460afd9a7a`，为 `tools/include/linux/types.h` 补齐 128 位类型，使旧内核工具可与新版 ARM64 系统头配合。补丁按固定 URL 和 SHA256 引用。完整内核构建保持 `LLVM=1`，不额外覆盖宿主编译器或预加载系统类型头；原生 headers helpers 也不再预加载系统头。
