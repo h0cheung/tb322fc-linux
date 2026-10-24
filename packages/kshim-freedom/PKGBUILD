@@ -1,0 +1,75 @@
+# Maintainer: h0cheung
+pkgname=kshim-freedom
+pkgver=20261024
+pkgrel=2
+pkgdesc='Native kShim tools and atomic kernel deployment for Freedom on Elden'
+arch=(aarch64)
+license=(GPL-3.0-or-later)
+options=(!strip !debug !lto)
+depends=(python openssl dtc cpio gzip kmod util-linux zstd xz)
+makedepends=(git cmake ninja gcc make python-kconfiglib)
+_freedom_commit=244b74516d99d06cb0518609ce4b842ab278be8a
+source=("kshim-build-boot.py::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_freedom_commit/system_files/usr/libexec/armada/kshim-build-boot.py")
+sha256sums=('18e520f3f1204b24a3390833247307b75c1fb2e187f51cf282f8f7329e6b351f')
+if [[ -n ${KSHIM_TOOLS_BUNDLE:-} ]]; then
+  [[ ${KSHIM_TOOLS_SHA256:-} =~ ^[a-f0-9]{64}$ ]] || return 1
+  source+=("kshim-tools.tar.zst::file://$KSHIM_TOOLS_BUNDLE")
+  sha256sums+=("$KSHIM_TOOLS_SHA256")
+else
+  source+=("armadaos-freedom::git+https://github.com/mydanyi/armadaos-freedom.git#commit=$_freedom_commit"
+           "CrDK-b6c3335.tar.gz::https://codeload.github.com/Project-Aloha/CrDK/tar.gz/b6c3335136b7f6b28271917de11e8f11982975fc"
+           "picolibc::git+https://github.com/picolibc/picolibc#commit=f7edb0869e64b9d687f46961adeef7154921fe92"
+           "lvgl::git+https://github.com/lvgl/lvgl#commit=7f07a129e8d77f4984fff8e623fd5be18ff42e74"
+           "libfdt::git+https://github.com/sunflower2333/kShimC#commit=82ce6eaa10c36e64cfd3f16799172d854f9a955b"
+           "https://busybox.net/downloads/busybox-1.36.1.tar.bz2")
+  sha256sums+=(SKIP a0182f8024f15d9b822116b15a968dc12429095f0dfb05d6779e2cafdf18c38e SKIP SKIP SKIP b8cc24c9574d809e7279c3be349795c5d5ceb6fdf19ca709f80cde50e47de314)
+fi
+source+=(
+  build-tools.py
+  libfdt-stdlib-include.patch
+  crdk-pinned-archive.patch
+  native-aarch64-toolchain.patch
+  neutral-linux-menu-labels.patch
+  busybox.config
+  init
+  sign-kshim-boot.py
+  freedom-sources.json
+  build-kshim-arch.py
+  arch-explicit-layout.patch
+  freedom-kernel-update.py
+  95-kshim-freedom.hook
+  60-kshim-freedom-backup.hook
+)
+# Generated local hashes are maintained by scripts/sync-freedom-packaging.py.
+sha256sums+=(
+  '404933b7866c011eddc2d1a2170a5b8185a0356e776357d03958fec1d4279ee2'
+  '146a8bac38f088799f352f2b5c27b995ef427c30126a43e56df725331f76952b'
+  '44804f4e1ee827c017495c96ee1ad0baa2a6ac511ac69f42f5c4620ebcbf85ba'
+  '4f92f54f7ff7f0567f71c18546d5d75437e82053ba88392730c2590d5bc53c64'
+  '82310d3378dcb7766b3522649ac9a50ae51af118fe7a1d7c1281d31baee2563f'
+  'ceb2971f7e88fc05e6da25aad6ee81555f1207cc2387de0fe0be9d4432d8e267'
+  '32d7f02e81da49d97d1345c7fc5f83b4e25c1a1f7a048b0b9870b1f9c93e7cd8'
+  'e168d527e3774a5cabee4bff1fda887940a41ccdbf4695bc27b6d90430fc438a'
+  '036f67dfeaf8f6cef6bae3a7fb92e749ab2257aee19229bcc1c8ed7ebab6561d'
+  'dd47582dee94f757c9a4050f11a515b12114c9ac3e4215403db806fbf99f55cd'
+  'd958b0a8790ab04525c958af20ecebb30734cce5f4d58701d1343deb6372881c'
+  '6b722c0a1b618c4ca9b29e1dac1b26a3e6a445486bcc5777f8858ce31ccb58e1'
+  'bde08b7fb0909ca2e5f9fb389d0bf0c9898541c20bdbf50cb24645a64a6d8517'
+  '3030fdebf5eb464bdf9ecbeda7d7a29ffbc6dd46d8fa8d4c9241fd0d8d8173bb'
+)
+
+build() {
+  [[ -n ${KSHIM_TOOLS_BUNDLE:-} ]] && return 0
+  python "$srcdir/build-tools.py" --source "$srcdir" --crdk-archive "${SRCDEST:-$startdir}/CrDK-b6c3335.tar.gz" --jobs "${JOBS:-$(nproc)}"
+}
+
+package() {
+  install -d "$pkgdir/usr/lib/kshim-freedom"
+  cp -a "$srcdir/kshim-tools/." "$pkgdir/usr/lib/kshim-freedom/"
+  for name in kshim-build-boot.py build-kshim-arch.py arch-explicit-layout.patch freedom-sources.json sign-kshim-boot.py init; do
+    install -m644 "$srcdir/$name" "$pkgdir/usr/lib/kshim-freedom/$name"
+  done
+  install -Dm755 "$srcdir/freedom-kernel-update.py" "$pkgdir/usr/bin/freedom-kernel-update"
+  install -Dm644 "$srcdir/95-kshim-freedom.hook" "$pkgdir/usr/share/libalpm/hooks/95-kshim-freedom.hook"
+  install -Dm644 "$srcdir/60-kshim-freedom-backup.hook" "$pkgdir/usr/share/libalpm/hooks/60-kshim-freedom-backup.hook"
+}

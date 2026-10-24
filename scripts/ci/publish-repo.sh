@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Publish the packages built by build-rootfs.sh as a pacman repository on a
-# rolling GitHub pre-release (tag: repository), laid out the way pacman expects:
+# separate GitHub pre-release (repository-freedom-v2), laid out for pacman:
 # <repo>.db / <repo>.files plus the package tarballs, all under one release URL.
 set -euo pipefail
 cd -- "$(dirname -- "$0")/../.."
 
 REPO=${REPO_NAME:-tb322fc}
-TAG=${REPO_TAG:-repository}
+TAG=${REPO_TAG:-repository-freedom-v2}
+[[ $TAG == repository-freedom-v2 ]] || { echo "Refusing to replace the legacy package repository" >&2; exit 1; }
 SLUG=${GITHUB_REPOSITORY:-h0cheung/tb322fc-linux}
 PKGS=${REPO_PKGS:-build/rootfs-cache/pkgs}
 
@@ -16,6 +17,9 @@ shopt -s nullglob
 pkgs=()
 for f in "$PKGS"/*.pkg.tar.*; do
     [[ "$f" != *.sig ]] || continue
+    case ${f##*/} in
+        linux-freedom-[0-9]*|linux-freedom-headers-[0-9]*|als-bridge-dkms-[0-9]*|kshim-freedom-[0-9]*) continue ;;
+    esac
     pkgs+=("$f")
 done
 shopt -u nullglob

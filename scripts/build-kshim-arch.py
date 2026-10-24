@@ -1,0 +1,1 @@
+../packages/kshim-freedom/build-kshim-arch.py

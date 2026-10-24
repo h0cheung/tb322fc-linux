@@ -16,4 +16,5 @@
 #
 # To apply: systemd-hwdb update && udevadm trigger --subsystem-match=power_supply
 battery:qcom-battmgr-bat:*:
+battery:battery:*:
  CHARGE_LIMIT=70,80

@@ -4,8 +4,10 @@ Report the device model, kernel commit, boot-image SHA256, rootfs distribution,
 steps to reproduce and relevant logs. Remove personal device identifiers and
 network credentials before posting logs.
 
-Kernel changes belong in the linked kernel repository. Update its source pin
-only after a built-in configuration is tested on the tablet. General fixes
+The current kernel references the pinned Freedom tree and applies local deltas
+from `patches/freedom`; shared packaging inputs are refreshed with
+`python3 scripts/sync-freedom-packaging.py`. Historical direct-kernel work lives
+in the linked kernel repository. Update source pins after device testing. General fixes
 should remain general; use devicetree for hardware distinctions. Battery and
 charging changes need separate tests and commits.
 

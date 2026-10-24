@@ -25,7 +25,7 @@ if [[ ${TB322FC_ROOTFS_NAMESPACE:-} != 1 ]]; then
     exec unshare --mount --propagation private env TB322FC_ROOTFS_NAMESPACE=1 bash "$0"
 fi
 printf '%s  %s\n' "$ARCH_ROOTFS_SHA256" "$ARCH_ROOTFS_ARCHIVE" | sha256sum --check --status - || die 'Arch archive checksum mismatch.'
-[[ -s artifacts/kernel-modules.tar.gz && -s artifacts/kernel.release ]] || die 'Build the kernel and modules first.'
+
 [[ ! -e artifacts/rootfs.img && ! -L artifacts/rootfs.img ]] || die 'artifacts/rootfs.img already exists; preserve or remove it explicitly.'
 mkdir -p build artifacts
 ROOTFS=$(mktemp -d "$PROJECT/build/rootfs.XXXXXXXX")
@@ -100,8 +100,10 @@ if [[ -d packages ]]; then
     cp -a packages "$STAGE/packages"
 fi
 cp scripts/ci/configure-rootfs.sh "$STAGE/configure-rootfs.sh"
-cp sources.json firmware.json artifacts/kernel.release "$ROOTFS/usr/share/tb322fc/"
-cp artifacts/kernel-modules.tar.gz "$STAGE/kernel-modules.tar.gz"
+cp sources.json firmware.json configs/freedom-sources.json configs/freedom-wifi-firmware.json "$ROOTFS/usr/share/tb322fc/"
+cp scripts/ci/build-kernel.sh "$STAGE/build-freedom-kernel.sh"
+cp scripts/stage-freedom-wifi-firmware.py "$STAGE/stage-freedom-wifi-firmware.py"
+cp -a sources/freedom/system_files/usr/lib/firmware "$STAGE/freedom-firmware"
 cp docs/rootfs.md "$ROOTFS/usr/share/tb322fc/rootfs.md"
 
 # /etc/resolv.conf may point into the not-yet-running systemd-resolved directory.
@@ -137,6 +139,7 @@ if [[ -d build/rootfs-cache ]]; then
 fi
 chroot "$ROOTFS" /usr/bin/env -i PATH=/usr/bin:/usr/sbin HOME=/root \
     LC_ALL=C.UTF-8 JOBS="$JOBS" /bin/bash /root/tb322fc-build/configure-rootfs.sh
+cp "$ROOTFS/usr/share/tb322fc/"{kernel.release,kernel.config,kernel-build.json} artifacts/
 cp "$ROOTFS/usr/share/tb322fc/rootfs.packages" artifacts/rootfs.packages
 cp "$ROOTFS/usr/share/tb322fc/userspace-build.txt" artifacts/userspace-build.txt
 # Hand the updated caches back to the host so the workflow can save them.

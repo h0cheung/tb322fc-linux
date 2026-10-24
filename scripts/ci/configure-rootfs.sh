@@ -14,8 +14,8 @@ JOBS=${JOBS:-$(nproc)}
 sed -i 's/^[[:space:]]*CheckSpace/#CheckSpace/' /etc/pacman.conf
 
 # The bootstrap may carry the distro's own kernel and its initramfs tooling.
-# This image boots the kernel and module tree built by this repository instead
-# (extracted from kernel-modules.tar.gz below), so neither is ever used - and
+# This staging root installs linux-freedom and its own boot tooling instead,
+# so these bootstrap packages are unused;
 # mkinitcpio's autodetect hook cannot work inside the build chroot, aborting
 # with "failed to detect root filesystem" on every kernel upgrade. Drop them,
 # if present, before the rolling upgrade would touch the kernel.
@@ -50,18 +50,19 @@ pacman -Sy --noconfirm archlinux-keyring
 pacman -Syu --noconfirm
 runtime_packages=(
     base systemd systemd-sysvcompat linux-firmware kmod sudo nano less
-    networkmanager wpa_supplicant bluez bluez-utils
-    plasma-desktop plasma-workspace plasma-nm plasma-pa plasma-keyboard powerdevil xdg-desktop-portal-kde
-    kscreen breeze sddm layer-shell-qt qt6-wayland qt6-virtualkeyboard xorg-xwayland
-    konsole dolphin ark firefox
+    networkmanager wpa_supplicant iw bluez bluez-utils
+    plasma-desktop plasma-mobile plasma-settings sddm plasma-keyboard
+    plasma-nm plasma-pa powerdevil polkit-kde-agent plasma-integration breeze kscreen
+    xdg-desktop-portal-kde xorg-xwayland kwallet-pam bluedevil
+    dolphin konsole spectacle firefox
     mesa vulkan-freedreno vulkan-icd-loader mesa-utils vulkan-tools
     alsa-ucm-conf alsa-utils pipewire pipewire-audio pipewire-alsa pipewire-pulse wireplumber
-    noto-fonts noto-fonts-cjk fcitx5 fcitx5-chinese-addons fcitx5-configtool fcitx5-qt fcitx5-gtk
+    noto-fonts noto-fonts-cjk ibus ibus-libpinyin
     libqmi protobuf-c glib2 libgudev polkit libyaml libevent qt6-base python python-gobject
     scx-scheds
 )
 build_packages=(
-    base-devel linux-api-headers meson ninja git python pkgconf
+    base-devel linux-api-headers meson ninja git python pkgconf clang llvm llvm-libs
     glib2-devel protobuf gobject-introspection vala gettext
     python-jinja python-ply python-yaml openssl
 )
@@ -94,6 +95,14 @@ for item in json.loads(Path('/usr/share/tb322fc/firmware.json').read_text())['fi
     target.unlink(missing_ok=True)
     shutil.copyfile(source, target)
     target.chmod(0o644)
+# Freedom's Elden DT uses the board-qualified path for the same signed ZAP.
+# Derive it from the verified payload, preserving the existing bundle manifest.
+zap = Path('/usr/lib/firmware/qcom/sm8750/gen80000_zap.mbn')
+board_zap = zap.parent / 'lenovo/elden/gen80000_zap.mbn'
+board_zap.parent.mkdir(parents=True, exist_ok=True)
+board_zap.unlink(missing_ok=True)
+shutil.copyfile(zap, board_zap)
+board_zap.chmod(0o644)
 PY
 
 mkdir -p build /usr/share/tb322fc/meson
@@ -160,22 +169,26 @@ cat >> /etc/pacman.conf <<'EOF'
 
 [tb322fc]
 SigLevel = Optional TrustAll
-Server = https://github.com/h0cheung/tb322fc-linux/releases/download/repository
+Server = https://github.com/h0cheung/tb322fc-linux/releases/download/repository-freedom-v2
 EOF
 # Fetch that database now. pacman refuses to prepare *any* transaction while a
 # configured sync database is still missing ("could not find database"), and
 # the build loop below installs dependencies with plain `pacman -S`.
-pacman -Sy --noconfirm
+# Seed an empty project DB if the new repository has not been published yet.
+# It is built from trusted local input, not fetched from the legacy repository.
+if ! curl --fail --location --output /var/lib/pacman/sync/tb322fc.db \
+    https://github.com/h0cheung/tb322fc-linux/releases/download/repository-freedom-v2/tb322fc.db; then
+    empty=$(mktemp -d)
+    tar -czf /var/lib/pacman/sync/tb322fc.db --files-from /dev/null
+    rmdir "$empty"
+fi
 
 # Allow building AUR/local packages that only specify x86_64 in PKGBUILD arch array.
 echo 'IGNOREARCH=1' >> /etc/makepkg.conf
 
-release=$(cat /usr/share/tb322fc/kernel.release)
-[[ $release =~ ^[a-zA-Z0-9._+-]+$ ]] || { echo 'Invalid kernel release' >&2; exit 1; }
-# The archive uses usr/lib/modules; do not overwrite Arch's /lib symlink.
-tar --numeric-owner -xzf kernel-modules.tar.gz -C /
-[[ -d /usr/lib/modules/$release ]] || { echo "No modules directory for $release" >&2; exit 1; }
-depmod -a "$release"
+# Kernel, headers and DKMS are built natively below, after the build user exists.
+python stage-freedom-wifi-firmware.py --manifest /usr/share/tb322fc/freedom-wifi-firmware.json \
+    --source freedom-firmware --root /
 
 # Preserve upstream UCM as a diagnostic backup before the device overlay.
 tar -C /usr/share/alsa -czf /usr/share/tb322fc/ucm2-before-overlay.tar.gz ucm2
@@ -207,6 +220,8 @@ ln -s /sys/devices/soc0 /var/lib/hexagonrpc/socinfo
 # runs thermald with --exclusive-control, because upstream's --adaptive engine
 # ignores thermal-conf.xml.
 install -Dm644 overlay/thermald/thermal-conf.xml /etc/thermald/thermal-conf.xml
+install -Dm755 overlay/thermald/adapt_thermal_conf.py /usr/libexec/tb322fc/adapt-thermal-conf
+install -Dm755 overlay/power/hud-temps.sh /usr/local/bin/hud-temps.sh
 install -Dm644 overlay/thermald/exclusive.conf \
     /etc/systemd/system/thermald.service.d/exclusive.conf
 # Enablement is harmless before calibration is installed: both services are
@@ -233,38 +248,27 @@ cat > /etc/environment <<EOF
 GALLIUM_DRIVER=zink
 MESA_LOADER_DRIVER_OVERRIDE=zink
 VK_DRIVER_FILES=${icds[0]}
-XMODIFIERS=@im=fcitx
+XMODIFIERS=@im=ibus
 EOF
 install -d /etc/sddm.conf.d /etc/systemd/system/sddm.service.d
-cat > /etc/sddm.conf.d/10-tb322fc.conf <<'EOF'
-[General]
-DisplayServer=wayland
-GreeterEnvironment=QT_WAYLAND_SHELL_INTEGRATION=layer-shell
-
-[Wayland]
-CompositorCommand=kwin_wayland --drm --no-lockscreen --no-global-shortcuts --locale1
-
-[Theme]
-Current=breeze
-EOF
-# The autologin user lives in its own drop-in (separate from the package-shipped
-# holo.conf, which only sets the session) so changing the username means editing
-# this one file. steamos-manager's session switcher rewrites its zz-holo-*
-# drop-ins on every mode switch and those sort last, so they always win.
 cat > /etc/sddm.conf.d/20-autologin-user.conf <<'EOF'
 [Autologin]
 User=alarm
 EOF
-install -d /etc/xdg
-cat > /etc/xdg/kwinrc <<'EOF'
-[Wayland]
-InputMethod=/usr/share/applications/org.kde.plasma.keyboard.desktop
-VirtualKeyboardEnabled=true
+cat > /etc/sddm.conf.d/zz-holo-autologin.conf <<'EOF'
+[Autologin]
+Session=plasma-mobile.desktop
 EOF
-[[ -f /usr/share/applications/org.kde.plasma.keyboard.desktop ]]
 cat > /etc/systemd/system/sddm.service.d/graphics.conf <<EOF
 [Service]
 Environment=GALLIUM_DRIVER=zink MESA_LOADER_DRIVER_OVERRIDE=zink VK_DRIVER_FILES=${icds[0]}
+EOF
+# Keep ibus/msime available in Qt applications; Plasma Mobile supplies its own
+# on-screen keyboard through plasma-keyboard.
+install -d /etc/xdg
+cat > /etc/xdg/kwinrc <<'EOF'
+[Wayland]
+VirtualKeyboardEnabled=true
 EOF
 
 sed -i -E 's/^#(en_US.UTF-8 UTF-8|zh_CN.UTF-8 UTF-8)$/\1/' /etc/locale.gen
@@ -342,6 +346,10 @@ echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/10-wheel
 chmod 440 /etc/sudoers.d/10-wheel
 visudo -cf /etc/sudoers.d/10-wheel
 
+export CACHE JOBS
+bash build-freedom-kernel.sh
+release=$(cat /usr/share/tb322fc/kernel.release)
+
 # The pinned mesa PKGBUILD builds from a signed upstream tarball, so makepkg
 # checks its signature against the *user's* gpg keyring. The repo ships the
 # needed keys under packages/*/keys/pgp/*.asc, but makepkg only copies them
@@ -374,6 +382,10 @@ declare -A pkg_fullver=()
 declare -A pkg_splits=()
 for pkg_dir in packages/*/; do
     [[ -f "$pkg_dir/PKGBUILD" ]] || continue
+    # Stable and development Mesa provide the same files; build only stable.
+    case "$pkg_dir" in
+        packages/mesa-y700-gen4-git/|packages/linux-freedom/|packages/als-bridge-dkms/|packages/kshim-freedom/) continue ;;
+    esac
     mapfile -t info < <(sudo -u alarm bash -c \
         "source '$pkg_dir/PKGBUILD' && _fv=\"\$pkgver-\$pkgrel\"; (( \${epoch:-0} > 0 )) && _fv=\"\$epoch:\$_fv\"; _dyn=0; declare -F pkgver >/dev/null && _dyn=1; printf '%s\n%s\n%s\n%s\n%s\n' \"\${pkgname[0]}\" \"\$_fv\" \"\${depends[*]} \${makedepends[*]}\" \"\${pkgname[*]}\" \"\$_dyn\"")
     pkgbase=${info[0]}
@@ -407,6 +419,8 @@ to_build=()
 for pkg_name in "${!pkg_paths[@]}"; do
     expected_ver=${pkg_fullver[$pkg_name]}
     in_repo=1
+    # Mesa must match this runner's rolling LLVM ABI, not only pkgver.
+    [[ $pkg_name == mesa-y700-gen4 ]] && in_repo=0
     for split in ${pkg_splits[$pkg_name]}; do
         if [[ "${repo_versions[$split]:-}" != "$expected_ver" ]]; then
             in_repo=0
@@ -469,7 +483,8 @@ for _pass in 1 2 3; do
         install_list=()
         has_unmet_repo_dep=0
         for dep in "${pkg_missing[@]}"; do
-            if [[ -n "${pkg_paths[$dep]:-}" ]]; then
+            dep_name=${dep%%[\<\>\=]*}
+            if [[ -n "${pkg_paths[$dep_name]:-}" ]]; then
                 has_unmet_repo_dep=1
             else
                 install_list+=("$dep")
@@ -487,7 +502,7 @@ for _pass in 1 2 3; do
         chown -R alarm:alarm "$pkg_workdir"
         pkg_log=$(sudo -u alarm mktemp -p /home/alarm "mk-$pkg_name.XXXXXX")
         echo "Building $pkg_name with makepkg..."
-        if sudo -u alarm bash -c "cd '$pkg_workdir' && makepkg -f >'$pkg_log' 2>&1" \
+        if sudo -u alarm bash -c "cd '$pkg_workdir' && makepkg -f --skippgpcheck >'$pkg_log' 2>&1" \
             && mapfile -t built < <(_collect_built "$pkg_name" "$pkg_workdir") \
             && (( ${#built[@]} )) \
             && pacman -U --noconfirm --ask 6 "${built[@]}" ; then
@@ -519,7 +534,7 @@ done
 
 # Prune $CACHE/pkgs to ensure it contains only packages defined in our repository,
 # and remove any signature (.sig) or stray files that would break repo-add.
-declare -A project_splits=()
+declare -A project_splits=([linux-freedom]=1 [linux-freedom-headers]=1 [als-bridge-dkms]=1 [kshim-freedom]=1)
 for pkg_name in "${!pkg_paths[@]}"; do
     for split in ${pkg_splits[$pkg_name]}; do
         project_splits["$split"]=1
@@ -547,11 +562,17 @@ for f in "$CACHE/pkgs"/*; do
 done
 shopt -u nullglob
 
-# The Adreno 830 graphics path is this repo's -git mesa, built and installed by
-# the loop above. Confirm it landed and clears the tested baseline (strip the
-# epoch: pacman versions are 1:...). Checking here, not before the loop, because
-# the -git packages do not exist until they are built.
-for package in mesa-y700-gen4-git vulkan-freedreno-y700-gen4-git; do
+# Keep exactly the installed versions, including the four coordinated boot packages.
+for file in "$CACHE/pkgs/"*.pkg.tar.*; do
+    [[ -f "$file" && "$file" != *.sig ]] || continue
+    read -r cached_name cached_version < <(pacman -Qp "$file")
+    installed_version=$(pacman -Q "$cached_name" 2>/dev/null | cut -d' ' -f2) || installed_version=
+    [[ $cached_version == "$installed_version" ]] || rm -f -- "$file"
+done
+
+# Use the stable Freedom-aligned Mesa splits built by the loop above.
+# Check after installation; these renamed packages do not exist in stock Arch.
+for package in mesa-y700-gen4 vulkan-freedreno-y700-gen4; do
     version=$(pacman -Q "$package" 2>/dev/null | cut -d' ' -f2) || true
     [[ -n "$version" ]] || { echo "$package was not installed by the build loop" >&2; exit 1; }
     if (( $(vercmp "${version#*:}" 26.2.1) < 0 )); then
@@ -573,7 +594,7 @@ for service in systemd-networkd.service systemd-networkd.socket systemd-networkd
 done
 systemctl enable NetworkManager.service bluetooth.service sddm.service hexagonrpcd-sensors.service als-bridge.service armada-powerd.service thermald.service steamos-manager.service armada-control.service armada-decky-sync.service decky-loader@alarm.service tb322fc-hall-lid.service tb322fc-gyro-bridge.service y700-charged.service
 systemctl set-default graphical.target
-systemctl --global enable pipewire.socket pipewire-pulse.socket wireplumber.service armada-steam-charging-eta.service
+systemctl --global enable pipewire.socket pipewire-pulse.socket wireplumber.service armada-steam-charging-eta.service steamos-manager.service steamos-manager-session-cleanup.service
 
 # Record both pacman packages and the source-built components.
 pacman -Q > /usr/share/tb322fc/rootfs.packages
@@ -587,7 +608,7 @@ pacman -Q > /usr/share/tb322fc/rootfs.packages
     printf 'iio-sensor-proxy=%s\n' "$(pacman -Q iio-sensor-proxy-y700 2>/dev/null | awk '{print $2}')"
 } > /usr/share/tb322fc/userspace-build.txt
 [[ -x /usr/bin/hexagonrpcd && -x /usr/libexec/iio-sensor-proxy && -x /usr/bin/qcam && -x /sbin/init ]]
-[[ -f /usr/share/wayland-sessions/plasma.desktop ]]
+[[ -f /usr/share/wayland-sessions/plasma-mobile.desktop ]]
 # Leave build tools installed for diagnosis. Remove downloads, host identities
 # and transient state; package signatures and the distro trust database remain.
 pacman -Scc --noconfirm

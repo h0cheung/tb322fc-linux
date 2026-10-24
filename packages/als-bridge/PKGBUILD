@@ -1,7 +1,7 @@
 # Maintainer: h0cheung <hcheunh@gmail.com>
 # Userspace half of the als-bridge: the kernel module itself is built by
-# scripts/ci/build-kernel.sh from this directory and ships inside the
-# kernel-modules artifact, so this package installs only the daemon, the
+# the als-bridge-dkms package against the installed headers, so this package
+# installs only the daemon, the
 # service unit and the modules-load.d entry.
 pkgname=als-bridge
 pkgver=20260929

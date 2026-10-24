@@ -30,5 +30,10 @@
     "url": "https://git.kernel.org/pub/scm/linux/kernel/git/wens/wireless-regdb.git",
     "commit": "b488e68eb1ca0a0dcdf742c7f4195c7678eafdc5",
     "tree": "40e2222a02439ae8547b0d3e21c50603ce89ed94"
+  },
+  "freedom": {
+    "url": "https://github.com/mydanyi/armadaos-freedom.git",
+    "commit": "244b74516d99d06cb0518609ce4b842ab278be8a",
+    "tree": "a593a54c38a6773e7f8f832281727288c6e2c563"
   }
 }

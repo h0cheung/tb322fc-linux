@@ -1,0 +1,28 @@
+--- a/packages/kernel/config/armada-kernel.config.overrides
++++ b/packages/kernel/config/armada-kernel.config.overrides
+@@ -432,3 +432,25 @@
+ CONFIG_CRYPTO_SHA1=y
+ CONFIG_CRYPTO_SHA256=y
+ CONFIG_CRYPTO_SHA512=y
++
++# Compatibility requirements for our existing userspace and F2FS root.
++# Merge after armadaos-freedom's arm64 defconfig and config overrides.
++CONFIG_SECURITY_LANDLOCK=y
++CONFIG_THERMAL_GOV_USER_SPACE=y
++CONFIG_F2FS_FS=y
++CONFIG_F2FS_STAT_FS=y
++CONFIG_F2FS_FS_XATTR=y
++CONFIG_F2FS_FS_POSIX_ACL=y
++CONFIG_F2FS_FS_SECURITY=y
++CONFIG_F2FS_FS_COMPRESSION=y
++CONFIG_F2FS_FS_LZO=y
++CONFIG_F2FS_FS_LZORLE=y
++CONFIG_F2FS_FS_LZ4=y
++CONFIG_F2FS_FS_LZ4HC=y
++CONFIG_F2FS_FS_ZSTD=y
++CONFIG_BLK_DEV_INITRD=y
++CONFIG_RD_GZIP=y
++CONFIG_DEBUG_INFO_BTF=y
++CONFIG_SCHED_CLASS_EXT=y
++CONFIG_IIO=y
++CONFIG_LOCALVERSION="-freedom-compat"

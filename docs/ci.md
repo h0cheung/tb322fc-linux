@@ -1,193 +1,78 @@
-# 四代 Arch Linux Ports 镜像 CI
+# Freedom / Arch 原生 ARM64 CI（v2）
 
-目标设备是 **Y700 四代 / TB322FC / elden / SM8750**。构建产物为直接启动
-Linux 的 Android v4 `boot.img` 和带 KDE Plasma 的 ext4 `rootfs.img`。
-这里保留四代作者已测试的启动设计，没有移植三代的 UEFI 或 GRUB。
+2026-10-24 起，主流水线改为 `Build Freedom Arch packages`，运行于
+`ubuntu-24.04-arm`，在经过 SHA256 或签名验证的 Arch Linux Ports AArch64 bootstrap 内原生编译。
+Linux 使用 `ARCH=arm64 LLVM=1`，不设置交叉编译器；内核、headers、ALS-DKMS 和 kShim 均从固定来源构建。
+旧版 `scripts/build-boot.sh` 是保留的直接启动构建入口，不是新版 CI 或更新器的交付路径。
 
-**当前验证范围：这是新增的构建流水线，不是已实机验证的镜像发行版。**
-脚本检查和固件包测试不能代替完整镜像构建与 TB322FC 实机测试。
-仓库没有原厂固件，所以必须先提供下面的输入才能运行完整构建。
+## 输入
 
-## 对照三代后的取舍
+- `FIRMWARE_URL` secret 与 `FIRMWARE_SHA256` variable（也支持 workflow 手动输入）：
+  按 `firmware.json` 清单打包的四代设备固件；私有 URL 不写入构建元数据。
+- `arch_rootfs_url`：Arch Linux Ports AArch64 bootstrap；可给 `arch_rootfs_sha256`，否则验证其签名。
+- `rootfs_size` 默认20G，仅用于内部 rootfs 构建检查，不作为可独立刷写的发行镜像。
 
-| 环节 | 三代参考项目 | 本仓库四代 CI |
-| --- | --- | --- |
-| 启动 | 已有 UEFI `boot.img` + GRUB FAT 模板 | 从源码生成 Android v4 `boot.img`，直接启动内核 |
-| 内核 | 下载已编译 Image、DTB 和模块 | 从本人的 kernel fork 精确提交构建 Image、DTB、模块 |
-| 设备树 | SM8650 / TB321FU | 内嵌 SM8750 / elden DTB |
-| 根分区 | `PARTLABEL=userdata` | 保留 `PARTLABEL=rootfs`，不访问 Android userdata |
-| 用户空间 | Arch + 从第三方 deb 中提取设备文件 | Arch + 原生编译四代 hexagonrpc、libssc、iio-sensor-proxy、libcamera |
-| 固件 | 三代预置硬件包 | 用户提供四代固件；82 个文件逐一验证 SHA256 |
-| 传感器校准 | 三代集成方式 | 用户在装机后导入自己的 persist 数据 |
-
-参考代码：
-[三代 Arch CI](https://github.com/GUF296/arch-y700-build-ci)、
-[三代 Ubuntu CI](https://github.com/GUF296/ubuntu-y700-build-ci)。
-三代构建本身依赖预编译模板和设备包，不能只换 DTB 文件名就用于四代。
-
-`sources.json` 的 kernel URL 已指向
-[tb322fc-linux-kernel](https://github.com/h0cheung/tb322fc-linux-kernel)，
-内核更新为 2026-09-28 核对的 `v7.2-elden` 提交
-`09e220216ce97f5e4118080cc79a1d9379a07d21` 及对应树哈希（WCD9395 音频）。
-仍固定具体提交，
-不会在后续构建时自动追踪移动的分支。Linux 基础版本仍为 7.2，新增的是蓝牙、
-背光、电池等设备补丁；原有实机验证记录不适用于这次更新。
-不需要给 kernel 仓库再加一套 CI，也不需要制作 deb。
-
-启动方式、DTB、`PARTLABEL=rootfs` 和 ext4 配置保持原设计。新加入的
-`android-userdata.config` 等可选配置片段不会自动合并。
-蓝牙所需的 `qca/brhperifw20.tlv`、`qca/brhperinv20.bin` 和 `qca/tmel_peach_20.elf`
-已列入 `firmware.json` 与 `configs/initramfs.list`，随固件包进入 initramfs。
-
-## 1. 准备一次性固件输入
-
-先依照[固件文档](firmware.md)从匹配的 Android 系统提取文件、导入 regulatory
-database，再用 `scripts/build-topology.sh` 生成音频 topology，得到完整的
-`inputs/firmware/`。它必须包含 `firmware.json` 中的全部 82 个文件。
-
-音频 topology 由仓库内跟踪的 `inputs/audio/Lenovo-Y700-Gen4.conf` 重新编译
-（`firmware.json` 中标记为 `"generated": true`，不取自固件包），因此 CI 会用
-仓库固定版本的 alsatplg 覆盖 bundle 里的旧 topology。编译器版本会影响二进制
-哈希，不能通过修改哈希跳过验证。
+固件打包入口：
 
 ```sh
-mkdir -p build
 python3 scripts/ci/firmware-bundle.py verify inputs/firmware
 python3 scripts/ci/firmware-bundle.py pack inputs/firmware build/firmware.tar.gz
 sha256sum build/firmware.tar.gz
 ```
 
-`pack` 只收录清单内的固件文件，不收录账户、Wi-Fi 密码、设备日志或单机传感器
-校准数据。归档中的路径直接从 `awinic/`、`qcom/` 等开始，没有外层 `firmware/`
-目录；不要用包含整个 Android 目录的随意 tar 包代替。
+流水线只 fetch `sources.json` 中的 hexagonrpc、libssc、libcamera、audio topology 和 Freedom 固定提交。
+内核来源、Freedom 补丁与板级树由 `packages/linux-freedom/PKGBUILD` 引用；
+kShim runtime、依赖、原生打包器与 BusyBox 由 `packages/kshim-freedom/PKGBUILD` 引用构建。
+来自 Freedom 的完整源码不复制进本仓库。本地差异单独保存为配置片段和补丁。
 
-将这个包放在 GitHub runner 可访问的 HTTPS 地址。支持带有效期的签名下载 URL；
-不要在公开工作流输入中填含凭证的 URL，改用 Actions secret。
-最终 `boot.img` / `rootfs.img` 会包含这些固件，构建脚本只上传 Actions artifact，
-不会自动创建公开 Release。
+`configure-rootfs.sh` 创建构建用户后调用 `scripts/ci/build-kernel.sh`，先构建安装内核与headers，
+再安装ALS-DKMS和kShim。普通设备包随后构建。CI没有本机AVB私钥和原厂boot配置，
+因此安装钩子不会在runner写任何boot分区；只输出可供已初始化设备使用的软件包。
+内核包的原生headers工具与DKMS模块需通过构建检查。
 
-在 `h0cheung/tb322fc-linux` 的 Settings → Secrets and variables → Actions 配置：
+## Release 结构与旧更新器边界
 
-| 类型 | 名称 | 内容 |
-| --- | --- | --- |
-| Secret | `FIRMWARE_URL` | 完整固件包的 HTTPS 下载地址 |
-| Variable | `FIRMWARE_SHA256` | 固件包 SHA256，64 位十六进制 |
+版本 tag：`freedom-v2-YYYYmmddHHMMSS`。release 包含：
 
-也可用手动运行时的 `firmware_url` 和 `firmware_sha256`。URL 优先使用 secret，
-SHA256 优先使用手动输入。下载器和构建元数据不会主动记录 URL。
+- `freedom-release.json`：format、设备、架构、内核release/build ID和四个包的版本/大小/SHA256。
+- `linux-freedom`、`linux-freedom-headers`、`als-bridge-dkms`、`kshim-freedom` 四个 Arch 包。
+- `SHA256SUMS`。
 
-## 2. 运行 Actions
+先在本地校验完整集合，再以 draft 上传，全部成功后发布。不会发布旧名的
+`boot.img.zst`、`kernel-modules.tar.gz`，也不会复用旧 `v[0-9]` tag。
+旧更新器按这些旧tag和旧资产名识别内核，因此看不到新内核更新；真实旧脚本的模拟测试覆盖此边界。
 
-选择 **Build Arch Linux Ports images → Run workflow**。
+用户态滚动仓库改为 `repository-freedom-v2`。发布脚本拒绝覆盖旧 `repository`，
+且不把上述四个启动包放进滚动仓库，避免普通 `pacman -Syu` 或旧脚本只更新部分启动组件。
+旧仓库保留在自己的兼容范围内；不会用新版内容覆盖它。
 
-| 输入 | 默认值 / 含义 |
-| --- | --- |
-| `firmware_url` | 留空使用 secret |
-| `firmware_sha256` | 留空使用 repository variable |
-| `arch_rootfs_url` | 官方 generic AArch64 rootfs |
-| `arch_rootfs_sha256` | 留空时校验官方 `.sig`；指定时固定归档 SHA256 |
-| `rootfs_size` | `12G`；必须不大于已准备的目标分区 |
+首次安装或旧版直接启动系统迁移需要单独完成本机引导初始化与启动验证。
+这版不发布可独立刷入的 boot/rootfs 组合，不能把 CI 内部 rootfs 当作完整安装镜像。
 
-工作流使用原生 `ubuntu-24.04-arm`，在 chroot 内编译 AArch64 设备用户空间。
-流程为：固件校验 → 精确源码与补丁树校验 → Arch 基础包认证 → 内核及模块编译 →
-Arch 包安装与设备服务编译 → ext4 镜像制作及检查 → zstd 压缩。
+## 新更新器
 
-Arch 基础包与归档签名使用 [Arch Linux Ports 公布的密钥](https://arch-linux-repo.drzee.net/arch/extra/os/aarch64/public.key)
-`9B2C213B21883BB65CE2FB900CF25682E6BA0751`。默认 rootfs 和软件仓库是滚动的；
-源码固定不等于整个用户空间可逐字节复现。产物记录归档 SHA256、内核配置、
-源码版本与完整 pacman 包清单，方便定位变化。Mesa 不满足设备要求时应修复
-软件源或等待仓库同步，不应把构建失败当作已可运行的桌面镜像。
+`steamos-update` 调用 `tb322fc-update`，后者使用共享v2协议检查器。
+旧系统缺少已经验证的 Freedom 包、root PARTUUID、原厂boot模板、本机AVB密钥或部署配置时，
+在写入之前退出，不自动执行引导迁移。
 
-`Check build scripts` 在 push / pull request 上独立运行，不需要固件。
-它验证脚本和归档处理，成功不表示镜像已构建或设备已启动。
+已初始化设备的更新顺序：
 
-## 缓存
+1. 获取完整manifest，下载并校验四个包及其 `.PKGINFO`。
+2. 备份运行内核模块与boot_a，并校验备份。
+3. 建立只含该release四个包的临时本地pacman仓库，在一次系统事务中明确请求四包。
+4. DKMS完成后，由kShim钩子打包对应内核、DTB、initramfs，签名并回读boot_a。
+5. 核对本次新生成的成功记录、内核build ID、boot回读哈希及四包版本，最后记录已安装release。
 
-工作流用三层缓存加速重复构建，命中只影响速度，不影响产物内容：
+事务或部署验证失败时，恢复原boot和运行内核模块。包数据库可能已提交新版本，
+失败日志会明确提示需要修复包状态；不会把旧成功记录当成本轮成功。
+更新器不会自动重启；成功后由用户重启验证。
 
-- **内核产物缓存**：`sources.json`、`configs/**`、`inputs/audio/**` 等一致时，
-  直接复用上次的 `boot.img` / `Image` / 模块产物，跳过内核构建。
-- **ccache**：键包含 `sources.json` 与内核配置，`restore-keys` 前缀命中可跨提交
-  复用。即使内核产物缓存未命中（例如只改了 DTS 或一个配置项），也只需重编译
-  改动的目标，而不是从零开始。ccache 不改变编译输出，可复现性不变。
-- **rootfs 包缓存**：缓存 makepkg 的 `SRCDEST` 下载、已构建的包，以及 4 个 meson
-  组件（hexagonrpc / libssc / iio-sensor-proxy / libcamera）的安装产物。缓存用
-  “依赖戳”把关：对仓库包依赖与 meson 构建依赖执行 `pacman -Q` 取哈希，滚动发行版
-  升级到相关 ABI 包（如 libdrm、llvm）时依赖戳变化，自动丢弃已编译缓存并重新
-  构建；无关包的升级不影响缓存。
-
-缓存键已包含 `packages/**`、`sources.json` 与构建脚本，改动这些文件会自然使对应
-缓存失效。
-
-## 3. 下载与启动
-
-成功后下载 `tb322fc-arch-<run-id>` artifact。主要文件：
-
-- `boot.img.zst`：内嵌 DTB、initramfs、早期固件的直接启动镜像。
-- `rootfs.img.zst`：独立 ext4 文件系统，包含 Plasma、设备用户空间和匹配模块。
-- `SHA256SUMS` / `RAW-SHA256SUMS`：下载文件和解压后原始镜像的校验。
-- `BUILD-INFO.txt`、`sources.json`、`firmware.json`、`kernel.config`、`rootfs.packages`：构建记录。
-
-大于 1.9 GB 的压缩文件自动切片为 `.000`、`.001` 等，先按顺序合并。
-下例合并步骤只对实际被切片的文件执行：
+## 检查与验证范围
 
 ```sh
-sha256sum -c SHA256SUMS
-cat rootfs.img.zst.[0-9][0-9][0-9] > rootfs.img.zst
-zstd -d boot.img.zst
-zstd -d rootfs.img.zst
-sha256sum -c RAW-SHA256SUMS
+python3 scripts/check.py
+sudo python3 -m unittest discover -s tests -p 'test_freedom*.py' -v
 ```
 
-启动前需要已经解锁、且有正确准备的 **GPT 分区名 `rootfs`** 的设备；文件系统
-label 也叫 rootfs 并不能替代 GPT 分区名。镜像不会替你创建分区或覆盖 Android。
-必须先把 rootfs 镜像内容部署到该分区，只有 `fastboot boot` 不会安装根文件系统。
-分区大小、备份和部署方法需按设备现状确认；不要把它写到 `userdata` 或其他
-Android 分区。原始 ext4 镜像不是整盘 GPT 镜像，也不是 Android sparse image。
-
-在已经完成 rootfs 部署并进入 fastboot 后临时启动：
-
-```sh
-fastboot boot boot.img
-```
-
-保留原有可用启动镜像。该路径不依赖 GRUB、EFI 分区或单独加载 DTB，
-也不提供刷写 boot 分区的命令。初次验证准备 USB 键盘，以便处理首次登录和终端。
-
-默认用户为 `alarm`，初始密码 `alarm`，首次登录必须修改。root 账户锁定，SSH
-默认关闭；登录后可自行启用。网络通过 NetworkManager 配置。
-Plasma Keyboard 已安装并设为 KWin 的屏幕键盘；首次密码修改仍建议用 USB 键盘。
-
-四个设备用户空间组件目前从固定源码安装，pacman 的 `IgnorePkg` 防止发行版的
-同名软件包覆盖补丁。更新这些组件时需一起更新源码清单并重新构建；不要直接移除
-该保护后升级成未经验证的发行版组件。
-
-传感器服务的二进制已经安装，但需按照[设备用户空间文档](rootfs.md#sensors-data-and-services)
-导入本机的 `/var/lib/hexagonrpc` 数据后才能工作。不要把其他设备的校准数据放进
-通用 rootfs；也不要让 Linux 写 Android persist。
-
-## 本地运行
-
-需要有 chroot/mount 权限的 AArch64 Linux 构建机，依赖列表见工作流。
-除内核/BusyBox 可交叉编译外，这套 rootfs 脚本要求原生 AArch64，不会隐式启用 QEMU。
-源码、输入和构建目录默认要求全新状态，避免复用旧产物冒充成功。
-
-```sh
-python3 scripts/fetch-sources.py
-python3 scripts/ci/firmware-bundle.py verify inputs/firmware
-bash scripts/ci/fetch-arch.sh
-JOBS=4 bash scripts/ci/build-kernel.sh
-sudo env ARCH_ROOTFS_ARCHIVE="$PWD/build/archlinux-aarch64.tar.zst" \
-    ARCH_ROOTFS_SHA256="$(cut -d ' ' -f 1 build/archlinux-aarch64.sha256)" \
-    ROOTFS_SIZE=12G JOBS=4 bash scripts/ci/build-rootfs.sh
-```
-
-本地归档 `package.sh` 另需 `artifacts/firmware-input.txt`，由 CI 输入步骤生成；
-直接使用本地固件时可以记录自己打包的 SHA256 后再归档。
-
-## 实机验证边界
-
-先验证启动进入 Plasma、触控、Wi-Fi、GPU 渲染、扬声器及 rootfs 可写；再导入本机
-校准并验证传感器/摄像头。CI 无法验证 UFS 时序、显示初始化、固件兼容性、
-电池报告和 suspend。已有硬件限制见[支持矩阵](hardware.md)，新增 CI 不会
-自动解决蓝牙发现、休眠和充电方面的限制。
+安全回归覆盖：缺包、headers不匹配、下载损坏、旧成功记录、旧脚本读取新release、禁止覆盖旧滚动仓库。
+完整GitHub CI和新产物的实际启动仍需单独执行；语法/模拟检查不代表整轮远程CI或新内核启动已通过。

@@ -3,25 +3,28 @@
 Mainline Linux for the Lenovo Legion Tab Y700 Gen4, based on Qualcomm SM8750
 (Snapdragon 8 Elite), device codename **elden**.
 
-This repository provides the kernel configuration, boot-image builder, rootfs
-integration, firmware inventory and hardware support status. Kernel development
-lives in [tb322fc-linux-kernel](https://github.com/h0cheung/tb322fc-linux-kernel),
-forked from [GEEKiDoS/linux](https://github.com/GEEKiDoS/linux/tree/v7.2-elden).
-Userspace changes are included as patches against pinned public sources.
+This repository integrates the Lenovo TB322FC with Arch Linux Ports. The current
+kernel package pins Linux 7.2.6 plus ArmadaOS Freedom hardware support, with local
+configuration and compatibility patches. Kernel, headers, ALS DKMS and kShim are
+separate packages; upstream source is referenced at exact revisions.
+
+The device runs Plasma Mobile through SDDM, with ordinary Plasma and Steam
+sessions available. F2FS is supported by the packaged kernel. Historical direct
+kernel development remains in [tb322fc-linux-kernel](https://github.com/h0cheung/tb322fc-linux-kernel).
 
 ## Hardware support
 
-The results below describe the device-tested baseline, refreshed for the current
-kernel pin `09e22021`. Bluetooth, suspend (s2idle) and the built-in microphone
-have since been verified on hardware; hibernation to disk is untested.
+The table combines the current Freedom baseline with earlier device tests.
+Bluetooth, suspend (s2idle) and the microphone worked on the earlier kernel;
+these are not a complete regression pass of the current package release.
 
 | Component | Status | Notes |
 | --- | --- | --- |
-| Kernel / UFS | Working | Linux 7.2; ext4 rootfs |
+| Kernel / UFS | Working | Linux 7.2.6; F2FS rootfs |
 | Display | Working | 24/40/60/90/120/144/165 Hz modes |
 | Touch | Working | Novatek NT36536 |
 | GPU | Working | Adreno 830 with Mesa Turnip and Zink |
-| Wi-Fi | Working | Qualcomm Peach / ath12k |
+| Wi-Fi | Working | Freedom ath12k; range scanning |
 | Bluetooth | Working | QCA UART firmware load, discovery and pairing |
 | Speakers | Working | AW88461; supplied AudioReach topology and UCM |
 | Microphone | Working | Built-in analog capture (AMIC1/AMIC4 via the WCD9395) |
@@ -35,17 +38,19 @@ See the [support matrix](docs/hardware.md) for test scope and unverified feature
 
 ## Build and use
 
-### Automated Arch Linux Ports images
+### Native Arch packages and coordinated updates
 
-The **Build Arch Linux Ports images** Actions workflow builds a direct Android
-`boot.img` and an Arch Linux Ports Plasma `rootfs.img` from pinned device sources.
-It requires a matching firmware bundle; no GRUB or Debian device packages are
-used. See the [CI setup and image guide](docs/ci.md) for input preparation,
-artifact verification and first boot. This new pipeline still needs a full
-firmware-backed build and device validation before its images can be called
-tested releases.
+The **Build Freedom Arch packages** workflow builds on ARM64 inside an authenticated
+Arch AArch64 bootstrap, without a Linux cross compiler. Releases use the v2
+manifest plus kernel, headers, DKMS and kShim packages. The old boot/module asset
+names and legacy rolling repository are kept outside the new update path.
 
-### Manual boot image build
+See the [native CI and update contract](docs/ci.md). These are package updates for
+an initialized Freedom boot setup; fresh-install flashing and automatic migration
+from legacy direct-boot systems are not offered by v2 releases. The internal CI
+rootfs is not published as a standalone installation image.
+
+### Historical direct boot image builder
 
 1. [Install the build dependencies](docs/build.md#host-dependencies).
 2. Fetch the pinned source trees with `python3 scripts/fetch-sources.py`.

@@ -1,7 +1,7 @@
 # Maintainer: h0cheung <hcheunh@gmail.com>
 pkgname=gamescope-session
 pkgver=20260920
-pkgrel=1
+pkgrel=2
 pkgdesc="Base gamescope session machinery (gamescope-session-plus) used by the Steam gaming session"
 arch=('any')
 url="https://github.com/OpenGamingCollective/gamescope-session"
@@ -12,8 +12,9 @@ _commit=0232e0c0410b051b0c679c99c55bf34f5aaf9f78
 source=(
     "git+$url.git#commit=$_commit"
     '0001-lenovo-legion-y700-gen4-refresh-rates.patch'
+    '0002-freedom-composition-rotation.patch'
 )
-sha256sums=('SKIP' 'SKIP')
+sha256sums=('SKIP' 'SKIP' 'SKIP')
 
 prepare() {
     cd "$pkgname"

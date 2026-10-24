@@ -1,0 +1,41 @@
+{
+  "source": "https://github.com/mydanyi/armadaos-freedom",
+  "commit": "244b74516d99d06cb0518609ce4b842ab278be8a",
+  "files": [
+    {
+      "path": "ath12k/WCN7860/hw2.0/amss.bin",
+      "bytes": 6971456,
+      "sha256": "bbdfeec01b7de20e89c7e6906d7ea3fd89b896862de29396696a93dbb59fc77a"
+    },
+    {
+      "path": "ath12k/WCN7860/hw2.0/aux_ucode.bin",
+      "bytes": 61440,
+      "sha256": "2b2eef47107e1c61e1f809371c7413867cf748fb57a2887cc4ff4d386b680fad"
+    },
+    {
+      "path": "ath12k/WCN7860/hw2.0/bdwlan.elf",
+      "bytes": 125288,
+      "sha256": "68175a7eeffe9ebe32cfb22676e3ac4c250eb3dcf35d4abe18fee45440e08f76"
+    },
+    {
+      "path": "ath12k/WCN7860/hw2.0/board-2.bin",
+      "bytes": 149948,
+      "sha256": "9cce38db012867432566dc0deea6d647c2ae2ffa367d3fc90b300e517b748381"
+    },
+    {
+      "path": "ath12k/WCN7860/hw2.0/m3.bin",
+      "bytes": 290816,
+      "sha256": "063840b7509e5da791afa6c2905b191297a401c06d39774b82330949c1c8f438"
+    },
+    {
+      "path": "ath12k/WCN7860/hw2.0/qdss.cfg",
+      "bytes": 6245,
+      "sha256": "4683d8683437a11172723dc5820801aaaf5eb082336875a7664142582cc90cbb"
+    },
+    {
+      "path": "ath12k/WCN7860/hw2.0/regdb.bin",
+      "bytes": 24278,
+      "sha256": "c774af903051e7af845435352fdb2ec6158835c4c95fd9323be22658971ffc6f"
+    }
+  ]
+}

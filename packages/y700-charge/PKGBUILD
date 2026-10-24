@@ -13,7 +13,7 @@
 # appear (UPower's stock hwdb entry requires a DMI modalias segment).
 pkgname=y700-charge
 pkgver=20261006
-pkgrel=1
+pkgrel=2
 pkgdesc="Standalone Decky plugin + daemon for Y700 Gen4 battery charge control (bypass charging + charge protection)"
 arch=('aarch64')
 url="https://github.com/h0cheung/tb322fc-linux"

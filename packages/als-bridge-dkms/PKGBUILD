@@ -1,0 +1,18 @@
+# Maintainer: h0cheung
+pkgname=als-bridge-dkms
+pkgver=20260929
+pkgrel=1
+pkgdesc='DKMS kernel module for the Steam ambient-light bridge'
+arch=(any)
+license=(GPL-2.0-only)
+depends=(dkms)
+optdepends=('als-bridge: SensorProxy userspace daemon')
+source=(als-bridge.c Makefile dkms.conf)
+sha256sums=('f1dea9cfab156a022aba03984363602f2f34bda76674855003ef8d784a713e5f' '604c62fd7626cb76a1ad186ec0c3bf7c0808870f997306ceaa49fbed5658a067' 'fb45379e6c34fe0ebeaa862efb6af858c869bd21748191d411a96210835fa730')
+
+package() {
+  local dest="$pkgdir/usr/src/als-bridge-$pkgver"
+  install -Dm644 "$srcdir/als-bridge.c" "$dest/als-bridge.c"
+  install -Dm644 "$srcdir/Makefile" "$dest/Makefile"
+  install -Dm644 "$srcdir/dkms.conf" "$dest/dkms.conf"
+}

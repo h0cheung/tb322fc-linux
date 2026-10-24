@@ -1,0 +1,16 @@
+--- a/usr/share/gamescope-session-plus/device-quirks
++++ b/usr/share/gamescope-session-plus/device-quirks
+@@ -225,6 +225,13 @@
+   # Enables the adaptive brightness toggle (Steam checks this env var in
+   # addition to finding an ambient light sensor; see als-bridge).
+   export STEAM_ENABLE_DYNAMIC_BACKLIGHT=1
++  # Freedom's display stack uses composition rotation. The kernel suffix
++  # also covers login before the modular battery driver has registered.
++  if [[ $(uname -r) == *-freedom-compat* ||
++        ( -e /sys/class/power_supply/battery/constant_charge_current &&
++          ! -e /sys/class/power_supply/qcom-battmgr-bat/constant_charge_current ) ]]; then
++    FORCE_COMPOSITION_ROTATION=1
++  fi
+ fi
+ 
+ # Minisforum V3

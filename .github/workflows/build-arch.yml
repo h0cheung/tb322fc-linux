@@ -1,36 +1,32 @@
-name: Build Arch Linux Ports images
-
+name: Build Freedom Arch packages
 on:
   workflow_dispatch:
     inputs:
       firmware_url:
-        description: 'HTTPS firmware bundle URL (or use FIRMWARE_URL secret; see docs/ci.md)'
+        description: 'HTTPS firmware input (prefer FIRMWARE_URL secret)'
         type: string
         required: false
       firmware_sha256:
-        description: 'Firmware bundle SHA256 (or use FIRMWARE_SHA256 repository variable)'
+        description: 'Pinned firmware bundle SHA256'
         type: string
         required: false
       arch_rootfs_url:
-        description: 'Arch Linux Ports generic AArch64 archive (verified with its .sig)'
+        description: 'Authenticated Arch Linux Ports AArch64 bootstrap'
         type: string
         default: https://arch-linux-repo.drzee.net/arch/tarballs/os/aarch64/archlinux-bootstrap-latest-aarch64.tar.zst
       arch_rootfs_sha256:
-        description: 'Optional exact archive SHA256 instead of OpenPGP verification'
+        description: 'Optional fixed bootstrap SHA256; otherwise verify OpenPGP'
         type: string
         required: false
       rootfs_size:
-        description: 'Raw ext4 image size; must fit the existing rootfs partition'
+        description: 'Internal validation rootfs size; not a flashable release image'
         type: string
-        default: 12G
-
+        default: 20G
 permissions:
   contents: write
-
 concurrency:
-  group: arch-images-${{ github.ref }}
+  group: freedom-packages-${{ github.ref }}
   cancel-in-progress: false
-
 jobs:
   build:
     runs-on: ubuntu-24.04-arm
@@ -43,393 +39,73 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Check firmware input before installing or building
+      - name: Check firmware input
         env:
           FIRMWARE_URL: ${{ secrets.FIRMWARE_URL || inputs.firmware_url }}
           FIRMWARE_SHA256: ${{ inputs.firmware_sha256 || vars.FIRMWARE_SHA256 }}
         run: bash scripts/ci/prepare-inputs.sh
-      - name: Install host build dependencies
+      - name: Install native runner tools
         run: |
+          test "$(uname -m)" = aarch64
           sudo apt-get update
-          # pacman-package-manager is Ubuntu's pacman port; publish-repo.sh needs its
-          # repo-add (the runner is Ubuntu, not Arch, so there is no repo-add otherwise).
-          # dwarves provides pahole, which generates the vmlinux BTF that
-          # CONFIG_SCHED_CLASS_EXT (and thus armada-powerd's scx_* schedulers) needs.
-          sudo apt-get install -y build-essential git python3 curl bzip2 flex bison bc \
-            pkg-config libssl-dev libelf-dev gcc-aarch64-linux-gnu libc6-dev-arm64-cross \
-            clang lld llvm ccache mkbootimg kmod cpio rsync libarchive-tools e2fsprogs \
-            zstd xz-utils gnupg ca-certificates alsa-utils pacman-package-manager dwarves
-          # Workaround Ubuntu 24.04 mkbootimg missing gki module (LP: #2058228)
-          sudo sed -i 's/from gki.generate_gki_certificate import generate_gki_certificate/generate_gki_certificate = None/' /usr/bin/mkbootimg || true
-          sudo python3 -c "import pathlib; p = pathlib.Path('/usr/lib/python3/dist-packages/gki'); p.mkdir(exist_ok=True); (p/'__init__.py').touch(); (p/'generate_gki_certificate.py').write_text('def generate_gki_certificate(*args, **kwargs):\n    pass\n')" || true
-          mkbootimg --help >/dev/null
-      - name: Build the audio topology from tracked source
+          sudo apt-get install -y git python3 python3-yaml curl bzip2 util-linux \
+            libarchive-tools e2fsprogs zstd xz-utils gnupg ca-certificates \
+            alsa-utils pacman-package-manager jq
+      - name: Fetch pinned public userspace and Freedom sources
+        run: python3 scripts/fetch-sources.py hexagonrpc libssc libcamera audioreach-topology freedom
+      - name: Validate update compatibility before building
+        run: |
+          python3 scripts/check.py
+          sudo python3 -m unittest discover -s tests -p 'test_freedom*.py' -v
+      - name: Build the tracked audio topology
         run: bash scripts/build-topology.sh
-      - name: Fetch and verify pinned sources
-        run: python3 scripts/fetch-sources.py
-      - name: Download and authenticate Arch Linux Ports
+      - name: Authenticate Arch bootstrap
         run: bash scripts/ci/fetch-arch.sh
-      - name: Restore kernel build cache
-        id: restore-kernel-cache
-        uses: actions/cache/restore@v4
+      - name: Restore source and compiler caches
+        uses: actions/cache@v4
         with:
-          path: |
-            artifacts/boot.img
-            artifacts/Image
-            artifacts/sm8750-lenovo-elden.dtb
-            artifacts/kernel.config
-            artifacts/kernel.release
-            artifacts/kernel-modules.tar.gz
-            artifacts/SHA256SUMS
-          key: kernel-${{ hashFiles('sources.json', 'firmware.json', 'configs/**', 'inputs/audio/**', 'scripts/build-boot.sh', 'scripts/build-topology.sh', 'scripts/ci/build-kernel.sh', 'scripts/ci/prepare-inputs.sh', 'tools/avbtool') }}
-
-      - name: Restore kernel ccache
-        id: ccache
-        uses: actions/cache/restore@v4
-        with:
-          path: .ccache
-          key: ccache-${{ runner.os }}-${{ hashFiles('sources.json', 'configs/kernel.config', 'scripts/build-boot.sh', 'scripts/ci/build-kernel.sh') }}
+          path: build/rootfs-cache
+          key: freedom-native-${{ runner.arch }}-${{ hashFiles('sources.json', 'configs/**', 'packages/**/PKGBUILD', 'scripts/ci/**') }}
           restore-keys: |
-            ccache-${{ runner.os }}-
-
-      - name: Build kernel, embedded initramfs, Android boot image and modules
-        if: steps.restore-kernel-cache.outputs.cache-hit != 'true'
-        run: JOBS=$(nproc) bash scripts/ci/build-kernel.sh
-
-      - name: Save kernel ccache
-        if: steps.restore-kernel-cache.outputs.cache-hit != 'true' && steps.ccache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: .ccache
-          key: ${{ steps.ccache.outputs.cache-primary-key }}
-
-      - name: Save kernel build cache
-        if: steps.restore-kernel-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            artifacts/boot.img
-            artifacts/Image
-            artifacts/sm8750-lenovo-elden.dtb
-            artifacts/kernel.config
-            artifacts/kernel.release
-            artifacts/kernel-modules.tar.gz
-            artifacts/SHA256SUMS
-          key: ${{ steps.restore-kernel-cache.outputs.cache-primary-key }}
-
-      - name: Verify kernel build artifacts
-        run: |
-          for file in boot.img Image sm8750-lenovo-elden.dtb kernel.config kernel.release kernel-modules.tar.gz; do
-            [[ -s "artifacts/$file" ]] || { echo "Missing artifacts/$file" >&2; exit 1; }
-          done
-          echo "Kernel artifacts present and verified:"
-          ls -lh artifacts/
-
-      - name: Reclaim kernel build space for rootfs
-        run: |
-          rm -rf build/kernel build/busybox sources/kernel sources/busybox
-          df -h .
-      - name: Build Arch rootfs and native device userspace
+            freedom-native-${{ runner.arch }}-
+      - name: Build native kernel, headers, DKMS, kShim and device packages
         run: |
           sudo env ARCH_ROOTFS_ARCHIVE="$PWD/build/archlinux-aarch64.tar.zst" \
             ARCH_ROOTFS_SHA256="$(cut -d ' ' -f 1 build/archlinux-aarch64.sha256)" \
             ROOTFS_SIZE="$ROOTFS_SIZE" JOBS="$(nproc)" bash scripts/ci/build-rootfs.sh
-      - name: Publish package repository
+      - name: Validate complete release set
+        run: |
+          RELEASE_TAG="freedom-v2-$(date -u +'%Y%m%d%H%M%S')"
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+          RELEASE_TAG="$RELEASE_TAG" bash scripts/ci/package.sh
+      - name: Publish separate userspace package repository
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_TAG: repository-freedom-v2
         run: bash scripts/ci/publish-repo.sh
-      - name: Compress images and collect provenance
-        run: bash scripts/ci/package.sh
-      - name: Upload Boot Image
+      - name: Upload package artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: tb322fc-boot-${{ github.run_id }}
-          path: |
-            artifacts/release/boot.img.zst
-            artifacts/release/SHA256SUMS
+          name: freedom-packages-${{ github.run_id }}
+          path: artifacts/release/*
           if-no-files-found: error
           compression-level: 0
-          retention-days: 14
-
-      - name: Upload Kernel Modules (for upgrade)
-        uses: actions/upload-artifact@v4
-        with:
-          name: tb322fc-kernel-modules-${{ github.run_id }}
-          path: |
-            artifacts/release/kernel-modules.tar.gz
-            artifacts/release/kernel.release
-            artifacts/release/SHA256SUMS
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 14
-
-      - name: Upload Rootfs Image (for fresh install)
-        uses: actions/upload-artifact@v4
-        with:
-          name: tb322fc-rootfs-${{ github.run_id }}
-          path: |
-            artifacts/release/rootfs.img.zst*
-            artifacts/release/SHA256SUMS
-            artifacts/release/BUILD-INFO.txt
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 14
       - name: Upload build diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tb322fc-build-info-${{ github.run_id }}
+          name: freedom-build-info-${{ github.run_id }}
           path: |
             artifacts/*.txt
             artifacts/*.packages
-            artifacts/kernel.config
-            artifacts/kernel.release
+            artifacts/kernel.*
+            build/rootfs-cache/*.PKGBUILD
           if-no-files-found: ignore
-          retention-days: 14
-
-      - name: Publish GitHub Pre-Release
+      - name: Publish complete versioned package release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="v$(date -u +'%Y%m%d%H%M%S')"
-          KERNEL_RELEASE="$(cat artifacts/release/kernel.release 2>/dev/null || echo '7.2.0-y700+')"
-          cat << 'EOF' > artifacts/release/RELEASE-NOTES.md
-          # Lenovo Legion Y700 Gen 4 (TB322FC) - Arch Linux Ports Pre-Release
-
-          **Release Tag:** `__TAG__`  
-          **Kernel Version:** `__KERNEL_RELEASE__`  
-          **Build Date:** __BUILD_DATE__
-
-          ---
-
-          ## 🌐 English
-
-          ### 📦 Assets & Downloads
-          - **Fresh Installation**: Download `boot.img.zst` and `rootfs.img.zst` (if split, download all parts `rootfs.img.zst.*` and combine them).
-          - **Kernel-Only Upgrade (Existing Users)**: Download `boot.img.zst` and `kernel-modules.tar.gz`. **No need to reflash rootfs; personal data, desktop apps, and games are fully preserved.**
-
-          ---
-
-          ### 🚀 First-Time Installation & Partitioning Guide (TWRP + ADB)
-
-          > [!WARNING]
-          > Modifying internal storage partitions carries risk of data loss. Back up all important Android data before proceeding!
-
-          #### Step 1: Boot TWRP Recovery
-          1. Ensure your tablet's bootloader is unlocked.
-          2. Reboot to Fastboot mode and temporarily boot TWRP:
-             ```bash
-             fastboot boot twrp.img
-             ```
-
-          #### Step 2: Repartition Internal Storage (Create `rootfs` Partition)
-          By default, Android allocates all remaining space on UFS LUN 0 (`/dev/block/sda`) to partition 16 (`userdata`). Linux requires an ext4 partition with GPT label `rootfs`.
-
-          Connect the tablet to your computer via USB and open a terminal:
-          ```bash
-          adb shell
-          umount /data /sdcard 2>/dev/null || true
-
-          # Inspect current partitions on UFS LUN 0:
-          parted /dev/block/sda print
-          ```
-
-          **Choose your layout:**
-
-          - **Option A: Dual-Boot (Keep Android + Allocate Space for Linux)**
-            Shrink `userdata` (e.g. keep 64GB for Android) and create `rootfs` using the remaining space:
-            ```bash
-            parted /dev/block/sda resizepart 16 64GB
-            parted /dev/block/sda mkpart rootfs ext4 64GB 100%
-            parted /dev/block/sda name 17 rootfs
-            mke2fs -t ext4 -F -L rootfs /dev/block/by-name/rootfs
-            ```
-            *(Note: In TWRP, go to Wipe -> Format Data afterwards if Android userdata requires re-initialization).*
-
-          - **Option B: Dedicated Linux (Entire User Storage for Linux)**
-            Remove `userdata` and allocate the full remaining disk to `rootfs`:
-            ```bash
-            parted /dev/block/sda rm 16
-            parted /dev/block/sda mkpart rootfs ext4 24GB 100%
-            parted /dev/block/sda name 16 rootfs
-            mke2fs -t ext4 -F -L rootfs /dev/block/by-name/rootfs
-            ```
-
-          #### Step 3: Flash Rootfs Image
-          Decompress the downloaded image on your PC:
-          ```bash
-          # Merge split parts first if applicable: cat rootfs.img.zst.* > rootfs.img.zst
-          zstd -d rootfs.img.zst -o rootfs.img
-          ```
-
-          Directly stream-flash to the tablet's partition via ADB (avoids running out of RAM in TWRP):
-          ```bash
-          cat rootfs.img | adb shell "dd of=/dev/block/by-name/rootfs bs=4M status=progress conv=fsync"
-          ```
-
-          #### Step 4: Boot into Arch Linux Ports
-          1. Reboot the tablet to Fastboot mode:
-             ```bash
-             adb reboot bootloader
-             ```
-          2. Decompress and boot the Linux kernel image:
-             ```bash
-             zstd -d boot.img.zst -o boot.img
-             fastboot boot boot.img
-             ```
-             *(After confirming successful boot, permanently flash to current slot: `fastboot flash boot_a boot.img`)*
-          3. **Default Login**: User `alarm` / Password `alarm` (Root login is locked; use `sudo`).
-
-          ---
-
-          ### 🔄 Kernel-Only Upgrade Guide (Existing Users)
-
-          > [!NOTE]
-          > Upgrading the kernel does not touch your `rootfs`. All installed software, configuration, and Steam games are preserved.
-
-          1. **Update Kernel Modules** (while running Arch Linux on the tablet):
-             Transfer `kernel-modules.tar.gz` to the tablet, then in terminal run:
-             ```bash
-             sudo tar -xzf kernel-modules.tar.gz -C /
-             sudo depmod -a __KERNEL_RELEASE__
-             ```
-          2. **Boot / Flash New Kernel**:
-             Reboot the tablet into Fastboot mode and connect to PC:
-             ```bash
-             zstd -d boot.img.zst -o boot.img
-
-             # Temporary test boot:
-             fastboot boot boot.img
-
-             # Once verified, flash permanently:
-             fastboot flash boot_a boot.img
-             ```
-
-          ---
-
-          ## 🇨🇳 中文说明
-
-          ### 📦 资产下载与说明
-          - **首次刷机（全新安装）**：下载 `boot.img.zst` 和 `rootfs.img.zst`（若存在分卷则先合并）。
-          - **老用户仅升级内核**：仅需下载 `boot.img.zst` 和 `kernel-modules.tar.gz`，**无需重刷 rootfs，个人数据、桌面应用及游戏配置完全保留**。
-
-          ---
-
-          ### 🚀 首次全新安装与分区指南 (TWRP + ADB)
-
-          > [!WARNING]
-          > 调整磁盘分区存在数据丢失风险，操作前请务必备份 Android 系统中的重要数据！
-
-          #### 步骤 1：引导进入 TWRP Recovery
-          1. 确保平板已解锁 Bootloader。
-          2. 平板进入 Fastboot 模式，电脑端临时引导 TWRP：
-             ```bash
-             fastboot boot twrp.img
-             ```
-
-          #### 步骤 2：调整内部存储分区（创建 `rootfs` 分区）
-          平板出厂时，内部存储剩余空间全部归属于 `userdata` 分区（UFS LUN 0 `/dev/block/sda` 的第 16 号分区）。启动 Linux 需要一个 GPT 分区标签（PARTLABEL）为 `rootfs` 的 ext4 分区。
-
-          电脑连接平板 USB，打开终端：
-          ```bash
-          adb shell
-          umount /data /sdcard 2>/dev/null || true
-
-          # 查看当前 UFS 磁盘分区：
-          parted /dev/block/sda print
-          ```
-
-          **根据需求选择分区方案：**
-
-          - **方案 A：双系统共存（保留 Android + 为 Linux 分配空间）**
-            缩小 `userdata` 分区（例如保留 64GB 给 Android），并将剩余空间分配给 `rootfs`：
-            ```bash
-            parted /dev/block/sda resizepart 16 64GB
-            parted /dev/block/sda mkpart rootfs ext4 64GB 100%
-            parted /dev/block/sda name 17 rootfs
-            mke2fs -t ext4 -F -L rootfs /dev/block/by-name/rootfs
-            ```
-            *(注：双系统若 Android 提示数据损坏，可在 TWRP 中执行 Wipe -> Format Data 重新初始化 userdata)*
-
-          - **方案 B：单 Linux 系统（全盘空间分配给 Linux）**
-            删除 `userdata` 分区，将全部空间划归 `rootfs`：
-            ```bash
-            parted /dev/block/sda rm 16
-            parted /dev/block/sda mkpart rootfs ext4 24GB 100%
-            parted /dev/block/sda name 16 rootfs
-            mke2fs -t ext4 -F -L rootfs /dev/block/by-name/rootfs
-            ```
-
-          #### 步骤 3：写入 Rootfs 系统镜像
-          电脑端解压下载的系统镜像：
-          ```bash
-          # 若存在分卷，请先合并：cat rootfs.img.zst.* > rootfs.img.zst
-          zstd -d rootfs.img.zst -o rootfs.img
-          ```
-
-          通过 ADB 数据流直接写入平板目标分区（无需将 12G 镜像保存在平板临时内存中）：
-          ```bash
-          cat rootfs.img | adb shell "dd of=/dev/block/by-name/rootfs bs=4M status=progress conv=fsync"
-          ```
-
-          #### 步骤 4：引导启动 Arch Linux Ports
-          1. 平板重启至 Fastboot 模式：
-             ```bash
-             adb reboot bootloader
-             ```
-          2. 解压并引导启动内核：
-             ```bash
-             zstd -d boot.img.zst -o boot.img
-             fastboot boot boot.img
-             ```
-             *(确认正常开机后，可固化刷入当前启动槽位：`fastboot flash boot_a boot.img`)*
-          3. **系统默认凭据**：用户名 `alarm` / 密码 `alarm`（Root 账户已禁用密码登录，请使用 `sudo` 执行管理员命令）。
-
-          ---
-
-          ### 🔄 老用户增量升级内核指南
-
-          > [!NOTE]
-          > 升级内核不需要重新下载和刷入 `rootfs.img`，所有桌面应用与配置保持原样。
-
-          1. **更新内核模块（在平板系统开机状态下）**：
-             将下载的 `kernel-modules.tar.gz` 传入平板，在终端执行：
-             ```bash
-             sudo tar -xzf kernel-modules.tar.gz -C /
-             sudo depmod -a __KERNEL_RELEASE__
-             ```
-          2. **引导/固化新内核**：
-             将平板重启至 Fastboot 模式，接电脑执行：
-             ```bash
-             zstd -d boot.img.zst -o boot.img
-
-             # 临时测试启动：
-             fastboot boot boot.img
-
-             # 确认正常开机后固化至当前启动槽位（如 boot_a）：
-             fastboot flash boot_a boot.img
-             ```
-          EOF
-
-          sed -i "s/__TAG__/${TAG}/g" artifacts/release/RELEASE-NOTES.md
-          sed -i "s/__KERNEL_RELEASE__/${KERNEL_RELEASE}/g" artifacts/release/RELEASE-NOTES.md
-          sed -i "s/__BUILD_DATE__/$(date -u +'%Y-%m-%d %H:%M:%S UTC')/g" artifacts/release/RELEASE-NOTES.md
-
-          echo "Publishing pre-release ${TAG} with assets..."
-          assets=()
-          for f in artifacts/release/boot.img.zst \
-                   artifacts/release/kernel-modules.tar.gz \
-                   artifacts/release/rootfs.img.zst* \
-                   artifacts/release/SHA256SUMS \
-                   artifacts/release/RAW-SHA256SUMS \
-                   artifacts/release/BUILD-INFO.txt \
-                   artifacts/release/kernel.config \
-                   artifacts/release/kernel.release; do
-            [[ -e "$f" ]] && assets+=("$f")
-          done
-
-          gh release create "${TAG}" \
-            --title "Arch Linux Ports Pre-Release (${TAG})" \
-            --notes-file artifacts/release/RELEASE-NOTES.md \
-            --prerelease \
-            "${assets[@]}"
+          gh release create "$RELEASE_TAG" --draft --prerelease \
+            --title "Freedom Arch packages $RELEASE_TAG" \
+            --notes-file docs/release-notes-v2.md artifacts/release/*
+          gh release edit "$RELEASE_TAG" --draft=false

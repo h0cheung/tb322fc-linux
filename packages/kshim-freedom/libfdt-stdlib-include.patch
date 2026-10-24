@@ -1,0 +1,10 @@
+--- a/lib/libfdt/include/libfdt_env.h
++++ b/lib/libfdt/include/libfdt_env.h
+@@ -27,6 +27,7 @@
+ #endif
+ 
+ #include <string.h>
++#include <stdlib.h>
+ #include <limits.h>
+ 
+ #define FDT_FORCE

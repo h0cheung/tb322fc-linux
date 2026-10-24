@@ -1,0 +1,12 @@
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -5302,7 +5302,8 @@
+ 	u32 boundary;
+ 	int i;
+ 
+-	if (!of_machine_is_compatible("lenovo,baldur"))
++	if (!of_machine_is_compatible("lenovo,baldur") &&
++	    !of_machine_is_compatible("lenovo,elden"))
+ 		return 0;
+ 
+ 	if (ab->hw_rev != ATH12K_HW_WCN7860_HW20 ||

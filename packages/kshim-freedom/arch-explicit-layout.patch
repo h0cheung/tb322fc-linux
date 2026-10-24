@@ -1,0 +1,42 @@
+--- a/kshim-build-boot.py
++++ b/kshim-build-boot.py
+@@ -94,9 +94,9 @@
+ TIMEOUT_MS = 8000
+ 
+ BASE_NAME = "原厂 Android"
+-LINUX_NAME = "Linux 诊断模式"
+-DTB_NAME = "TB322FC Diagnostic DTB"
+-BLOB_NAME = "Maintenance initramfs"
++LINUX_NAME = "机身 Linux"
++DTB_NAME = "TB322FC Linux DTB"
++BLOB_NAME = "Linux initramfs"
+ SHIM_NAME = "Attached Shim"
+ 
+ # Installed-layout entry names (approved STEP 2 contract).
+@@ -787,7 +787,7 @@
+     os.chdir(WORK)
+ 
+ 
+-def build_dtb(inputs, bootargs, boot_stage="maintenance", root_medium=None,
++def build_dtb(inputs, bootargs, boot_stage="os", root_medium="internal",
+               initrd_index=3, tag=""):
+     """Copy the supplied DTB into WORK and set only the allowlisted /chosen
+     properties. Returns (derived_path, derived_bytes, changed, dts_paths).
+@@ -1437,7 +1437,7 @@
+     packed_dt = os.path.join(WORK, "packed-dtb.dtb")
+     with open(packed_dt, "wb") as handle:
+         handle.write(payload(raw, dtb_entry))
+-    packed_stage = "os" if layout == "installed" else "maintenance"
++    packed_stage = "os"
+     stage_val = "".join(fdtget_strings(packed_dt, "/chosen", "armada,boot-stage",
+                                        "fdtget-packed-stage"))
+     check("unpack:packed-stage", stage_val == packed_stage,
+@@ -1637,7 +1637,7 @@
+             "are trusted as given; input hashes attest identity only and do not "
+             "attest real-device boot behaviour.",
+             "The diagnostic status is carried by the derived DTB's "
+-            "/chosen armada,boot-stage=maintenance; the derived DTB is written "
++            "/chosen armada,boot-stage=os and armada,root-medium=internal; the derived DTB is written "
+             "into the packed image and is NOT flashed anywhere by this script.",
+             "No UFS / partition operation, no flashing, no reboot and no "
+             "persistence change happened; no real device ran this image.",

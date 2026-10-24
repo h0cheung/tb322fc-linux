@@ -1,0 +1,63 @@
+{
+  "freedom": {
+    "url": "https://github.com/mydanyi/armadaos-freedom.git",
+    "commit": "244b74516d99d06cb0518609ce4b842ab278be8a",
+    "kernel_base": "7.2.6",
+    "kshim_builder_sha256": "18e520f3f1204b24a3390833247307b75c1fb2e187f51cf282f8f7329e6b351f"
+  },
+  "compatibility_config": "configs/freedom-compat.config",
+  "external_modules": [
+    "packages/als-bridge"
+  ],
+  "kshim_config": "configs/tb322fc_android_defconfig",
+  "kshim_dependencies": {
+    "CrDK": [
+      "https://github.com/Project-Aloha/CrDK",
+      "b6c3335136b7f6b28271917de11e8f11982975fc"
+    ],
+    "picolibc": [
+      "https://github.com/picolibc/picolibc",
+      "f7edb0869e64b9d687f46961adeef7154921fe92"
+    ],
+    "lvgl": [
+      "https://github.com/lvgl/lvgl",
+      "7f07a129e8d77f4984fff8e623fd5be18ff42e74"
+    ],
+    "libfdt": [
+      "https://github.com/sunflower2333/kShimC",
+      "82ce6eaa10c36e64cfd3f16799172d854f9a955b"
+    ]
+  },
+  "kshim_compatibility_patches": [
+    "patches/kshim/0001-neutral-linux-menu-labels.patch"
+  ],
+  "boot_header_policy": "Use OS metadata from an explicitly supplied known-working Android v4 header template; keep upstream boot and report unchanged",
+  "android_boot_header_compatibility": {
+    "os_version": "15.0.0",
+    "os_patch_level": "2026-08",
+    "encoded_os_version": 503316904,
+    "known_working_boot_sha256": "75d5c11b9f1d9a41023b8a109144fcd73be93e807e21c6866e9f086d63237048",
+    "evidence": "On this device and project key, stock259 payload with OS field0 fails temporary boot; same payload andAVB properties with503316904 boots. Stock vendor-signed image itself has0; not a universal Android requirement."
+  },
+  "kernel_driver_compatibility_patches": [
+    "patches/freedom/0002-ath12k-enable-range-scans-on-elden.patch"
+  ],
+  "wifi_range_scan_validation": {
+    "author_patch": "0188-wifi-ath12k-baldur-range-scans.patch",
+    "extension": "Keep WCN7860 hardware guards, also enable for lenovo,elden",
+    "baseline": "One boot1493s to connect, repeat no association before209s shutdown",
+    "candidate": "Temporary boot5.630331s; persistent boot5.463111s",
+    "full_scan_seconds": 25.422,
+    "single_channel_scan_seconds": 0.455
+  },
+  "kshim_builder_patches": [
+    "packages/kshim-freedom/arch-explicit-layout.patch"
+  ],
+  "kshim_dependency_archives": {
+    "CrDK": {
+      "url": "https://codeload.github.com/Project-Aloha/CrDK/tar.gz/b6c3335136b7f6b28271917de11e8f11982975fc",
+      "sha256": "a0182f8024f15d9b822116b15a968dc12429095f0dfb05d6779e2cafdf18c38e",
+      "reason": "Commit remains downloadable as an immutable archive but is absent from advertised Git refs."
+    }
+  }
+}

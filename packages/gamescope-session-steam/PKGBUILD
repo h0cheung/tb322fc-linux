@@ -1,12 +1,12 @@
 # Maintainer: h0cheung <hcheunh@gmail.com>
 pkgname=gamescope-session-steam
 pkgver=20260919
-pkgrel=1
+pkgrel=2
 pkgdesc="Steam gaming session for gamescope (SDDM session entry, mode switching and helpers)"
 arch=('any')
 url="https://github.com/OpenGamingCollective/gamescope-session-steam"
 license=('MIT')
-depends=('gamescope-session' 'gamescope')
+depends=('gamescope-session' 'gamescope' 'python' 'pacman' 'libarchive' 'util-linux')
 makedepends=('git')
 # Matches the commit ArmadaOS's gamescope-session-steam build pins via Terra.
 _commit=82c45fc112775e3fa927d5c326c39b21f1761cc1
@@ -19,17 +19,28 @@ source=(
     'steam.png'
     'steamos-update'
     'tb322fc-update'
+    'tb322fc-update-v2.py'
+    'freedom_release.py'
+    '0001-preserve-touch-gesture-setting.patch'
 )
 sha256sums=(
     'SKIP'
-    'SKIP'
-    'SKIP'
-    'SKIP'
-    'SKIP'
-    'SKIP'
-    'SKIP'
-    'SKIP'
+    'cb792a1876fd17d4c4f8eadca1fea7d1d009cec2f3ad39cfb61e5fde41bd84d8'
+    'b5ae7041554b120a4bf67549449b417e9dac7f6147b041a3d6a1ba4523bd92d6'
+    'f7ecce69ece3dec11daa9e6dba30610746e246e449dd9de72e97e7d8ff7528f9'
+    '728e817b8255376ba10f504fe1f9000c6e485af52d653d904475f0f7ba2687e9'
+    '86909c0a0eaf92b57135ba0846b8710db16e63561d45628af5a3a57dbd25eb89'
+    '07c2ab21675b956166075032e4221644d150e18bd6d4e2cc2e9ee4a43bedc994'
+    '174814446254fcdb4fb6cb3b04dd9d4cf675ade6145fdc2fa704ba700a98247d'
+    '8acd789a983e36ca734b4fb3e506b26d831e56b34823b3d607c0dbfbab426f9d'
+    '761c08fcb1c3838a243dd48162418b92f7a28d99a906ffc5ac3d0c89e2031e2c'
+    '381c1c338afe0a21744636eb4879ff836d54540c10870fa21bcedeea71c727a1'
 )
+
+prepare() {
+    patch -Np1 --fuzz=0 -d "$srcdir/$pkgname" -i "$srcdir/0001-preserve-touch-gesture-setting.patch"
+}
+
 
 package() {
     cd "$pkgname"
@@ -39,6 +50,8 @@ package() {
     done
     install -Dm755 "$srcdir/steamos-update" "$pkgdir/usr/bin/steamos-update"
     install -Dm755 "$srcdir/tb322fc-update" "$pkgdir/usr/libexec/tb322fc/tb322fc-update"
+    install -Dm644 "$srcdir/tb322fc-update-v2.py" "$pkgdir/usr/libexec/tb322fc/tb322fc-update-v2.py"
+    install -Dm644 "$srcdir/freedom_release.py" "$pkgdir/usr/libexec/tb322fc/freedom_release.py"
     install -d "$pkgdir/usr/bin/steamos-polkit-helpers"
     for helper in jupiter-biosupdate steamos-select-branch steamos-update; do
         install -m755 "usr/bin/steamos-polkit-helpers/$helper" \

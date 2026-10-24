@@ -1,0 +1,79 @@
+--- a/ports/crdk/prepare.py
++++ b/ports/crdk/prepare.py
+@@ -12,14 +12,19 @@
+ import tempfile
+ 
+ 
+-def prepare(source, output):
++def prepare(source, output, source_archive=None):
+     port = Path(__file__).resolve().parent
+     manifest = json.loads((port / "UPSTREAM.json").read_text())
+     revision = manifest["revision"]
+-    actual = subprocess.check_output(
+-        ["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
+-    if actual != revision:
+-        raise ValueError(f"CrDK must be at {revision}, found {actual}")
++    if source_archive:
++        expected = "a0182f8024f15d9b822116b15a968dc12429095f0dfb05d6779e2cafdf18c38e"
++        if hashlib.sha256(source_archive.read_bytes()).hexdigest() != expected:
++            raise ValueError("CrDK source archive hash mismatch")
++    else:
++        actual = subprocess.check_output(
++            ["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
++        if actual != revision:
++            raise ValueError(f"CrDK must be at {revision}, found {actual}")
+     patches = []
+     for entry in manifest["patches"]:
+         patch = port / "patches" / entry["file"]
+@@ -35,10 +40,22 @@
+     with tempfile.TemporaryDirectory(prefix="crdk-", dir=output.parent) as temporary:
+         tree = Path(temporary) / "tree"
+         tree.mkdir()
+-        archive = subprocess.check_output(
+-            ["git", "-C", str(source), "archive", "--format=tar", revision])
+-        with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
+-            tar.extractall(tree, filter="data")
++        if source_archive:
++            with tarfile.open(source_archive) as tar:
++                members = []
++                for member in tar.getmembers():
++                    prefix, sep, name = member.name.partition("/")
++                    if prefix != "CrDK-" + revision:
++                        raise ValueError("Unexpected CrDK archive root")
++                    if sep and name:
++                        member.name = name
++                        members.append(member)
++                tar.extractall(tree, members=members, filter="data")
++        else:
++            archive = subprocess.check_output(
++                ["git", "-C", str(source), "archive", "--format=tar", revision])
++            with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
++                tar.extractall(tree, filter="data")
+         for patch in patches:
+             # Do not let git discover the enclosing kShim checkout and silently
+             # filter patch paths relative to that repository's subdirectory.
+@@ -55,5 +72,6 @@
+     parser = argparse.ArgumentParser(description=__doc__)
+     parser.add_argument("--source", type=Path, required=True)
+     parser.add_argument("--output", type=Path, required=True)
++    parser.add_argument("--source-archive", type=Path)
+     args = parser.parse_args()
+-    prepare(args.source.resolve(), args.output.resolve())
++    prepare(args.source.resolve(), args.output.resolve(), args.source_archive)
+--- a/ports/crdk/CMakeLists.txt
++++ b/ports/crdk/CMakeLists.txt
+@@ -7,8 +7,14 @@
+     "${KSHIM_CRDK_PORT}/patches/0001-cranepkg-driver-fixes.patch"
+     "${KSHIM_CRDK_PORT}/patches/0002-freestanding-resources.patch"
+     "${KSHIM_CRDK_PORT}/prepare.py")
++set(KSHIM_CRDK_SOURCE_ARCHIVE "" CACHE FILEPATH "Verified pinned CrDK source archive")
++set(CRDK_ARCHIVE_ARGS)
++if(KSHIM_CRDK_SOURCE_ARCHIVE)
++    list(APPEND CRDK_ARCHIVE_ARGS --source-archive "${KSHIM_CRDK_SOURCE_ARCHIVE}")
++endif()
+ execute_process(COMMAND "${Python3_EXECUTABLE}" "${KSHIM_CRDK_PORT}/prepare.py"
+     --source "${KSHIM_CRDK_PROJECT}/lib/CrDK" --output "${CRDK_ROOT}"
++    ${CRDK_ARCHIVE_ARGS}
+     RESULT_VARIABLE CRDK_PREPARE_STATUS)
+ if(NOT CRDK_PREPARE_STATUS EQUAL 0)
+     message(FATAL_ERROR "Cannot prepare pinned CrDK and verified patches")

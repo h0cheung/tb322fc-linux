@@ -30,7 +30,9 @@ import sys
 import threading
 import time
 
-BAT = "/sys/class/power_supply/qcom-battmgr-bat"
+POWER_SUPPLY_ROOT = "/sys/class/power_supply"
+BATTERY_NAMES = ("qcom-battmgr-bat", "battery")
+BAT = os.path.join(POWER_SUPPLY_ROOT, BATTERY_NAMES[0])
 USB = "/sys/class/power_supply/qcom-battmgr-usb"
 
 # Python's socket module stopped exporting NETLINK_KOBJECT_UEVENT in 3.13; the
@@ -104,7 +106,15 @@ def _read_int(path, default=None):
 
 
 def battery_present():
-    return os.path.exists(os.path.join(BAT, "constant_charge_current"))
+    # Freedom names the same SM8750 supply "battery". Probe again after boot
+    # or a late driver registration rather than caching an absent device.
+    global BAT
+    for name in BATTERY_NAMES:
+        candidate = os.path.join(POWER_SUPPLY_ROOT, name)
+        if os.path.exists(os.path.join(candidate, "constant_charge_current")):
+            BAT = candidate
+            return True
+    return False
 
 
 # --------------------------------------------------------------------------- #
@@ -174,6 +184,7 @@ def _hwdb_body(start, end):
         "# 'battery:*:*:dmi:*' entry never matches and UPower would report the\n"
         "# charge threshold as unsupported.  This entry matches without DMI.\n"
         "battery:qcom-battmgr-bat:*:\n"
+        "battery:battery:*:\n"
         " CHARGE_LIMIT=%d,%d\n" % (start, end)
     )
 
@@ -236,6 +247,7 @@ def apply_config(cfg):
 
 def read_state(cfg):
     """Return the full state the UI needs.  Caller holds _lock."""
+    supported = battery_present()
     start, end = desired_thresholds(cfg)
     current = _read_int(os.path.join(BAT, "current_now"))
     return {
@@ -250,7 +262,7 @@ def read_state(cfg):
         # Positive current_now means charging into the pack on this driver.
         "charging": bool(current is not None and current > 0),
         "usb_online": _read(os.path.join(USB, "online")) == "1",
-        "supported": battery_present(),
+        "supported": supported,
     }
 
 
@@ -354,7 +366,7 @@ def _handle_uevent(data):
             if online:
                 with _lock:
                     apply_config(load_config())
-    elif name == "qcom-battmgr-bat":
+    elif name in BATTERY_NAMES:
         if info.get("ACTION") == "add":
             # The battery registered after us (boot ordering): apply the stored
             # config now that the sysfs nodes exist.

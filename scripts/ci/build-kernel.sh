@@ -1,142 +1,36 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Build a direct Android boot image and matching Arch Linux Ports modules.
+# Run inside the authenticated Arch bootstrap, on a native ARM64 runner.
 set -euo pipefail
-PROJECT=$(cd -- "$(dirname -- "$0")/../.." && pwd)
-cd "$PROJECT"
-
-for program in make depmod tar gzip sha256sum llvm-strip; do
-    command -v "$program" >/dev/null || { echo "Missing host tool: $program" >&2; exit 1; }
-done
-[[ -f sources/kernel/Makefile ]] || {
-    echo "Fetch the pinned kernel with scripts/fetch-sources.py first." >&2
-    exit 1
+[[ $EUID == 0 && $(uname -m) == aarch64 && -f /etc/arch-release ]] || {
+    echo 'Build the Freedom packages natively inside the Arch AArch64 staging root.' >&2; exit 1;
 }
-
-export JOBS=${JOBS:-$(nproc)}
-[[ "$JOBS" =~ ^[1-9][0-9]*$ ]] || { echo "JOBS must be a positive integer." >&2; exit 2; }
-# Use the upstream commit date for repeatable archives and compiler metadata.
-export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(git -C sources/kernel show -s --format=%ct HEAD)}
-export KBUILD_BUILD_TIMESTAMP=${KBUILD_BUILD_TIMESTAMP:-$(date -u -d "@$SOURCE_DATE_EPOCH" '+%Y-%m-%d %H:%M:%S UTC')}
-export KBUILD_BUILD_USER=${KBUILD_BUILD_USER:-builder}
-export KBUILD_BUILD_HOST=${KBUILD_BUILD_HOST:-tb322fc-ci}
-export KBUILD_BUILD_VERSION=1
-
-# Cache compiler output so a partial change (a DTS tweak, a config option) does
-# not pay for a full kernel rebuild. The object tree is still removed below;
-# ccache keys on the preprocessed source, so it works from a clean build dir.
-# CCACHE_BASEDIR is deliberately unset: the CI workspace path is stable, and
-# rewriting paths would change the compiled output.
-KERNEL_CC=clang
-if command -v ccache >/dev/null 2>&1; then
-    KERNEL_CC="ccache clang"
-    export CCACHE_DIR="$PROJECT/.ccache"
-    # A full build emits ~11.8k objects (~5.5 GB). The old 2G cap filled up
-    # after a third of the build and then evicted its own entries, so the hit
-    # rate stayed low and CI kept paying for a near-cold kernel build.
-    export CCACHE_MAXSIZE=6G
-    export CCACHE_COMPILERCHECK=content
-    export CCACHE_SLOPPINESS=file_stat_matches
-    mkdir -p "$CCACHE_DIR"
-fi
-export KERNEL_CC
-
-# These directories contain only generated output. A clean object tree avoids
-# stale modules or configuration surviving a rerun with a different source pin.
-rm -rf -- build/kernel build/busybox build/kernel-modules
-mkdir -p artifacts
-rm -f -- artifacts/boot.img artifacts/Image artifacts/sm8750-lenovo-elden.dtb \
-    artifacts/kernel.config artifacts/kernel.release artifacts/kernel-modules.tar.gz \
-    artifacts/kernel-modules.tar.gz.part artifacts/SHA256SUMS
-
-# Keep the original firmware checks, config, embedded DTB/initramfs and v4
-# Android image layout. This works on native arm64 and cross-build hosts.
-bash scripts/build-boot.sh
-
-# Inspect the real generated container before publishing it. Header v4 uses
-# fixed 4096-byte pages; its kernel payload must be our uncompressed ARM64 Image.
-python3 - <<'PY'
-import hashlib
-from pathlib import Path
-import struct
-
-image = Path('artifacts/Image')
-with image.open('rb') as stream:
-    if stream.read(64)[56:60] != b'ARM\x64':
-        raise SystemExit('Image lacks the ARM64 Linux image magic')
-    stream.seek(0)
-    expected = hashlib.file_digest(stream, 'sha256').digest()
-with Path('artifacts/boot.img').open('rb') as stream:
-    header = stream.read(1584)
-    if len(header) != 1584 or header[:8] != b'ANDROID!':
-        raise SystemExit('boot.img has an invalid Android header')
-    kernel_size, ramdisk_size = struct.unpack_from('<II', header, 8)
-    header_size = struct.unpack_from('<I', header, 20)[0]
-    version = struct.unpack_from('<I', header, 40)[0]
-    if version != 4 or header_size != 1584 or ramdisk_size != 0:
-        raise SystemExit('boot.img must use Android v4 with an empty external ramdisk')
-    if kernel_size != image.stat().st_size:
-        raise SystemExit('boot.img kernel size differs from Image')
-    stream.seek(4096)
-    digest = hashlib.sha256()
-    remaining = kernel_size
-    while remaining:
-        chunk = stream.read(min(remaining, 1024 * 1024))
-        if not chunk:
-            raise SystemExit('boot.img kernel payload is truncated')
-        digest.update(chunk)
-        remaining -= len(chunk)
-    if digest.digest() != expected:
-        raise SystemExit('boot.img kernel payload differs from Image')
-    stream.seek(0, 2)
-    boot_size = stream.tell()
-    if boot_size != 100663296:
-        raise SystemExit(f'boot.img size is {boot_size}, expected exactly 100663296 (96MB)')
-    stream.seek(boot_size - 64)
-    magic, maj, min, orig_sz, vb_off, vb_sz = struct.unpack('!4s2LQQQ28x', stream.read(64))
-    if magic != b'AVBf':
-        raise SystemExit('boot.img lacks valid AVB footer (magic AVBf)')
-    stream.seek(vb_off)
-    if stream.read(4) != b'AVB0':
-        raise SystemExit('boot.img lacks valid VBMeta header (magic AVB0)')
-print('Verified Android v4 boot.img and signed AVB0 footer (96MB).')
-PY
-
-kernel_make=(make -C sources/kernel O="$PROJECT/build/kernel" ARCH=arm64 LLVM=1 CC="$KERNEL_CC")
-"${kernel_make[@]}" -j"$JOBS" modules
-# Out-of-tree modules from this repo ship in the same artifact. The als-bridge
-# module backs Steam's adaptive-brightness switch; its userspace half lives in
-# packages/als-bridge. Building here (not inside the rootfs chroot) keeps the
-# module ABI-matched to this exact kernel without shipping kernel headers.
-"${kernel_make[@]}" -j"$JOBS" M="$PROJECT/packages/als-bridge" modules
-release=$("${kernel_make[@]}" --no-print-directory -s kernelrelease)
-[[ "$release" =~ ^[A-Za-z0-9._+-]+$ ]] || { echo "Invalid kernel release: $release" >&2; exit 1; }
-printf '%s\n' "$release" > artifacts/kernel.release
-
-stage="$PROJECT/build/kernel-modules"
-mkdir -p "$stage"
-trap 'rm -rf -- "$stage"' EXIT
-# Strip debug data from installed modules, but retain the tested kernel config.
-# Run depmod ourselves before converting the conventional /lib to Arch's /usr/lib.
-"${kernel_make[@]}" INSTALL_MOD_PATH="$stage" INSTALL_MOD_STRIP=1 \
-    DEPMOD=true modules_install
-"${kernel_make[@]}" INSTALL_MOD_PATH="$stage" INSTALL_MOD_STRIP=1 \
-    DEPMOD=true M="$PROJECT/packages/als-bridge" modules_install
-for link in build source; do
-    path="$stage/lib/modules/$release/$link"
-    [[ ! -L "$path" ]] || rm -- "$path"
+: "${CACHE:?Set the shared makepkg cache}"
+JOBS=${JOBS:-$(nproc)}
+[[ $JOBS =~ ^[1-9][0-9]*$ ]] || exit 2
+export MAKEFLAGS="-j$JOBS"
+# Headers are installed before DKMS source; kShim has no boot configuration in CI.
+for name in linux-freedom als-bridge-dkms kshim-freedom; do
+    work=$(mktemp -d -p /home/alarm "native-$name.XXXXXX")
+    cp -a "packages/$name/." "$work/"
+    chown -R alarm:alarm "$work"
+    mapfile -t deps < <(bash -c 'source "$1/PKGBUILD"; printf "%s\n" "${makedepends[@]}" "${depends[@]}"' _ "$work")
+    pacman -S --needed --noconfirm "${deps[@]}"
+    # Source tarballs have fixed SHA256s; Git sources have exact commits.
+    # The minimal bootstrap has no maintainer signing keys for kernel.org.
+    sudo -u alarm env JOBS="$JOBS" MAKEFLAGS="$MAKEFLAGS" \
+        bash -c 'cd "$1" && makepkg -f --skippgpcheck' _ "$work"
+    mapfile -t built < <(sudo -u alarm bash -c 'cd "$1" && makepkg --packagelist' _ "$work")
+    (( ${#built[@]} )) || exit 1
+    pacman -U --noconfirm --ask 6 "${built[@]}"
+    cp "$work/PKGBUILD" "$CACHE/$name.PKGBUILD"
+    rm -rf -- "$work"
 done
-depmod -b "$stage" "$release"
-mkdir -p "$stage/usr"
-mv "$stage/lib" "$stage/usr/lib"
-tar --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner \
-    -C "$stage" -cf - usr | gzip -n > artifacts/kernel-modules.tar.gz.part
-mv artifacts/kernel-modules.tar.gz.part artifacts/kernel-modules.tar.gz
-
-(
-    cd artifacts
-    sha256sum boot.img Image sm8750-lenovo-elden.dtb kernel.config \
-        kernel.release kernel-modules.tar.gz > SHA256SUMS
-)
-echo "Built boot.img and matching kernel $release modules."
-echo "Kernel object trees under build/kernel and build/busybox may now be removed."
+mapfile -t kernels < <(find /usr/lib/modules -mindepth 2 -maxdepth 2 -name pkgbase -exec sh -c \
+    'test "$(cat "$1")" = linux-freedom && dirname "$1"' _ {} \;)
+(( ${#kernels[@]} == 1 )) || { echo 'Expected exactly one packaged Freedom kernel' >&2; exit 1; }
+release=${kernels[0]##*/}
+modinfo -k "$release" als_bridge >/dev/null
+printf '%s\n' "$release" > /usr/share/tb322fc/kernel.release
+cp "${kernels[0]}/config" /usr/share/tb322fc/kernel.config
+cp "${kernels[0]}/build-manifest.json" /usr/share/tb322fc/kernel-build.json

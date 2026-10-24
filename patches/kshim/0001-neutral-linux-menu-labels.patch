@@ -1,0 +1,70 @@
+--- a/src/core/menu_locale.c
++++ b/src/core/menu_locale.c
+@@ -50,8 +50,8 @@
+         [KSHIM_TEXT_DESC_BASE]      = "启动设备原有系统。",
+         [KSHIM_TEXT_DESC_ANDROID]   = "启动设备原有的 Android 系统。",
+         [KSHIM_TEXT_DESC_GENERIC]   = "启动所选系统。",
+-        [KSHIM_TEXT_DESC_INTERNAL]  = "启动安装在机身存储中的 ArmadaOS。",
+-        [KSHIM_TEXT_DESC_TF]        = "启动安装在 TF 卡中的 ArmadaOS，请先插入对应 TF 卡。",
++        [KSHIM_TEXT_DESC_INTERNAL]  = "启动安装在机身存储中的 Linux。",
++        [KSHIM_TEXT_DESC_TF]        = "启动安装在 TF 卡中的 Linux，请先插入对应 TF 卡。",
+         [KSHIM_TEXT_DESC_DIAGNOSTIC] = "启动 Linux 诊断环境，用于检查启动和硬件问题。",
+         [KSHIM_TEXT_DESC_ADVANCED]  = "查看可用的高级启动模式。",
+         [KSHIM_TEXT_DESC_RESTART]   = "重新启动设备。",
+@@ -82,8 +82,8 @@
+         [KSHIM_TEXT_BACK]           = "返回主菜单",
+ 
+         [KSHIM_TEXT_NAME_ANDROID]     = "Android 原厂",
+-        [KSHIM_TEXT_NAME_INTERNAL]    = "机身 ArmadaOS",
+-        [KSHIM_TEXT_NAME_TF]          = "TF 卡 ArmadaOS",
++        [KSHIM_TEXT_NAME_INTERNAL]    = "机身 Linux",
++        [KSHIM_TEXT_NAME_TF]          = "TF 卡 Linux",
+         [KSHIM_TEXT_NAME_DIAGNOSTIC]  = "Linux 诊断模式",
+ 
+         [KSHIM_TEXT_LANGUAGE_LABEL]   = "语言 / Language",
+@@ -144,8 +144,8 @@
+         [KSHIM_TEXT_DESC_BASE]      = "Start the device's original system.",
+         [KSHIM_TEXT_DESC_ANDROID]   = "Start the device's original Android system.",
+         [KSHIM_TEXT_DESC_GENERIC]   = "Start the selected system.",
+-        [KSHIM_TEXT_DESC_INTERNAL]  = "Start ArmadaOS installed on internal storage.",
+-        [KSHIM_TEXT_DESC_TF]        = "Start ArmadaOS installed on the TF card. Insert the matching card first.",
++        [KSHIM_TEXT_DESC_INTERNAL]  = "Start Linux installed on internal storage.",
++        [KSHIM_TEXT_DESC_TF]        = "Start Linux installed on the TF card. Insert the matching card first.",
+         [KSHIM_TEXT_DESC_DIAGNOSTIC] = "Start the Linux diagnostic environment to investigate boot and hardware problems.",
+         [KSHIM_TEXT_DESC_ADVANCED]  = "Choose an available advanced boot mode.",
+         [KSHIM_TEXT_DESC_RESTART]   = "Restart the device.",
+@@ -176,8 +176,8 @@
+         [KSHIM_TEXT_BACK]           = "Back to main menu",
+ 
+         [KSHIM_TEXT_NAME_ANDROID]     = "Stock Android",
+-        [KSHIM_TEXT_NAME_INTERNAL]    = "Internal ArmadaOS",
+-        [KSHIM_TEXT_NAME_TF]          = "TF card ArmadaOS",
++        [KSHIM_TEXT_NAME_INTERNAL]    = "Internal Linux",
++        [KSHIM_TEXT_NAME_TF]          = "TF card Linux",
+         [KSHIM_TEXT_NAME_DIAGNOSTIC]  = "Linux diagnostics",
+ 
+         [KSHIM_TEXT_LANGUAGE_LABEL]   = "语言 / Language",
+--- a/src/include/menu_text.h
++++ b/src/include/menu_text.h
+@@ -56,8 +56,8 @@
+ #define KSHIM_MENU_DESC_BASE "启动设备原有系统。"
+ #define KSHIM_MENU_DESC_ANDROID "启动设备原有的 Android 系统。"
+ #define KSHIM_MENU_DESC_GENERIC "启动所选系统。"
+-#define KSHIM_MENU_DESC_INTERNAL "启动安装在机身存储中的 ArmadaOS。"
+-#define KSHIM_MENU_DESC_TF "启动安装在 TF 卡中的 ArmadaOS，请先插入对应 TF 卡。"
++#define KSHIM_MENU_DESC_INTERNAL "启动安装在机身存储中的 Linux。"
++#define KSHIM_MENU_DESC_TF "启动安装在 TF 卡中的 Linux，请先插入对应 TF 卡。"
+ #define KSHIM_MENU_DESC_DIAGNOSTIC "启动 Linux 诊断环境，用于检查启动和硬件问题。"
+ #define KSHIM_MENU_DESC_ADVANCED "查看可用的高级启动模式。"
+ #define KSHIM_MENU_DESC_RESTART "重新启动设备。"
+@@ -84,8 +84,8 @@
+ #define KSHIM_MENU_DESC_BASE "Start the device's original system."
+ #define KSHIM_MENU_DESC_ANDROID "Start the device's original Android system."
+ #define KSHIM_MENU_DESC_GENERIC "Start the selected system."
+-#define KSHIM_MENU_DESC_INTERNAL "Start ArmadaOS installed on internal storage."
+-#define KSHIM_MENU_DESC_TF "Start ArmadaOS installed on the TF card. Insert the matching card first."
++#define KSHIM_MENU_DESC_INTERNAL "Start Linux installed on internal storage."
++#define KSHIM_MENU_DESC_TF "Start Linux installed on the TF card. Insert the matching card first."
+ #define KSHIM_MENU_DESC_DIAGNOSTIC "Start the Linux diagnostic environment to investigate boot and hardware problems."
+ #define KSHIM_MENU_DESC_ADVANCED "Choose an available advanced boot mode."
+ #define KSHIM_MENU_DESC_RESTART "Restart the device."

@@ -1,0 +1,13 @@
+[Trigger]
+Operation = Upgrade
+Operation = Remove
+Type = Path
+Target = usr/lib/modules/*/vmlinuz
+
+[Action]
+Description = Saving the previous Freedom kernel for rollback...
+Depends = kshim-freedom
+When = PreTransaction
+Exec = /usr/bin/freedom-kernel-update --backup-hook
+NeedsTargets
+AbortOnFail

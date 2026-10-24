@@ -1,0 +1,120 @@
+# Maintainer: h0cheung
+# Build natively on AArch64, or package a hash-verified cross-build input.
+pkgbase=linux-freedom
+pkgname=(linux-freedom linux-freedom-headers)
+pkgver=7.2.6
+pkgrel=1
+pkgdesc='Linux with ArmadaOS Freedom hardware support'
+arch=(aarch64)
+url='https://github.com/mydanyi/armadaos-freedom'
+license=(GPL-2.0-only)
+makedepends=(bc binutils clang cpio dtc gcc git libelf lld llvm make openssl pahole perl python zstd)
+options=(!strip !debug !lto)
+validpgpkeys=(ABAF11C65A2970B130ABE3C479BE3E4300411886
+              647F28654894E3BD457199BE38DBBDC86092693E)
+_freedom_commit=244b74516d99d06cb0518609ce4b842ab278be8a
+_release="$pkgver-$pkgrel-freedom"
+export LOCALVERSION=
+export KBUILD_BUILD_USER=linux-freedom
+export KBUILD_BUILD_HOST=archlinux
+export KBUILD_BUILD_VERSION=1
+export KBUILD_BUILD_TIMESTAMP="$(date -Ru${SOURCE_DATE_EPOCH:+d @$SOURCE_DATE_EPOCH})"
+
+if [[ -n ${FREEDOM_PREBUILT_BUNDLE:-} ]]; then
+  [[ ${FREEDOM_PREBUILT_SHA256:-} =~ ^[a-f0-9]{64}$ ]] || return 1
+  source=("kernel-input.tar.zst::file://$FREEDOM_PREBUILT_BUNDLE")
+  sha256sums=("$FREEDOM_PREBUILT_SHA256")
+else
+  source=("https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-$pkgver.tar.xz"
+          "https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-$pkgver.tar.sign"
+          "armadaos-freedom::git+https://github.com/mydanyi/armadaos-freedom.git#commit=$_freedom_commit"
+          freedom-compat.config elden-range-scans.patch
+          prepare-source.py export-kernel-input.py build-native-helpers.sh)
+  # Local input hashes are refreshed by sync-recipe.py after source changes.
+  sha256sums=('039aef84f2b0994aeda3f4fcfc3d02ec9d7a9bbb9020ea264c43f446c860f606'
+              'SKIP'
+              'SKIP'
+              '70c0c8772f6b3f2397a78b6319b4a9a062d74a74459bffbdc5af1b2606833508'
+              'e413f0e0d26b2abbcb491d2810de1f60607f022f87be717071db74e487860c4e'
+              'ea73d09f74ae9ef5d3a964b694fbad090210015557c536591e08495d2583e48d'
+              'cee7c8398f793452330fa1a7e840ca42411a2184ff8ed0e0623546acd0c64f15'
+              '0fac059a3e915bc4123fa29d4c822cd0629e695e59ca4b17defb3015161ee289')
+fi
+
+prepare() {
+  [[ -n ${FREEDOM_PREBUILT_BUNDLE:-} ]] && return 0
+  cd "$srcdir/linux-$pkgver"
+  python "$srcdir/prepare-source.py" . "$srcdir/armadaos-freedom" "$srcdir/elden-range-scans.patch"
+  echo "-$pkgrel" > localversion.10-pkgrel
+  echo '-freedom' > localversion.20-pkgname
+  mkdir -p "$srcdir/build"
+  make O="$srcdir/build" ARCH=arm64 LLVM=1 defconfig
+  sed -E '/^[[:space:]]*CONFIG_[A-Z0-9_]+=/ s/[[:space:]]*#.*$//' \
+    "$srcdir/armadaos-freedom/packages/kernel/config/armada-kernel.config.overrides" > "$srcdir/freedom.config"
+  cd "$srcdir/build"
+  bash "$srcdir/linux-$pkgver/scripts/kconfig/merge_config.sh" -m .config \
+    "$srcdir/freedom.config" "$srcdir/freedom-compat.config"
+  "$srcdir/linux-$pkgver/scripts/config" --file .config --disable LOCALVERSION_AUTO --set-str LOCALVERSION ''
+  make -C "$srcdir/linux-$pkgver" O="$srcdir/build" ARCH=arm64 LLVM=1 olddefconfig
+}
+
+build() {
+  if [[ -z ${FREEDOM_PREBUILT_BUNDLE:-} ]]; then
+    make -C "$srcdir/linux-$pkgver" O="$srcdir/build" ARCH=arm64 LLVM=1 \
+      Image qcom/sm8750-lenovo-elden.dtb modules
+    python "$srcdir/export-kernel-input.py" --source "$srcdir/linux-$pkgver" \
+      --output "$srcdir/build" --destination "$srcdir/kernel-input" \
+      --helpers "$srcdir/build-native-helpers.sh"
+  fi
+  cd "$srcdir/kernel-input"
+  python - "$_release" <<'PY'
+from pathlib import Path
+import hashlib,json,sys
+m=json.loads(Path('build-manifest.json').read_text())
+assert m['release']==sys.argv[1],m['release']
+for name,expected in m['hashes'].items():
+    assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected,name
+assert bytes.fromhex(m['build_id']) in Path('Image').read_bytes()
+# External module builds should default to the toolchain used by this kernel.
+# A caller can still override LLVM on the make command line.
+p=Path('headers/Makefile')
+marker='LLVM ?= 1\n'
+if not p.read_text().startswith(marker):
+    p.write_text(marker+p.read_text())
+PY
+  bash build-native-helpers.sh "$srcdir/kernel-input/headers"
+  python - "$srcdir/kernel-input/headers" <<'PY'
+from pathlib import Path
+import sys
+for path in Path(sys.argv[1]).rglob('*'):
+    if path.is_symlink() and not path.exists():
+        path.unlink()
+PY
+}
+
+package_linux-freedom() {
+  pkgdesc='Freedom Linux kernel, device tree and modules'
+  depends=(coreutils kmod)
+  optdepends=('linux-freedom-headers: build external modules'
+              'als-bridge-dkms: Steam ambient-light bridge'
+              'kshim-freedom: generate the device boot image')
+  local modulesdir="$pkgdir/usr/lib/modules/$_release"
+  install -d "$modulesdir"
+  cp -a "$srcdir/kernel-input/modules/." "$modulesdir/"
+  install -Dm644 "$srcdir/kernel-input/Image" "$modulesdir/vmlinuz"
+  printf '%s\n' "$pkgbase" > "$modulesdir/pkgbase"
+  install -Dm644 "$srcdir/kernel-input/sm8750-lenovo-elden.dtb" \
+    "$modulesdir/dtbs/qcom/sm8750-lenovo-elden.dtb"
+  install -Dm644 "$srcdir/kernel-input/headers/.config" "$modulesdir/config"
+  install -Dm644 "$srcdir/kernel-input/build-manifest.json" "$modulesdir/build-manifest.json"
+}
+
+package_linux-freedom-headers() {
+  pkgdesc='Headers and AArch64 tools for building Freedom kernel modules'
+  depends=(binutils clang gcc libelf lld llvm make openssl pahole python zstd)
+  provides=(LINUX-HEADERS)
+  local builddir="$pkgdir/usr/lib/modules/$_release/build"
+  install -d "$builddir" "$pkgdir/usr/src"
+  cp -a "$srcdir/kernel-input/headers/." "$builddir/"
+  ln -s "../lib/modules/$_release/build" "$pkgdir/usr/src/$pkgbase"
+}

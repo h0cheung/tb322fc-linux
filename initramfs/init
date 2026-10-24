@@ -36,10 +36,14 @@ for attempt in $("$BB" seq 1 60); do
     matches=0
     for node in /sys/class/block/sd*; do
         [ -f "$node/partition" ] || continue
-        "$BB" grep -qx 'PARTNAME=rootfs' "$node/uevent" || continue
-        if [ "$selector" != PARTLABEL=rootfs ]; then
-            "$BB" grep -qxF "$selector" "$node/uevent" || continue
-        fi
+        case "$selector" in
+            PARTLABEL=rootfs)
+                "$BB" grep -qx 'PARTNAME=rootfs' "$node/uevent" || continue
+                ;;
+            PARTUUID=*)
+                "$BB" grep -qxF "$selector" "$node/uevent" || continue
+                ;;
+        esac
         root_device=/dev/${node##*/}
         root_node=$node
         matches=$((matches + 1))
@@ -52,19 +56,40 @@ done
 root_parent=$("$BB" dirname "$("$BB" readlink -f "$root_node")")
 root_parent=${root_parent##*/}
 
+# The dedicated BOOT partition on the root disk is writable for kShim updates.
+# Android partitions retain the original protection below.
+boot_device=
+for node in /sys/class/block/sd*; do
+    [ -f "$node/partition" ] || continue
+    "$BB" grep -qx 'PARTNAME=BOOT' "$node/uevent" || continue
+    parent=$("$BB" dirname "$("$BB" readlink -f "$node")")
+    [ "${parent##*/}" = "$root_parent" ] || continue
+    [ -z "$boot_device" ] || fail "ambiguous BOOT partition"
+    boot_device=/dev/${node##*/}
+done
+
 # Setting the root disk read-only would also make rootfs read-only. Protect
 # its siblings individually, and protect all other enumerated UFS disks.
 for node in /sys/class/block/sd*; do
     device=/dev/${node##*/}
     [ -b "$device" ] || continue
     [ "$device" = "$root_device" ] && continue
+    [ "$device" = "$boot_device" ] && continue
     [ "$device" = "/dev/$root_parent" ] && continue
     "$BB" blockdev --setro "$device" || fail "protect $device"
 done
 [ "$("$BB" blockdev --getro "$root_device")" = 0 ] || fail "rootfs is read-only"
 
 "$BB" mkdir -p /newroot /run
-"$BB" mount -t ext4 -o rw,noatime,errors=remount-ro "$root_device" /newroot || fail "mount rootfs"
+# Probe the selected partition rather than tying the handoff to ext4. Both
+# drivers are built in, so the old ext4 root remains a migration fallback.
+root_info=$("$BB" blkid "$root_device") || fail "identify rootfs filesystem"
+case "$root_info" in
+    *' TYPE="ext4"'*) root_fstype=ext4 ;;
+    *' TYPE="f2fs"'*) root_fstype=f2fs ;;
+    *) fail "rootfs must contain ext4 or f2fs" ;;
+esac
+"$BB" mount -t "$root_fstype" -o rw,noatime,errors=remount-ro "$root_device" /newroot || fail "mount rootfs"
 [ -x /newroot/sbin/init ] || fail "rootfs lacks /sbin/init"
 "$BB" mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs /run || fail "mount run"
 
