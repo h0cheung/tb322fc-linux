@@ -89,6 +89,7 @@ makedepends=(
   xorgproto
 
   # mesa-only deps
+  valgrind
 
   # html-docs
 )
