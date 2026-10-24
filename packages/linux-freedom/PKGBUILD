@@ -3,7 +3,7 @@
 pkgbase=linux-freedom
 pkgname=(linux-freedom linux-freedom-headers)
 pkgver=7.2.6
-pkgrel=1
+pkgrel=2
 pkgdesc='Linux with ArmadaOS Freedom hardware support'
 arch=(aarch64)
 url='https://github.com/mydanyi/armadaos-freedom'
@@ -29,22 +29,28 @@ else
           "https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-$pkgver.tar.sign"
           "armadaos-freedom::git+https://github.com/mydanyi/armadaos-freedom.git#commit=$_freedom_commit"
           freedom-compat.config elden-range-scans.patch
-          prepare-source.py export-kernel-input.py build-native-helpers.sh)
+          prepare-source.py export-kernel-input.py build-native-helpers.sh
+          "q6v5-handover-one-shot.patch::https://github.com/torvalds/linux/commit/bb7c5d6f5b41d192fa81ce404e463f5d3ce70cb3.patch"
+          q6v5-attach-keep-handover-masked.patch)
   # Local input hashes are refreshed by sync-recipe.py after source changes.
   sha256sums=('039aef84f2b0994aeda3f4fcfc3d02ec9d7a9bbb9020ea264c43f446c860f606'
               'SKIP'
               'SKIP'
               '70c0c8772f6b3f2397a78b6319b4a9a062d74a74459bffbdc5af1b2606833508'
               'e413f0e0d26b2abbcb491d2810de1f60607f022f87be717071db74e487860c4e'
-              'ea73d09f74ae9ef5d3a964b694fbad090210015557c536591e08495d2583e48d'
+              'e6be1927bcb8391035cd8758fdae7b51d83b6624f8a828af92faac72b11f450f'
               'cee7c8398f793452330fa1a7e840ca42411a2184ff8ed0e0623546acd0c64f15'
-              '0fac059a3e915bc4123fa29d4c822cd0629e695e59ca4b17defb3015161ee289')
+              '0fac059a3e915bc4123fa29d4c822cd0629e695e59ca4b17defb3015161ee289'
+              '4b69e6c5c8e1520bd3fcf388389cf98ac7fc77d96b0891e36187c9d29ca30ec3'
+              '41e9cccb9169fee64604ca9c02abfbcd99517b17d77efbc72f6768e13004e415')
 fi
 
 prepare() {
   [[ -n ${FREEDOM_PREBUILT_BUNDLE:-} ]] && return 0
   cd "$srcdir/linux-$pkgver"
-  python "$srcdir/prepare-source.py" . "$srcdir/armadaos-freedom" "$srcdir/elden-range-scans.patch"
+  python "$srcdir/prepare-source.py" . "$srcdir/armadaos-freedom" \
+    "$srcdir/elden-range-scans.patch" "$srcdir/q6v5-handover-one-shot.patch" \
+    "$srcdir/q6v5-attach-keep-handover-masked.patch"
   echo "-$pkgrel" > localversion.10-pkgrel
   echo '-freedom' > localversion.20-pkgname
   mkdir -p "$srcdir/build"

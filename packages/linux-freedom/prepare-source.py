@@ -8,7 +8,7 @@ import subprocess
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('source', type=Path)
 p.add_argument('recipe', type=Path)
-p.add_argument('compat_patch', type=Path)
+p.add_argument('driver_patches', type=Path, nargs='+')
 a = p.parse_args()
 
 def apply(path):
@@ -27,4 +27,5 @@ for path in (kernel / 'dts').iterdir():
         shutil.copyfile(path, target / path.name)
 for path in sorted((kernel / 'dts').glob('*.patch')):
     apply(path)
-apply(a.compat_patch)
+for path in a.driver_patches:
+    apply(path)

@@ -1,0 +1,40 @@
+From: h0cheung <hcheunh@gmail.com>
+Subject: [PATCH] remoteproc: qcom: pas: keep handover masked on attach
+
+The one-shot handover fix tracks the IRQ enable state. Freedom's Baldur
+attach path bypasses that tracking with raw enable_irq()/disable_irq().
+Attach has not acquired proxy resources, so it must not invoke the
+handover callback that releases them. Keep this IRQ masked on attach;
+normal prepare/unprepare manage it for a subsequent real boot cycle.
+
+This follows the upstream review: SMP2P implements software masking and
+does not latch a handover edge while masked. Preserve Freedom's other
+attach checks and fallback-to-start behavior.
+
+Link: https://lists.openwall.net/linux-kernel/2026/07/31/1411
+Applies-after: bb7c5d6f5b41d192fa81ce404e463f5d3ce70cb3
+Signed-off-by: h0cheung <hcheunh@gmail.com>
+---
+
+--- a/drivers/remoteproc/qcom_q6v5_pas.c
++++ b/drivers/remoteproc/qcom_q6v5_pas.c
+@@ -518,9 +518,7 @@
+ 	int ret;
+ 
+ 	pas->q6v5.handover_issued = true;
+-	/* TB323FU attaches with the handover IRQ unmasked. */
+-	if (of_machine_is_compatible("lenovo,baldur"))
+-		enable_irq(pas->q6v5.handover_irq);
++	/* No proxy resources were acquired on attach; keep handover masked. */
+ 
+ 	pas->q6v5.running = true;
+ 	ret = irq_get_irqchip_state(pas->q6v5.fatal_irq,
+@@ -566,8 +564,6 @@
+ 	pas->rproc->state = RPROC_OFFLINE;
+ 	ret = -EINVAL;
+ disable_running:
+-	if (of_machine_is_compatible("lenovo,baldur"))
+-		disable_irq(pas->q6v5.handover_irq);
+ 	pas->q6v5.running = false;
+ 
+ 	return ret;

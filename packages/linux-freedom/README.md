@@ -4,7 +4,7 @@
 
 ## 从源码构建
 
-先在系统源码仓库运行 `python scripts/sync-freedom-packaging.py`，同步共享配置、Wi-Fi 补丁和 ALS 源码的校验和。将本目录复制到 AArch64 构建环境，运行普通 `makepkg`。配方固定 Linux 7.2.6 和 Freedom commit，应用统一补丁及 Elden 扩展；正式 release 为 `7.2.6-1-freedom`。升级通过 pkgver/pkgrel 和固定源码 commit 表达，不依赖工作目录的 dirty 标记。
+先在系统源码仓库运行 `python scripts/sync-freedom-packaging.py`，同步共享配置、Wi-Fi 补丁和 ALS 源码的校验和。将本目录复制到 AArch64 构建环境，运行普通 `makepkg`。配方固定 Linux 7.2.6 和 Freedom commit，应用统一补丁及 Elden 扩展；本配方 release 为 `7.2.6-2-freedom`。升级通过 pkgver/pkgrel 和固定源码 commit 表达，不依赖工作目录的 dirty 标记。
 
 ## 交叉编译后原生打包
 
@@ -29,3 +29,11 @@ tar --zstd -cf kernel-input.tar.zst -C /path/to kernel-input
 kShim 声明在 `/etc/kshim-freedom/config.json`，按 pkgbase 自动找到内核版本，配置中不写死 release。当前运行时仍使用 boot_a 内嵌载荷，不会在开机时扫描 BOOT；生成新 boot.img 无需重编 kShim 核心。`deploy_boot_a` 控制生成后是否部署，默认初始化阶段先暂存验证。尾部 BOOT 不是当前启动内容的来源。
 
 升级/移除前，60-kshim-freedom-backup hook 保存旧模块归档和 boot 镜像至 `/var/lib/kshim-freedom/rollback/<release>/`。回退时需要恢复对应模块与启动镜像，不能只恢复 boot。自动备份失败会中止软件包事务。
+
+## Q6V5 handover 修复（pkgrel 2）
+
+仅新增主线 `bb7c5d6f5b41d192fa81ce404e463f5d3ce70cb3` 的单次 handover IRQ 修复，按固定提交 URL 与 SHA256 引用原补丁。首次 handover 后屏蔽 IRQ；prepare 重新启用，unprepare 同步停用，避免重复通知与中断计数失衡。
+
+`q6v5-attach-keep-handover-masked.patch` 适配 Freedom 的 Baldur attach 分支：接管已经运行的远端时未取得 proxy 资源，保持 handover 屏蔽；后续实际启动仍由 prepare 管理。依据上游 SMP2P 软件屏蔽的评审意见，来源链接保留在补丁头。Elden 的正常 start 路径使用主线修复。没有修改 AudioReach、Iris、USB、SMP2P 状态检测等其他机制。
+
+构建与静态/模拟检查不代表新内核已经部署或完成实机验证；运行版本应通过 uname、build ID 和启动结果另行确认。
