@@ -1,0 +1,49 @@
+From: h0cheung <hcheunh@gmail.com>
+Subject: [PATCH] usb: dwc3: track Elden host power loss across system suspend
+
+Extend the existing Freedom host power-loss handling from Baldur to Elden.
+Elden resumes with a USB SID 0x40 SMMU translation fault followed by an
+xHCI Host System Error after the controller was powered down. Switching
+USB roles tears down and recreates xHCI, allowing the G9 to enumerate
+again.
+
+Track the existing core-exit decision and pass it to xHCI on resume, so it
+resets lost state. Keep the existing retention path when the core stays on.
+
+Based-on: armadaos-freedom 244b74516d99d06cb0518609ce4b842ab278be8a
+Link: https://github.com/mydanyi/armadaos-freedom/blob/244b74516d99d06cb0518609ce4b842ab278be8a/packages/kernel/patches/0192-usb-baldur-runtime-pm.patch
+Signed-off-by: h0cheung <hcheunh@gmail.com>
+---
+diff --git a/drivers/usb/dwc3/core.c b/drivers/usb/dwc3/core.c
+--- a/drivers/usb/dwc3/core.c
++++ b/drivers/usb/dwc3/core.c
+@@ -2616,12 +2616,14 @@
+ 		if (!PMSG_IS_AUTO(msg) &&
+ 		    (!device_may_wakeup(dwc->dev) || dwc->needs_full_reinit)) {
+ 			dwc3_core_exit(dwc);
+-			if (of_machine_is_compatible("lenovo,baldur"))
++			if (of_machine_is_compatible("lenovo,baldur") ||
++			    of_machine_is_compatible("lenovo,elden"))
+ 				dwc->xhci_power_lost = 1;
+ 			break;
+ 		}
+ 
+-		if (of_machine_is_compatible("lenovo,baldur"))
++		if (of_machine_is_compatible("lenovo,baldur") ||
++		    of_machine_is_compatible("lenovo,elden"))
+ 			dwc->xhci_power_lost = 0;
+ 
+ 		/* Let controller to suspend HSPHY before PHY driver suspends */
+diff --git a/drivers/usb/dwc3/host.c b/drivers/usb/dwc3/host.c
+--- a/drivers/usb/dwc3/host.c
++++ b/drivers/usb/dwc3/host.c
+@@ -83,7 +83,8 @@
+ {
+ 	struct dwc3 *dwc = dev_get_drvdata(hcd->self.controller->parent);
+ 
+-	if (of_machine_is_compatible("lenovo,baldur"))
++	if (of_machine_is_compatible("lenovo,baldur") ||
++	    of_machine_is_compatible("lenovo,elden"))
+ 		hcd_to_xhci_priv(hcd)->power_lost = dwc->xhci_power_lost;
+ 	return 0;
+ }

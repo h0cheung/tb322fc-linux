@@ -4,7 +4,7 @@
 
 ## 从源码构建
 
-先在系统源码仓库运行 `python scripts/sync-freedom-packaging.py`，同步共享配置、Wi-Fi 补丁和 ALS 源码的校验和。将本目录复制到 AArch64 构建环境，运行普通 `makepkg`。配方固定 Linux 7.2.6 和 Freedom commit，应用统一补丁及 Elden 扩展；本配方 release 为 `7.2.6-2-freedom`。升级通过 pkgver/pkgrel 和固定源码 commit 表达，不依赖工作目录的 dirty 标记。
+先在系统源码仓库运行 `python scripts/sync-freedom-packaging.py`，同步共享配置、Wi-Fi 补丁和 ALS 源码的校验和。将本目录复制到 AArch64 构建环境，运行普通 `makepkg`。配方固定 Linux 7.2.6 和 Freedom commit，应用统一补丁及 Elden 扩展；本配方 release 为 `7.2.6-3-freedom`。升级通过 pkgver/pkgrel 和固定源码 commit 表达，不依赖工作目录的 dirty 标记。
 
 ## 交叉编译后原生打包
 
@@ -41,3 +41,7 @@ kShim 声明在 `/etc/kshim-freedom/config.json`，按 pkgbase 自动找到内�
 ## 新版 ARM64 UAPI 与宿主工具
 
 引用主线 `10a47fb67340bca274276faf855d7d460afd9a7a`，为 `tools/include/linux/types.h` 补齐 128 位类型，使旧内核工具可与新版 ARM64 系统头配合。补丁按固定 URL 和 SHA256 引用。完整内核构建保持 `LLVM=1`，不额外覆盖宿主编译器或预加载系统类型头；原生 headers helpers 也不再预加载系统头。
+
+## 四代 USB 主机恢复（pkgrel 3）
+
+将 Freedom 0192 已有的 `xhci_power_lost` 状态跟踪和 xHCI 恢复通知扩展到 `lenovo,elden`。系统休眠实际关闭 DWC3 核心时，恢复侧重建 xHCI 状态；核心保留时仍走原保留路径。补丁只扩展三个机型条件，来源见 [0003 增量补丁](../../patches/freedom/0003-usb-dwc3-enable-elden-power-lost.patch)。构建产物与实机验证状态分别记录。
