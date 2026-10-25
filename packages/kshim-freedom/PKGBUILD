@@ -1,7 +1,7 @@
 # Maintainer: h0cheung
 pkgname=kshim-freedom
 pkgver=20261024
-pkgrel=2
+pkgrel=4
 pkgdesc='Native kShim tools and atomic kernel deployment for Freedom on Elden'
 arch=(aarch64)
 license=(GPL-3.0-or-later)
@@ -30,6 +30,7 @@ source+=(
   crdk-pinned-archive.patch
   native-aarch64-toolchain.patch
   neutral-linux-menu-labels.patch
+  qcom-reboot-v7-spmi.patch
   busybox.config
   init
   sign-kshim-boot.py
@@ -37,23 +38,26 @@ source+=(
   build-kshim-arch.py
   arch-explicit-layout.patch
   freedom-kernel-update.py
+  kshim-android-base-replace.py
   95-kshim-freedom.hook
   60-kshim-freedom-backup.hook
 )
 # Generated local hashes are maintained by scripts/sync-freedom-packaging.py.
 sha256sums+=(
-  '404933b7866c011eddc2d1a2170a5b8185a0356e776357d03958fec1d4279ee2'
+  '79f0915508ae74ed149dc92dff17b48be5795d9e64aa724d0257f6b3855d85e9'
   '146a8bac38f088799f352f2b5c27b995ef427c30126a43e56df725331f76952b'
   '44804f4e1ee827c017495c96ee1ad0baa2a6ac511ac69f42f5c4620ebcbf85ba'
   '4f92f54f7ff7f0567f71c18546d5d75437e82053ba88392730c2590d5bc53c64'
   '82310d3378dcb7766b3522649ac9a50ae51af118fe7a1d7c1281d31baee2563f'
+  '874be0c26d1a76a288cd76eee134d50b1542c8ba3a3691f045cfac67cae13b29'
   'ceb2971f7e88fc05e6da25aad6ee81555f1207cc2387de0fe0be9d4432d8e267'
   '32d7f02e81da49d97d1345c7fc5f83b4e25c1a1f7a048b0b9870b1f9c93e7cd8'
   'e168d527e3774a5cabee4bff1fda887940a41ccdbf4695bc27b6d90430fc438a'
-  '036f67dfeaf8f6cef6bae3a7fb92e749ab2257aee19229bcc1c8ed7ebab6561d'
+  'b1682eaf83d9cff117a9602747d86019cedb52618dc8926e2eb9630efa9af122'
   'dd47582dee94f757c9a4050f11a515b12114c9ac3e4215403db806fbf99f55cd'
   'd958b0a8790ab04525c958af20ecebb30734cce5f4d58701d1343deb6372881c'
-  '6b722c0a1b618c4ca9b29e1dac1b26a3e6a445486bcc5777f8858ce31ccb58e1'
+  '78e6328992ef45a1ef65af8576ae5a8497a5f350bced8346030b56e1a843ee3b'
+  '458851f4bd96ceceebf773bfd2fc6ebfe21c81d09073d64a5a2e618576b16b01'
   'bde08b7fb0909ca2e5f9fb389d0bf0c9898541c20bdbf50cb24645a64a6d8517'
   '3030fdebf5eb464bdf9ecbeda7d7a29ffbc6dd46d8fa8d4c9241fd0d8d8173bb'
 )
@@ -70,6 +74,7 @@ package() {
     install -m644 "$srcdir/$name" "$pkgdir/usr/lib/kshim-freedom/$name"
   done
   install -Dm755 "$srcdir/freedom-kernel-update.py" "$pkgdir/usr/bin/freedom-kernel-update"
+  install -Dm755 "$srcdir/kshim-android-base-replace.py" "$pkgdir/usr/bin/kshim-android-base-replace"
   install -Dm644 "$srcdir/95-kshim-freedom.hook" "$pkgdir/usr/share/libalpm/hooks/95-kshim-freedom.hook"
   install -Dm644 "$srcdir/60-kshim-freedom-backup.hook" "$pkgdir/usr/share/libalpm/hooks/60-kshim-freedom-backup.hook"
 }

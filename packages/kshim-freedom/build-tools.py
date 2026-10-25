@@ -43,6 +43,7 @@ for name, target, sub in [
     shutil.copytree(source, dst, symlinks=True, ignore=shutil.ignore_patterns(".git"))
 for patch in [
     "neutral-linux-menu-labels.patch",
+    "qcom-reboot-v7-spmi.patch",
     "native-aarch64-toolchain.patch",
     "crdk-pinned-archive.patch",
     "libfdt-stdlib-include.patch",

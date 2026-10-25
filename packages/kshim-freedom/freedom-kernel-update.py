@@ -155,6 +155,7 @@ def main():
     parser.add_argument('--deploy', action='store_true', help='Install the verified image to Linux boot_a')
     parser.add_argument('--stage-only', action='store_true', help='Override automatic deployment')
     parser.add_argument('--config', type=Path, default=Path('/etc/kshim-freedom/config.json'))
+    parser.add_argument('--lock-fd', type=int, help=argparse.SUPPRESS)
     args = parser.parse_args()
     if os.geteuid() != 0:
         parser.error('Run as root')
@@ -165,8 +166,15 @@ def main():
     state = Path('/var/lib/kshim-freedom')
     state.mkdir(mode=0o700, exist_ok=True)
     os.umask(0o077)
-    lock = (state / 'update.lock').open('w')
-    fcntl.flock(lock, fcntl.LOCK_EX)
+    if args.lock_fd is None:
+        lock = (state / 'update.lock').open('a+')
+        fcntl.flock(lock, fcntl.LOCK_EX)
+    else:
+        lock = os.fdopen(os.dup(args.lock_fd), 'r+')
+        expected, inherited = (state / 'update.lock').stat(), os.fstat(lock.fileno())
+        if (expected.st_dev, expected.st_ino) != (inherited.st_dev, inherited.st_ino):
+            raise ValueError('Inherited lock does not refer to the kernel update lock')
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     targets = sys.stdin.read().splitlines() if (args.hook or args.backup_hook) else []
     releases = {args.kernel} if args.kernel else set()
     for target in targets:

@@ -1,0 +1,112 @@
+From: h0cheung <hcheunh@gmail.com>
+Subject: [PATCH] qcom: allow v7 SPMI reboot-reason access
+
+SM8750 uses PMIC arbiter v7. The shared CrDK transport already implements
+its channel mapping and ownership checks, but the reboot adapter rejected
+it before accessing the SDAM reboot-reason cell. Accept v7 alongside v8
+and v8.5 without relaxing resource bounds or write ownership.
+
+Exercise the actual adapter and CrDK against RAM-backed v7 registers:
+SDAM reads/writes must work while foreign owners and short MMIO windows
+remain rejected. No physical MMIO is accessed by this host test.
+
+Link: https://github.com/mydanyi/armadaos-freedom/blob/244b74516d99d06cb0518609ce4b842ab278be8a/devices/lenovo-tb323fu/boot/kshim-success-source/src/drivers/qcom_reboot.c
+---
+diff --git a/src/drivers/qcom_reboot.c b/src/drivers/qcom_reboot.c
+--- a/src/drivers/qcom_reboot.c
++++ b/src/drivers/qcom_reboot.c
+@@ -253,7 +253,8 @@
+     ctx->BusId = source->BusId;
+     ctx->Io = (SpmiIoOps){spmi_mmio_read, spmi_mmio_write, spmi_stall, NULL};
+     if (CR_ERROR(SpmiLibInit(&ctx)) || reboot_spmi.fault ||
+-        (ctx->Version != SPMI_ARB_VERSION_8 && ctx->Version != SPMI_ARB_VERSION_8P5))
++        (ctx->Version != SPMI_ARB_VERSION_7 &&
++         ctx->Version != SPMI_ARB_VERSION_8 && ctx->Version != SPMI_ARB_VERSION_8P5))
+         return -1;
+     uint32_t read = ctx->PmicArb.Ops->GetChannelOffset(
+         ctx, c->sid, c->reason_address, SPMI_ARB_CHANNEL_OBS);
+diff --git a/tests/qcom_reboot_spmi_test.c b/tests/qcom_reboot_spmi_test.c
+--- /dev/null
++++ b/tests/qcom_reboot_spmi_test.c
+@@ -0,0 +1,70 @@
++/* SPDX-License-Identifier: MIT */
++#include <qcom_reboot.h>
++#include <qcom_dt.h>
++#include <assert.h>
++#include <stdio.h>
++#include <string.h>
++
++static struct kshim_resources resources;
++static unsigned char fdt_identity;
++static uint32_t core[0x3000 / 4], observer[0x10000 / 4];
++static uint32_t channels[0x1000 / 4], config[0x1000 / 4];
++
++struct kshim_resources *kshim_resources_get(void) { return &resources; }
++
++static void fixture(void)
++{
++    memset(&resources, 0, sizeof(resources));
++    memset(core, 0, sizeof(core));
++    memset(observer, 0, sizeof(observer));
++    memset(channels, 0, sizeof(channels));
++    memset(config, 0, sizeof(config));
++    resources.fdt = &fdt_identity;
++    resources.spmi_count = 1;
++    SpmiDeviceContext *ctx = &resources.spmi[0].controller;
++#define REGION(type, array) ctx->Regions[SPMI_MEMORY_REGION_TYPE_##type] = \
++    (SpmiMemoryRegion){(uintptr_t)(array), sizeof(array)}
++    REGION(CORE, core);
++    REGION(OBSERVER, observer);
++    REGION(CH_SLAVES, channels);
++    REGION(CONFIG, config);
++    REGION(INTERRUPT, config);
++#undef REGION
++    /* A v7 APID map backed by ordinary host RAM, never physical MMIO. */
++    core[0] = 0x70020000;
++    core[1] = 1;
++    core[0x2000 / 4] = 0x71 << 8;
++    observer[0x08 / 4] = 1;
++    observer[0x18 / 4] = 0xa5;
++    channels[0x08 / 4] = 1;
++}
++
++int main(void)
++{
++    const struct kshim_qcom_reboot_config cfg = {
++        .fdt = &fdt_identity, .controller = 0, .bus = 0, .sid = 0,
++        .reason_address = 0x7148, .reason_shift = 1, .reason_mask = 0xfe,
++    };
++    fixture();
++    assert(!kshim_qcom_reboot_spmi_prepare(&cfg));
++    uint8_t value;
++    assert(!kshim_qcom_reboot_spmi_read(&cfg, &value) && value == 0xa5);
++    assert(!kshim_qcom_reboot_spmi_write(&cfg, 0x23));
++    assert(channels[0x10 / 4] == 0x23 && channels[0] != 0);
++
++    /* The current execution environment still cannot write a foreign APID. */
++    fixture();
++    config[0] = 1;
++    assert(kshim_qcom_reboot_spmi_prepare(&cfg));
++    assert(kshim_qcom_reboot_spmi_write(&cfg, 0x23));
++    assert(channels[0] == 0 && channels[0x10 / 4] == 0);
++
++    fixture();
++    resources.spmi[0].controller.Regions[SPMI_MEMORY_REGION_TYPE_OBSERVER].Size = 0x18;
++    assert(kshim_qcom_reboot_spmi_prepare(&cfg));
++    fixture();
++    resources.spmi[0].controller.Regions[SPMI_MEMORY_REGION_TYPE_CH_SLAVES].Size = 0x10;
++    assert(kshim_qcom_reboot_spmi_prepare(&cfg));
++    puts("v7 reboot SDAM access and write ownership/bounds checks passed");
++    return 0;
++}
+diff --git a/tests/CMakeLists.txt b/tests/CMakeLists.txt
+--- a/tests/CMakeLists.txt
++++ b/tests/CMakeLists.txt
+@@ -408,3 +408,7 @@
+ target_include_directories(console_disabled_test BEFORE PRIVATE
+     "${CMAKE_CURRENT_SOURCE_DIR}/include" "${KSHIM_ROOT}/lib/libfdt/include")
+ target_link_libraries(console_disabled_test PRIVATE crdk)
++
++kshim_test(qcom_reboot_spmi_test qcom_reboot_spmi_test.c "${KSHIM_ROOT}/src/drivers/qcom_reboot.c")
++target_compile_definitions(qcom_reboot_spmi_test PRIVATE CONFIG_KSHIM_QCOM_REBOOT=1)
++target_link_libraries(qcom_reboot_spmi_test PRIVATE kshim_dt crdk_spmi)

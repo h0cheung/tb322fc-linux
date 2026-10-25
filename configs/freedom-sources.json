@@ -29,7 +29,8 @@
     ]
   },
   "kshim_compatibility_patches": [
-    "patches/kshim/0001-neutral-linux-menu-labels.patch"
+    "patches/kshim/0001-neutral-linux-menu-labels.patch",
+    "patches/kshim/0002-qcom-reboot-v7-spmi.patch"
   ],
   "boot_header_policy": "Use OS metadata from an explicitly supplied known-working Android v4 header template; keep upstream boot and report unchanged",
   "android_boot_header_compatibility": {

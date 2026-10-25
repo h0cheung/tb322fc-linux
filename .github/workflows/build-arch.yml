@@ -56,7 +56,7 @@ jobs:
       - name: Validate update compatibility before building
         run: |
           python3 scripts/check.py
-          sudo python3 -m unittest discover -s tests -p 'test_freedom*.py' -v
+          sudo python3 -m unittest discover -s tests -v
       - name: Build the tracked audio topology
         run: bash scripts/build-topology.sh
       - name: Authenticate Arch bootstrap

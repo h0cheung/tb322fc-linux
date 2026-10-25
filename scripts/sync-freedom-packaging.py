@@ -23,15 +23,17 @@ kshim = repo / 'packages/kshim-freedom'
 for source, name in [('initramfs/init', 'init'), ('scripts/sign-kshim-boot.py', 'sign-kshim-boot.py'),
                      ('configs/freedom-sources.json', 'freedom-sources.json'),
                      ('configs/busybox.config', 'busybox.config'),
-                     ('patches/kshim/0001-neutral-linux-menu-labels.patch', 'neutral-linux-menu-labels.patch')]:
+                     ('patches/kshim/0001-neutral-linux-menu-labels.patch', 'neutral-linux-menu-labels.patch'),
+                     ('patches/kshim/0002-qcom-reboot-v7-spmi.patch', 'qcom-reboot-v7-spmi.patch')]:
     shutil.copyfile(repo / source, kshim / name)
 p = kshim / 'PKGBUILD'
 s = p.read_text()
 a = s.index('# Generated local hashes')
 b = s.index('\n\nbuild()', a)
-names = ['build-tools.py', 'libfdt-stdlib-include.patch', 'crdk-pinned-archive.patch', 'native-aarch64-toolchain.patch', 'neutral-linux-menu-labels.patch',
+names = ['build-tools.py', 'libfdt-stdlib-include.patch', 'crdk-pinned-archive.patch', 'native-aarch64-toolchain.patch', 'neutral-linux-menu-labels.patch', 'qcom-reboot-v7-spmi.patch',
          'busybox.config', 'init', 'sign-kshim-boot.py', 'freedom-sources.json', 'build-kshim-arch.py',
-         'arch-explicit-layout.patch', 'freedom-kernel-update.py', '95-kshim-freedom.hook', '60-kshim-freedom-backup.hook']
+         'arch-explicit-layout.patch', 'freedom-kernel-update.py', 'kshim-android-base-replace.py',
+         '95-kshim-freedom.hook', '60-kshim-freedom-backup.hook']
 s = s[:a] + '# Generated local hashes are maintained by scripts/sync-freedom-packaging.py.\nsha256sums+=(\n  ' + \
     '\n  '.join(repr(hashlib.sha256((kshim / n).read_bytes()).hexdigest()) for n in names) + '\n)' + s[b:]
 p.write_text(s)

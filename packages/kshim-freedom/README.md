@@ -7,3 +7,11 @@
 `freedom-kernel-update --kernel <release> --stage-only` 生成并校验候选，`--deploy` 在完整备份后写 A 并回读；配置 `deploy_boot_a` 可让更新 hook 自动部署。程序不重启系统，不写 B/recovery。候选、打包检查、签名和部署结果位于 `/var/lib/kshim-freedom/candidates/`，最新结果见 `latest.json`。
 
 95 hook 在 DKMS 之后运行，要求必需模块已能由 modinfo 找到。60 pre-transaction hook 在旧模块被移除前保存模块与 boot。首次安装应先检查候选，完成真实启动验证后再启用自动部署。
+
+替换 Android 内核基底使用 `kshim-android-base-replace /path/to/boot.img`，默认重打当前运行的 Linux 内核，也可用 `--kernel <release>` 指定。`--check-only` 只验证输入。输入须满足当前 Freedom 打包器和签名器的条件：与原基底等长的 boot v4、未压缩 ARM64 内核、boot 内无 ramdisk/boot signature、有效 AVB footer 与可验证的 SHA256_RSA4096 boot 描述符。压缩内核、init_boot、无 footer 或不兼容签名模板会在替换前拒绝，不会自动转换。
+
+脚本先对输入的私有副本校验、试打包并校验候选，成功后才原子替换配置指定的基底文件、更新 `stock_boot_sha256`。和内核更新共用锁，试打包强制 `--stage-only`，即使配置开启自动部署也不会刷入或重启。失败恢复原配置/基底和 latest 指针；原文件、配置及结果保留在 `/var/lib/kshim-freedom/base-*/`。候选位置见输出的 `candidate.image`。校验和打包通过不代表新 GKI 的 Android KMI、设备模块或实际启动已验证。
+
+菜单重启修正使用 `patches/kshim/0002-qcom-reboot-v7-spmi.patch`：允许共享 CrDK 已支持的 v7 PMIC arbiter，保留通道所有权和窗口边界检查。固定 Freedom 版本原来的重启适配器只允许 v8/v8.5，导致 SM8750 在写入 reboot reason 前失败。主机测试直接覆盖真实适配器和 CrDK；设备受控调用同一重启函数已进入真正的 bootloader Fastboot。
+
+Recovery 与 bootloader 是不同路径。本机 recovery 镜像没有内核，借用 boot_a 中被 kShim 包装的 Android 内核；请求 Recovery 后经过 kShim，选择 Android 已验证可进入 TWRP。当前普通启动与 Recovery 均缺少 `androidboot.force_normal_boot`，不能用标记缺失来自动选择 Android。此包不加入该启发式判断，Recovery 仍需手动选择 Android。Linux 的 `systemctl reboot --reboot-argument=bootloader` 已验证进入真正的 Fastboot；`fastboot`/fastbootd 不能与 `bootloader` 混称。
