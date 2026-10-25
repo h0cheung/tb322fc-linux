@@ -1,0 +1,36 @@
+From: h0cheung <hcheunh@gmail.com>
+Subject: [PATCH] drm/msm/dsi: stop Elden slave link clocks before their master
+
+Adapt Project-SunUEFI's bonded DSI host shutdown ordering to Elden's
+existing command/video bridge path. Keep the clock-source host active
+until its peer's link clocks stop. PLL save and final PHY release keep
+their positions; other machines and DPU encoder order are unchanged.
+
+Source: Project-SunUEFI be3073644216a413776b973203d4222e8950703a
+Link: https://github.com/slwyts/Project-SunUEFI/blob/be3073644216a413776b973203d4222e8950703a/patches/linux/7.2.9/0008-dsi-bonded-stop-slave-first.patch
+---
+diff --git a/drivers/gpu/drm/msm/dsi/dsi_manager.c b/drivers/gpu/drm/msm/dsi/dsi_manager.c
+--- a/drivers/gpu/drm/msm/dsi/dsi_manager.c
++++ b/drivers/gpu/drm/msm/dsi/dsi_manager.c
+@@ -523,16 +523,17 @@
+ 		    msm_dsi1->phy->cfg->restore_slave_pll)
+ 			msm_dsi_phy_pll_save_state(msm_dsi1->phy);
+ 
+-		ret = msm_dsi_host_power_off(host);
+-		if (ret)
+-			pr_err("%s: host %d power off failed,%d\n", __func__, id, ret);
+-
++		/* Keep the clock master alive until the slave link clocks stop. */
+ 		if (is_bonded_dsi && msm_dsi1) {
+ 			ret = msm_dsi_host_power_off(msm_dsi1->host);
+ 			if (ret)
+ 				pr_err("%s: host1 power off failed, %d\n",
+ 				       __func__, ret);
+ 		}
++
++		ret = msm_dsi_host_power_off(host);
++		if (ret)
++			pr_err("%s: host %d power off failed,%d\n", __func__, id, ret);
+ 
+ 		mutex_unlock(&dsi_bonded_cmd_lock);
+ 		goto disable_phy;

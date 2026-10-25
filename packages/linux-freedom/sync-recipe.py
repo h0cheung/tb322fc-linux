@@ -18,6 +18,9 @@ inputs = [
     ('patches/freedom/0009-arm64-elden-ufs-mcq.patch', 'elden-ufs-mcq.patch'),
     ('patches/freedom/0010-ufs-qcom-restore-esi-after-reset.patch', 'ufs-restore-esi.patch'),
     ('patches/freedom/0011-ath12k-drain-cancelled-scan-cleanup.patch', 'ath12k-scan-cancel.patch'),
+    ('patches/freedom/0012-dsi-elden-keep-live-link-state.patch', 'dsi-keep-live-link-state.patch'),
+    ('patches/freedom/0013-dsi-sm8750-restore-bonded-slave.patch', 'dsi-restore-bonded-slave.patch'),
+    ('patches/freedom/0014-dsi-elden-stop-slave-first.patch', 'dsi-stop-slave-first.patch'),
 ]
 for source, name in inputs:
     shutil.copyfile(repo / source, here / name)
@@ -37,6 +40,8 @@ values = ['039aef84f2b0994aeda3f4fcfc3d02ec9d7a9bbb9020ea264c43f446c860f606',
 ] + [hashlib.sha256((here / name).read_bytes()).hexdigest()
      for _, name in inputs[3:]] + [
     'fd6069f5ac61c642bd7d1b402a88d74cb00aab7f353802d22b953dc9a8aee8ee',  # Upstream UFS internal-command error-recovery fix.
+    'bb78efdb9ab3511afa27f1da87d10771655afd972a9521ef70ec2a89a94bd7b7',  # SunUEFI Iris PSC_LAST fix.
+    'c0080c1fa0365c8dbf05c588d5dc288b36d2739c1052e47ef463f27bdabc5095',  # SunUEFI Iris deinit IRQ ordering.
 ]
 s = s[:start] + '  sha256sums=(' + '\n              '.join(repr(x) for x in values) + ')' + s[end:]
 p.write_text(s)

@@ -1,0 +1,78 @@
+From: h0cheung <hcheunh@gmail.com>
+Subject: [PATCH] drm/msm/dsi: preserve SM8750 bonded slave clock state
+
+Adapt Project-SunUEFI's slave divider/mux preservation to Freedom's two
+bridge shutdown paths, including Elden's bonded command lifecycle.
+Keep the original SM8750-only capability flag and save/restore policy;
+no frequencies or divider register values are hardcoded.
+
+Source: Project-SunUEFI be3073644216a413776b973203d4222e8950703a
+Link: https://github.com/slwyts/Project-SunUEFI/blob/be3073644216a413776b973203d4222e8950703a/patches/linux/7.2.9/0025-dsi-sm8750-restore-bonded-slave.patch
+---
+diff --git a/drivers/gpu/drm/msm/dsi/dsi_manager.c b/drivers/gpu/drm/msm/dsi/dsi_manager.c
+--- a/drivers/gpu/drm/msm/dsi/dsi_manager.c
++++ b/drivers/gpu/drm/msm/dsi/dsi_manager.c
+@@ -8,6 +8,7 @@
+ 
+ #include "msm_kms.h"
+ #include "dsi.h"
++#include "phy/dsi_phy.h"
+ 
+ #define DSI_CLOCK_MASTER	DSI_0
+ #define DSI_CLOCK_SLAVE		DSI_1
+@@ -518,6 +519,9 @@
+ 
+ 		/* Save PHY status if it is a clock source */
+ 		msm_dsi_phy_pll_save_state(msm_dsi->phy);
++		if (is_bonded_dsi && msm_dsi1 &&
++		    msm_dsi1->phy->cfg->restore_slave_pll)
++			msm_dsi_phy_pll_save_state(msm_dsi1->phy);
+ 
+ 		ret = msm_dsi_host_power_off(host);
+ 		if (ret)
+@@ -550,6 +554,9 @@
+ 
+ 	/* Save PHY status if it is a clock source */
+ 	msm_dsi_phy_pll_save_state(msm_dsi->phy);
++	if (is_bonded_dsi && msm_dsi1 &&
++	    msm_dsi1->phy->cfg->restore_slave_pll)
++		msm_dsi_phy_pll_save_state(msm_dsi1->phy);
+ 
+ 	ret = msm_dsi_host_power_off(host);
+ 	if (ret)
+diff --git a/drivers/gpu/drm/msm/dsi/phy/dsi_phy.h b/drivers/gpu/drm/msm/dsi/phy/dsi_phy.h
+--- a/drivers/gpu/drm/msm/dsi/phy/dsi_phy.h
++++ b/drivers/gpu/drm/msm/dsi/phy/dsi_phy.h
+@@ -37,6 +37,8 @@
+ 	const int quirks;
+ 	bool has_phy_regulator;
+ 	bool has_phy_lane;
++	/* Bonded slave dividers and mux are reset independently. */
++	bool restore_slave_pll;
+ };
+ 
+ extern const struct msm_dsi_phy_cfg dsi_phy_28nm_hpm_cfgs;
+diff --git a/drivers/gpu/drm/msm/dsi/phy/dsi_phy_7nm.c b/drivers/gpu/drm/msm/dsi/phy/dsi_phy_7nm.c
+--- a/drivers/gpu/drm/msm/dsi/phy/dsi_phy_7nm.c
++++ b/drivers/gpu/drm/msm/dsi/phy/dsi_phy_7nm.c
+@@ -1607,6 +1607,7 @@
+ 
+ const struct msm_dsi_phy_cfg dsi_phy_3nm_8750_cfgs = {
+ 	.has_phy_lane = true,
++	.restore_slave_pll = true,
+ 	.regulator_data = dsi_phy_7nm_98000uA_regulators,
+ 	.num_regulators = ARRAY_SIZE(dsi_phy_7nm_98000uA_regulators),
+ 	.ops = {
+diff --git a/drivers/gpu/drm/msm/dsi/phy/dsi_phy.c b/drivers/gpu/drm/msm/dsi/phy/dsi_phy.c
+--- a/drivers/gpu/drm/msm/dsi/phy/dsi_phy.c
++++ b/drivers/gpu/drm/msm/dsi/phy/dsi_phy.c
+@@ -849,7 +849,8 @@
+ 	 * link clocks. Restore PLL status if its PLL is being used as clock
+ 	 * source.
+ 	 */
+-	if (phy->usecase != MSM_DSI_PHY_SLAVE) {
++	if (phy->usecase != MSM_DSI_PHY_SLAVE ||
++	    phy->cfg->restore_slave_pll) {
+ 		ret = msm_dsi_phy_pll_restore_state(phy);
+ 		if (ret) {
+ 			DRM_DEV_ERROR(dev, "%s: failed to restore phy state, %d\n",

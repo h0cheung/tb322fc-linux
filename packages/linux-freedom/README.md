@@ -4,7 +4,7 @@
 
 ## 从源码构建
 
-先在系统源码仓库运行 `python scripts/sync-freedom-packaging.py`，同步共享配置、Wi-Fi 补丁和 ALS 源码的校验和。将本目录复制到 AArch64 构建环境，运行普通 `makepkg`。配方固定 Linux 7.2.6 和 Freedom commit，应用统一补丁及 Elden 扩展；本配方 release 为 `7.2.6-8-freedom`。升级通过 pkgver/pkgrel 和固定源码 commit 表达，不依赖工作目录的 dirty 标记。
+先在系统源码仓库运行 `python scripts/sync-freedom-packaging.py`，同步共享配置、Wi-Fi 补丁和 ALS 源码的校验和。将本目录复制到 AArch64 构建环境，运行普通 `makepkg`。配方固定 Linux 7.2.6 和 Freedom commit，应用统一补丁及 Elden 扩展；本配方 release 为 `7.2.6-16-freedom`。升级通过 pkgver/pkgrel 和固定源码 commit 表达，不依赖工作目录的 dirty 标记。
 
 pkgrel 8 通过 Kbuild 的 `CONFIG_LTO_CLANG_THIN=y` 启用 ThinLTO；makepkg 的 `!lto` 保留，避免通用构建参数介入内核的 LTO 策略。配置合并和预编译输入打包均核对该选项，Image、模块和 headers 仍须使用同一次构建。ccache 继续缓存 Clang 的编译输出；完整 ThinLTO 构建和运行验证状态另行记录。
 
@@ -66,3 +66,19 @@ pkgrel 4 合并测试中，MCQ 并发直接读校验和 VFP 切换路径通过�
 `ath12k-scan-cancel.patch` 为本地修复：取消扫描时同步完成待处理的扫描清理，且不允许已完成的 range batch 在取消期间启动下一段。原故障在进入休眠前已有 cfg80211 扫描残留警告，恢复后持续 `SCAN-FAILED ret=-16`；不是凭一次掉线认定 PCIe D3 导致。
 
 同一 7.2.6-6 内核上仅覆盖 ath12k 模块进行对照，模块导出符号校验值一致；扫描期间的 20/60 秒两轮 s2idle 均保持同 boot、联网和直接读校验通过，ESI 中断继续增长，原扫描警告未复现。正式配方升为 7，实际设备当时仍为 6 加测试模块，不能把该记录写成正式 7 内核已启动。F2FS 末尾段越界另行离线核对，本配方不裁剪 discard 来掩盖元数据问题。
+
+## Iris 分辨率切换与退出（pkgrel 12）
+
+按固定 [SunUEFI 提交](https://github.com/slwyts/Project-SunUEFI/tree/be3073644216a413776b973203d4222e8950703a/patches/linux/7.2.9) 的 URL 和 SHA256 引用两份原补丁：空 PSC_LAST 不再误标 ERROR，带错误的 LAST 也更新队列停止状态；退出时先同步中断线程，再取得核心锁，避免等待同一把锁的死锁。配合 `ffmpeg-v4l2m2m` 的用户态补丁验证，保留现有显示电源管理基线。
+
+本地非 LTO 测试使用 `7.2.6-11-freedom`；正式配方保留 ThinLTO，并使用更高的 pkgrel，使后续 CI 包能够正常升级测试包。
+
+## 唤醒显示状态候选（pkgrel 16）
+
+保持原 Elden PHY 电源管理，不扩展0178 runtime PM。三个改动独立保存并顺序测试：
+
+- [0012](../../patches/freedom/0012-dsi-elden-keep-live-link-state.patch)：参考固定 xiaquwan 同型号现场，在重复赋予显示模式时保留已上电链路的配置标志，其他速率/parent检查不变。
+- [0013](../../patches/freedom/0013-dsi-sm8750-restore-bonded-slave.patch)：适配固定 SunUEFI 0025，保存/恢复 SM8750 从 PHY 分频器与 mux；覆盖 Freedom 的 Elden 和通用桥接关闭路径，不硬编码寄存器值。
+- [0014](../../patches/freedom/0014-dsi-elden-stop-slave-first.patch)：适配固定 SunUEFI 0008，仅调整 Elden 从 DSI host 到主 host 的关闭顺序，不改 DPU 编码器顺序。
+
+本地非LTO内核13/14/15依次增加这三项，每版三次真实关屏恢复及20/60秒定时s2idle通过，各版测试期间boot ID不变、Wi-Fi恢复，未见DSI命令超时或ADSP fatal。最终留在15，画面/触控仍待用户实体确认；正式16保留ThinLTO，未构建或跑新CI。短时恢复通过不代表历史间歇性重启已根治。

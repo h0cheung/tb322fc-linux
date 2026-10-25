@@ -1,0 +1,24 @@
+From: h0cheung <hcheunh@gmail.com>
+Subject: [PATCH] drm/msm/dsi: keep Elden live-link configuration on mode assignment
+
+set_display_mode() may follow host power-on in the bonded bridge chain.
+Invalidating the configured link then makes matching-rate DCS transfers
+fail with ESTALE. Keep the live-link state; power-off/runtime suspend
+continue to invalidate it, and rate/parent checks remain unchanged.
+
+Adapted from the same-model investigation and conditional invalidation:
+Link: https://github.com/xiaquwan1001/lenovo-legion-y700-gen4-tb322fc-elden-linux/blob/2ea1a67cad14032e3c9c5d1c61e4ee92ad30742b/reports/q28-DOSSIER.md
+---
+diff --git a/drivers/gpu/drm/msm/dsi/dsi_host.c b/drivers/gpu/drm/msm/dsi/dsi_host.c
+--- a/drivers/gpu/drm/msm/dsi/dsi_host.c
++++ b/drivers/gpu/drm/msm/dsi/dsi_host.c
+@@ -3322,7 +3322,8 @@
+ {
+ 	struct msm_dsi_host *msm_host = to_msm_dsi_host(host);
+ 
+-	if (of_machine_is_compatible("lenovo,elden"))
++	/* A live link remains configured across repeated mode assignment. */
++	if (of_machine_is_compatible("lenovo,elden") && !msm_host->power_on)
+ 		WRITE_ONCE(msm_host->link_configured, false);
+ 
+ 	if (msm_host->mode) {
