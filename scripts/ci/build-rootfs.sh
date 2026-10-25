@@ -31,10 +31,19 @@ mkdir -p build artifacts
 ROOTFS=$(mktemp -d "$PROJECT/build/rootfs.XXXXXXXX")
 export PROJECT ROOTFS
 mounts=()
+stop_keyring_daemons() {
+    [[ -x $ROOTFS/usr/bin/gpgconf ]] || return 0
+    chroot "$ROOTFS" /usr/bin/gpgconf --homedir /etc/pacman.d/gnupg --kill all 2>/dev/null || true
+    chroot "$ROOTFS" /usr/bin/gpgconf --homedir /root/.gnupg --kill all 2>/dev/null || true
+    # makepkg and source-key imports use the builder's own keyring.
+    if [[ -x $ROOTFS/usr/bin/runuser ]] && chroot "$ROOTFS" /usr/bin/id -u alarm >/dev/null 2>&1; then
+        chroot "$ROOTFS" /usr/bin/runuser -u alarm -- /usr/bin/gpgconf --kill all 2>/dev/null || true
+    fi
+}
 cleanup() {
     local status=$? target
     trap - EXIT
-    chroot "$ROOTFS" /usr/bin/gpgconf --homedir /etc/pacman.d/gnupg --kill all 2>/dev/null || true
+    stop_keyring_daemons
     for (( index=${#mounts[@]}-1; index>=0; index-- )); do
         target=${mounts[index]}
         if ! umount "$target" 2>/dev/null && ! umount -l "$target" 2>/dev/null; then
@@ -143,8 +152,8 @@ cp "$ROOTFS/usr/share/tb322fc/rootfs.packages" artifacts/rootfs.packages
 cp "$ROOTFS/usr/share/tb322fc/userspace-build.txt" artifacts/userspace-build.txt
 cp "$ROOTFS/usr/share/tb322fc/ccache.txt" artifacts/ccache.txt
 
-# Stop the keyring daemon before unmounting; pacman-key may leave it running.
-chroot "$ROOTFS" /usr/bin/gpgconf --homedir /etc/pacman.d/gnupg --kill all
+# Stop package and source-signature agents before unmounting their /dev.
+stop_keyring_daemons
 for (( index=${#mounts[@]}-1; index>=0; index-- )); do
     umount "${mounts[index]}"
     unset 'mounts[index]'
