@@ -33,7 +33,7 @@ these are not a complete regression pass of the current package release.
 | Microphone | Working | Built-in analog capture (AMIC1/AMIC4 via the WCD9395) |
 | Haptics | Working | Two AW86927-family devices; force-feedback replay |
 | Accelerometer / gyro / light | Working | ADSP/SSC; patched sensor services required |
-| Cameras | Partial | Front/rear capture works; camera application and tuning work remains |
+| Cameras | Unavailable on current Freedom kernel | SM8750 CAMSS and board sensor bindings are missing; front/rear capture worked on the previous kernel |
 | Suspend | Working | s2idle on USB-attached sleep; hibernate-to-disk untested |
 | Battery / charging | Partial | Charger wake and power/reporting issues remain |
 
