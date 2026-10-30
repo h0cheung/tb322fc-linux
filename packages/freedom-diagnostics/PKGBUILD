@@ -1,0 +1,49 @@
+# Maintainer: h0cheung
+pkgname=freedom-diagnostics
+pkgver=20261025
+pkgrel=1
+pkgdesc='Freedom sleep diagnostics, wake ledger and bounded device crash capture'
+arch=(any)
+url='https://github.com/mydanyi/armadaos-freedom'
+license=(GPL-2.0-or-later)
+depends=(bash python systemd coreutils util-linux)
+_commit=9788014a0293dc26745b000d02854ad88ef73e88
+source=(
+    "armada-sleep-debug::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_commit/system_files/usr/bin/armada-sleep-debug"
+    "armada_sleep_debug.py::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_commit/system_files/usr/lib/armada/armada_sleep_debug.py"
+    "40-armada-wake-ledger::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_commit/system_files/usr/lib/systemd/system-sleep/40-armada-wake-ledger"
+    "save-devcoredump::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_commit/system_files/usr/libexec/armada/save-devcoredump"
+    "70-armada-devcoredump.rules::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_commit/system_files/usr/lib/udev/rules.d/70-armada-devcoredump.rules"
+    "armada-save-devcoredump@.service::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_commit/system_files/usr/lib/systemd/system/armada-save-devcoredump@.service"
+    bounded-capture.patch
+    freedom-diagnostics.conf
+)
+sha256sums=(
+    '593267b5d0bd7f125bf37f2b5b7239879af8e8f8c83275d161e633357580111f'
+    '9de96cb6ecee848839ec985311e8707ca75db6ba0d8c8c71e14a7e44e53a1ac8'
+    'b856c9083cdd3c03accbbb27ea38aad96b2486b1b0cb645767c1dad4021a66b3'
+    '2ac5b3742310e0b6f33a1f28659aae105f0073ee8a5e0957d6c883062c89ce53'
+    'e16f173bb1790a8309a71ea7d7fd6bcf5a662ef0bfffb42fe45ded7d07bdf11e'
+    '0dd04c2343e015b405d3cd7e24ff315ddebe50dafdd3f97644319d3d4e229d1f'
+    '483a2fd71eace76e7d40f60a88b6145590b58d1883e69ea6296e1aab08da1bff'
+    '828657826340ef85fc15ca621aad6e7120a48379e92501f947c83d62173505e8'
+)
+
+prepare() {
+    # makepkg links flat downloads into srcdir; patch private regular copies.
+    for file in save-devcoredump 40-armada-wake-ledger armada_sleep_debug.py; do
+        cp -- "$srcdir/$file" "$srcdir/$file.regular"
+        mv -f -- "$srcdir/$file.regular" "$srcdir/$file"
+    done
+    patch --batch --fuzz=0 -Np1 -i "$srcdir/bounded-capture.patch"
+}
+
+package() {
+    install -Dm755 "$srcdir/armada-sleep-debug" "$pkgdir/usr/bin/armada-sleep-debug"
+    install -Dm644 "$srcdir/armada_sleep_debug.py" "$pkgdir/usr/lib/armada/armada_sleep_debug.py"
+    install -Dm755 "$srcdir/40-armada-wake-ledger" "$pkgdir/usr/lib/systemd/system-sleep/40-armada-wake-ledger"
+    install -Dm755 "$srcdir/save-devcoredump" "$pkgdir/usr/libexec/armada/save-devcoredump"
+    install -Dm644 "$srcdir/70-armada-devcoredump.rules" "$pkgdir/usr/lib/udev/rules.d/70-armada-devcoredump.rules"
+    install -Dm644 "$srcdir/armada-save-devcoredump@.service" "$pkgdir/usr/lib/systemd/system/armada-save-devcoredump@.service"
+    install -Dm644 "$srcdir/freedom-diagnostics.conf" "$pkgdir/usr/lib/tmpfiles.d/freedom-diagnostics.conf"
+}

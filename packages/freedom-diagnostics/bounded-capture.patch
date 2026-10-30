@@ -1,0 +1,111 @@
+--- a/save-devcoredump
++++ b/save-devcoredump
+@@ -1,21 +1,59 @@
+ #!/bin/bash
+-# Save a kernel devcoredump (e.g. a GPU/GMU hang) before its ~5 min auto-delete.
++# Save a bounded kernel devcoredump before its automatic removal.
+ set -uo pipefail
++umask 077
+ 
+ dev="${1:?usage: save-devcoredump devcdN}"
+-src="/sys/class/devcoredump/${dev}/data"
++[[ "$dev" =~ ^devcd[0-9]+$ ]] || exit 2
++src="${ARMADA_DEVCOREDUMP_CLASS_ROOT:-/sys/class/devcoredump}/${dev}/data"
+ [[ -r "$src" ]] || exit 0
+ 
+-dir="/var/lib/armada/devcoredump"
++dir="${ARMADA_DEVCOREDUMP_DIR:-/var/lib/armada/devcoredump}"
++limit="${ARMADA_DEVCOREDUMP_MAX_BYTES:-134217728}"
++max_files="${ARMADA_DEVCOREDUMP_MAX_FILES:-8}"
++max_total="${ARMADA_DEVCOREDUMP_TOTAL_BYTES:-536870912}"
++for value in "$limit" "$max_files" "$max_total"; do
++    [[ "$value" =~ ^[1-9][0-9]*$ ]] || exit 2
++done
+ mkdir -p "$dir"
++exec 9>"$dir/.lock"
++flock -x 9
+ out="${dir}/${dev}-$(date +%Y%m%d-%H%M%S).devcore"
++partial="$out.part"
++trap 'rm -f -- "$partial"' EXIT
+ 
+-if cp "$src" "$out"; then
+-    sz=$(stat -c%s "$out" 2>/dev/null || echo 0)
+-    if [[ "$sz" -gt 0 ]]; then
+-        logger -t armada-devcoredump "saved $out ($sz bytes)"
+-    else
+-        rm -f "$out"
+-        logger -t armada-devcoredump "$dev produced an empty dump (GPU/GMU wedged) — discarded"
++prune_dumps() {
++    local entry file bytes total=0 count=0
++    local -a files=() sizes=()
++    while IFS= read -r -d '' entry; do
++        file=${entry#* }
++        bytes=$(stat -c%s -- "$file") || continue
++        files+=("$file")
++        sizes+=("$bytes")
++        total=$((total + bytes))
++        count=$((count + 1))
++    done < <(find "$dir" -maxdepth 1 -type f -name '*.devcore' -printf '%T@ %p\0' | sort -zn)
++    for entry in "${!files[@]}"; do
++        (( count <= max_files && total <= max_total )) && break
++        rm -f -- "${files[entry]}"
++        total=$((total - sizes[entry]))
++        count=$((count - 1))
++    done
++}
++
++# Only one collector owns .part files while the directory lock is held.
++find "$dir" -maxdepth 1 -type f -name '*.devcore.part' -delete
++prune_dumps
++if head -c "$((limit + 1))" -- "$src" >"$partial"; then
++    sz=$(stat -c%s -- "$partial")
++    if (( sz > limit )); then
++        truncate -s "$limit" -- "$partial"
++        out="${out%.devcore}.truncated.devcore"
++        logger -t armada-devcoredump "$dev exceeded $limit bytes; saved a truncated dump"
++    fi
++    if (( sz > 0 )); then
++        mv -- "$partial" "$out"
++        logger -t armada-devcoredump "saved $out ($(stat -c%s -- "$out") bytes)"
+     fi
+ fi
++prune_dumps
+--- a/40-armada-wake-ledger
++++ b/40-armada-wake-ledger
+@@ -1,14 +1,15 @@
+ #!/bin/bash
+ # pm_wakeup_irq only keeps the LAST wake, so overnight drain reports cannot
+ # say what ended each sleep. Record every resume's wake IRQ with a timestamp.
+-[ "$1" = post ] || exit 0
++[ "${1:-}" = post ] || exit 0
++umask 077
+ 
+-ledger=/var/lib/armada/wake-ledger.log
+-mkdir -p /var/lib/armada || exit 0
++ledger=${ARMADA_WAKE_LEDGER:-/var/lib/armada/wake-ledger.log}
++mkdir -p "$(dirname -- "$ledger")" || exit 0
+ 
+-irq=$(cat /sys/power/pm_wakeup_irq 2>/dev/null)
++irq=$(cat ${ARMADA_WAKE_IRQ:-/sys/power/pm_wakeup_irq} 2>/dev/null)
+ name=
+-[ -n "$irq" ] && name=$(awk -v irq="$irq:" '$1 == irq {print $NF}' /proc/interrupts)
++[ -n "$irq" ] && name=$(awk -v irq="$irq:" '$1 == irq {print $NF}' "${ARMADA_INTERRUPTS:-/proc/interrupts}")
+ printf '%s wake_irq=%s (%s) mode=%s\n' \
+     "$(date --iso-8601=seconds)" "${irq:-none}" "${name:-unknown}" "${2:-unknown}" >>"$ledger"
+ 
+--- a/armada_sleep_debug.py
++++ b/armada_sleep_debug.py
+@@ -338,7 +338,12 @@
+ 
+ 
+ def pipewire():
+-    user = os.environ.get('ARMADA_SESSION_USER', 'armada')
++    user = os.environ.get('ARMADA_SESSION_USER')
++    if not user:
++        result = command(['/usr/libexec/armada/session-user'], timeout=3)
++        user = result.get('text', '').strip()
++    if not user:
++        return {'status': 'unavailable'}
+     import pwd
+     try:
+         uid = pwd.getpwnam(user).pw_uid

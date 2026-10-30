@@ -1,0 +1,125 @@
+--- a/mtp-gadget
++++ b/mtp-gadget
+@@ -1,14 +1,14 @@
+ #!/usr/bin/bash
+ set -euo pipefail
+ 
+-gadget=/sys/kernel/config/usb_gadget/armada-mtp
++gadget=${ARMADA_MTP_CONFIGFS_ROOT:-/sys/kernel/config/usb_gadget}/armada-mtp
+ config="$gadget/configs/c.1"
+ function="$gadget/functions/ffs.mtp"
+-ffs=/dev/ffs-mtp
+-runtime=/run/armada-mtp
++ffs=${ARMADA_MTP_FUNCTIONFS_ROOT:-/dev/ffs-mtp}
++runtime=${ARMADA_MTP_RUNTIME:-/run/armada-mtp}
+ role_state="$runtime/previous-role"
+ sd_link="$runtime/sdcard"
+-source /usr/lib/armada/storage-lib
++source "${ARMADA_STORAGE_LIB:-/usr/lib/armada/storage-lib}"
+ 
+ unbind() {
+     if [[ -e "$gadget/UDC" && -n "$(<"$gadget/UDC")" ]]; then
+@@ -55,8 +55,16 @@
+         mkdir "$function"
+         ln -s "$function" "$config/ffs.mtp"
+         install -d -m 0755 "$ffs"
+-        armada_uid="$(id -u armada)"
+-        armada_gid="$(id -g armada)"
++        session_user=$("${ARMADA_SESSION_USER_COMMAND:-/usr/libexec/armada/session-user}")
++        armada_uid=$(id -u "$session_user")
++        armada_gid=$(id -g "$session_user")
++        (( armada_uid >= 1000 && armada_uid != 65534 )) || exit 1
++        session_home=$(getent passwd "$session_user" | cut -d: -f6)
++        [[ -d "$session_home" && "$session_home" != *\"* && "$session_home" != *$'\n'* && "$session_home" != *$'\r'* ]] || exit 1
++        runuser -u "$session_user" -- test -r "$session_home" -a -w "$session_home" -a -x "$session_home" || exit 1
++        printf '%s\n' "$session_user" > "$runtime/session-user"
++        export ARMADA_SESSION_USER="$session_user"
++        export ARMADA_MEDIA_ROOT="/run/media/$session_user"
+         mount -t functionfs -o "rmode=0500,fmode=0600,uid=$armada_uid,gid=$armada_gid" mtp "$ffs"
+         sd_storage=0
+         # uMTP cannot escape quoted paths; realpath resolves this non-pinning link.
+@@ -69,7 +77,7 @@
+                 'loop_on_disconnect 1' \
+                 'show_hidden_files 0' \
+                 'umask 022' \
+-                'storage "/var/home/armada" "Home" "rw"'
++                "storage \"$session_home\" \"Home\" \"rw\""
+             if (( sd_storage )); then
+                 printf '%s\n' 'storage "/run/armada-mtp/sdcard" "SD Card" "rw,removable"'
+             fi
+@@ -97,22 +105,15 @@
+         ;;
+     bind)
+         shopt -s nullglob
+-        udcs=(/sys/class/udc/*)
+-        if ((${#udcs[@]} == 0)); then
+-            printf 'armada-mtp: no USB device controller found\n' >&2
++        udcs=("${ARMADA_MTP_UDC_CLASS:-/sys/class/udc}"/*)
++        if ((${#udcs[@]} != 1)); then
++            printf 'armada-mtp: connect to a computer; exactly one USB device controller is required\n' >&2
+             exit 1
+         fi
+         udc_name="${udcs[0]##*/}"
+-        role_path="/sys/class/usb_role/${udc_name}-role-switch/role"
+-        if [[ ! -e "$role_path" ]]; then
+-            role_paths=(/sys/class/usb_role/*/role)
+-            role_path="${role_paths[0]:-}"
+-        fi
+-        if [[ -n "$role_path" ]]; then
+-            previous_role="$(<"$role_path")"
+-            printf '%s\n%s\n' "$role_path" "$previous_role" > "$role_state"
+-            printf 'device' > "$role_path"
+-        fi
++        # Elden's per-port roles belong to Type-C/UCSI and are not writable.
++        # Bind only the already registered gadget controller; never force a
++        # role, choose a port or change mux GPIOs behind the kernel's back.
+         printf '%s' "$udc_name" > "$gadget/UDC"
+         ;;
+     unbind)
+--- a/storage-lib
++++ b/storage-lib
+@@ -36,7 +36,7 @@
+ armada_mounted_sd() {
+     local disk_path disk node_path node target options
+     local block_class="${ARMADA_BLOCK_CLASS:-/sys/class/block}"
+-    local media_root="${ARMADA_MEDIA_ROOT:-/run/media/armada}"
++    local media_root="${ARMADA_MEDIA_ROOT:-/run/media/${ARMADA_SESSION_USER:?}}"
+     local mounts=()
+ 
+     for disk_path in "$block_class"/mmcblk[0-9]*; do
+@@ -54,7 +54,7 @@
+                     *,rw,*) ;;
+                     *) continue ;;
+                 esac
+-                runuser -u armada -- test -r "$target" -a -w "$target" -a -x "$target" || continue
++                runuser -u "${ARMADA_SESSION_USER:?}" -- test -r "$target" -a -w "$target" -a -x "$target" || continue
+                 mounts+=("$target")
+             done < <(findmnt -J -S "$node" -o TARGET,OPTIONS 2>/dev/null \
+                 | jq -j '.filesystems[]? | .target, "\u0000", .options, "\u0000"')
+--- a/armada-mtp.service
++++ b/armada-mtp.service
+@@ -1,22 +1,18 @@
+ [Unit]
+ Description=Armada USB MTP file transfer
+ After=local-fs.target systemd-modules-load.service
+-RequiresMountsFor=/var/home/armada
+ 
+ [Service]
+ Type=notify
+ NotifyAccess=main
+-User=armada
+-Group=armada
+ UMask=0022
+ RuntimeDirectory=armada-mtp
+ ExecStartPre=+/usr/libexec/armada/mtp-gadget setup
+-ExecStart=/usr/bin/umtprd -conf /run/armada-mtp/umtprd.conf
++ExecStart=/usr/libexec/armada/mtp-session
+ ExecStartPost=+/usr/libexec/armada/mtp-gadget bind
+ ExecStop=+/usr/libexec/armada/mtp-gadget unbind
+ ExecStopPost=+/usr/libexec/armada/mtp-gadget teardown
+-Restart=on-failure
+-RestartSec=2
++Restart=no
+ TimeoutStartSec=30
+ TimeoutStopSec=30
+ NoNewPrivileges=yes

@@ -1,0 +1,9 @@
+#!/bin/bash
+# Start the responder as the account resolved during gadget setup.
+set -euo pipefail
+read -r owner </run/armada-mtp/session-user
+uid=$(id -u "$owner")
+gid=$(id -g "$owner")
+(( uid >= 1000 && uid != 65534 )) || exit 1
+exec /usr/bin/setpriv --reuid="$uid" --regid="$gid" --init-groups \
+    /usr/bin/umtprd -conf /run/armada-mtp/umtprd.conf

@@ -1,0 +1,46 @@
+# Maintainer: h0cheung
+pkgname=umtp-responder-freedom
+pkgver=1.9.1
+pkgrel=1
+pkgdesc='uMTP responder with the pinned Freedom portability and path fixes'
+arch=(aarch64)
+url='https://github.com/viveris/uMTP-Responder'
+license=(GPL-3.0-or-later)
+depends=(glibc systemd-libs)
+makedepends=(systemd)
+provides=(umtp-responder)
+conflicts=(umtp-responder)
+_commit=153f76d65608c184a972ad7d0b4ae605e56c0972
+source=(
+    "uMTP-Responder.tar.gz::https://codeload.github.com/viveris/uMTP-Responder/tar.gz/$_commit"
+    "0001-portability-use-default-linux-mqueue-depth.patch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/9788014a0293dc26745b000d02854ad88ef73e88/packages/umtp-responder/patches/0001-portability-use-default-linux-mqueue-depth.patch"
+    "0002-storage-use-configured-gid.patch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/9788014a0293dc26745b000d02854ad88ef73e88/packages/umtp-responder/patches/0002-storage-use-configured-gid.patch"
+    "0003-path-harden-object-path-containment.patch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/9788014a0293dc26745b000d02854ad88ef73e88/packages/umtp-responder/patches/0003-path-harden-object-path-containment.patch"
+    "0004-unicode-support-full-utf8-utf16-conversion.patch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/9788014a0293dc26745b000d02854ad88ef73e88/packages/umtp-responder/patches/0004-unicode-support-full-utf8-utf16-conversion.patch"
+    "0005-inotify-synchronize-session-database-lifetime.patch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/9788014a0293dc26745b000d02854ad88ef73e88/packages/umtp-responder/patches/0005-inotify-synchronize-session-database-lifetime.patch"
+)
+sha256sums=(
+    'f699e03b4c206413a4c73f313ee127b964bfbfe4deff2ab76aa21d0ac10285dd'
+    'c359f78926cac24222d4f2fadc8ac15c056c8c523baf03e8a3886325ed0f7952'
+    '4680d847b14b8898cfed148f439c10f4b825850759ef063e77fba33b35c1d368'
+    'd116c4a369d73c0430308ebbb1afa7f2e1316cda7125d10e721d80ae850fd7fc'
+    '4dc199059d7e38ea81aee4c3e47178ceb0489c64d50d8fdcc7a082401a0422e8'
+    'efa7e6a5af66648cf17c6858391facfce7ef1942cec5f8642abd974f3126a451'
+)
+
+prepare() {
+    cd "$srcdir/uMTP-Responder-$_commit"
+    for file in "$srcdir/"*.patch; do
+        patch --batch --fuzz=0 -Np1 -i "$file"
+    done
+}
+
+build() {
+    cd "$srcdir/uMTP-Responder-$_commit"
+    make CFLAGS="$CFLAGS -I./inc -Wall -DSYSTEMD_NOTIFY" LDFLAGS="$LDFLAGS -lpthread -lrt -lsystemd"
+}
+
+package() {
+    install -Dm755 "$srcdir/uMTP-Responder-$_commit/umtprd" "$pkgdir/usr/bin/umtprd"
+    install -Dm644 "$srcdir/uMTP-Responder-$_commit/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

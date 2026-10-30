@@ -588,6 +588,12 @@ for service in systemd-networkd.service systemd-networkd.socket systemd-networkd
         systemctl disable "$service"
     fi
 done
+# MTP is controlled on demand through Freedom Control. Do not inherit an old
+# image's enablement; connecting a controller must not start a USB gadget.
+# Steam's power-key handler is pulled in by its packaged per-session drop-in,
+# rather than enabled globally for desktop sessions.
+systemctl disable armada-mtp.service >/dev/null 2>&1 || true
+systemd-tmpfiles --create /usr/lib/tmpfiles.d/freedom-diagnostics.conf
 systemctl enable NetworkManager.service bluetooth.service sddm.service hexagonrpcd-sensors.service als-bridge.service armada-powerd.service thermald.service steamos-manager.service armada-control.service armada-decky-sync.service decky-loader@alarm.service tb322fc-hall-lid.service tb322fc-gyro-bridge.service y700-charged.service
 systemctl set-default graphical.target
 systemctl --global enable pipewire.socket pipewire-pulse.socket wireplumber.service armada-steam-charging-eta.service steamos-manager.service steamos-manager-session-cleanup.service
