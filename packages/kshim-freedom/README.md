@@ -2,6 +2,8 @@
 
 此包提供 AArch64 打包工具、kShim runtime、AVB 工具、F2FS initramfs 生成器和 pacman hooks。默认从固定来源原生构建；也支持显式传入 `KSHIM_TOOLS_BUNDLE` 及其 SHA256 使用已核验的工具归档。原生工具和 BusyBox 保持构建后的原字节，不再进行 makepkg strip。产物的实机验证状态需单独记录。
 
+2026-10-29 的 DPU 同步仅更新内核来源清单和不变的 boot builder 引用。Runtime 单独固定到已验证的 Freedom `244b745` 加本地兼容补丁；更新的上游默认启用原生 UFS 设置存储，其 I/O 生命周期与 DPU 无关，需另行验证后更新 runtime。本次可使用当前安装且哈希核验通过的原生工具 bundle。
+
 原厂 boot 基底与 AVB 私钥不放入软件包。设备配置 `/etc/kshim-freedom/config.json` 指定其本地路径、原厂镜像哈希、根 PARTUUID、cmdline、早期固件及 pkgbase；私钥位于 root 限权目录，权限须为 0600。部署目标固定为本项目的 Linux boot_a，拒绝其他机型或根分区不匹配的环境。
 
 `freedom-kernel-update --kernel <release> --stage-only` 生成并校验候选，`--deploy` 在完整备份后写 A 并回读；配置 `deploy_boot_a` 可让更新 hook 自动部署。程序不重启系统，不写 B/recovery。候选、打包检查、签名和部署结果位于 `/var/lib/kshim-freedom/candidates/`，最新结果见 `latest.json`。

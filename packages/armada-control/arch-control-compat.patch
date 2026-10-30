@@ -36,7 +36,7 @@
  BOTTOM_SCREEN_BRIGHTNESS_PATH = Path("/etc/armada/bottom-screen-brightness")
  BOTTOM_SCREEN_BRIGHTNESS_RESTORE_INTERVAL = 2
  BACKLIGHT_ROOT = Path("/sys/class/backlight")
-@@ -155,10 +161,22 @@
+@@ -155,20 +161,32 @@
      else:
          NM_IGNORE_SLEEP.touch()
  
@@ -59,9 +59,22 @@
 +    try:
 +        text = state.read_text(encoding="utf-8")
      except OSError:
-         return "desktop"
+-        return "mobile"
++        return "desktop"
  
-@@ -179,6 +197,23 @@
+     match = re.search(r'(?m)^desktop_session\s*=\s*"([^"]*)"', text)
+     session = match.group(1) if match else ""
+     for mode, mode_session in DESKTOP_SESSION_FOR_MODE.items():
+         if session == mode_session:
+             return mode
+-    # Missing or raw upstream session state follows the Mobile default.
+-    return "mobile"
++    # Keep the Arch desktop default when no native session is selected.
++    return "desktop"
+ 
+ 
+ def set_desktop_mode(mode: str):
+@@ -180,6 +198,23 @@
  def select_mem_sleep(mode):
      if mode == "s2idle":
          MEM_SLEEP_PATH.write_text(f"{mode}\n", encoding="utf-8")
@@ -85,7 +98,7 @@
  
  
  def device_env():
-@@ -204,8 +239,13 @@
+@@ -205,8 +240,13 @@
  
  
  def session_user_command(*command):
@@ -101,7 +114,7 @@
      return [
          "/usr/bin/runuser", "-u", user, "--", "env",
          f"HOME={account.pw_dir}",
-@@ -242,13 +282,6 @@
+@@ -243,13 +283,6 @@
      return result.stdout.strip()
  
  
@@ -115,7 +128,7 @@
  def bottom_screen_enabled():
      return session_systemctl(
          "is-enabled", "--quiet", BOTTOM_SCREEN_SERVICE, check=False, timeout=5,
-@@ -334,6 +367,27 @@
+@@ -335,6 +368,27 @@
          pass
  
  
@@ -143,10 +156,12 @@
  def action_set_controller_type(request):
      value = str(request.get("value", ""))
      if value not in CONTROLLER_TYPES:
-@@ -408,6 +462,15 @@
+@@ -407,6 +461,15 @@
+     write_sleep_config(value)
+     set_networkmanager_sleep_allowed(value != "fake")
      return {"value": value}
- 
- 
++
++
 +def action_set_abl_auto_enabled(request):
 +    atomic_write(ABL_CONFIG, f"auto_update_enabled={int(bool(request.get('enabled')))}\n")
 +    return {"enabled": abl_auto_enabled()}
@@ -154,20 +169,10 @@
 +
 +def action_get_abl_auto_enabled(request):
 +    return {"enabled": abl_auto_enabled()}
-+
-+
- def action_get_swipe_gestures_enabled(request):
-     try:
-         lines = SWIPE_GESTURES_CONFIG.read_text(encoding="utf-8").splitlines()
-@@ -419,7 +482,6 @@
-         if match:
-             enabled = match.group(1) == "1"
-     return {"enabled": enabled}
--
  
- def gamescope_swipe_gestures(enabled):
-     # A valueless convar call resets it; use help to check support instead.
-@@ -436,7 +498,6 @@
+ 
+ def read_swipe_gestures_config():
+@@ -452,7 +515,6 @@
          ):
              raise RuntimeError("Gamescope does not support the swipe gesture setting")
  
@@ -175,15 +180,7 @@
  def action_set_swipe_gestures_enabled(request):
      enabled = request.get("enabled")
      if not isinstance(enabled, bool):
-@@ -452,7 +513,6 @@
-             gamescope_swipe_gestures(previous)
-         raise
-     return {"enabled": enabled}
--
- 
- def action_suspend_swipe_gestures(request):
-     # Armada Control turns the gestures off while a Steam side menu is open,
-@@ -465,6 +525,17 @@
+@@ -502,6 +564,17 @@
          gamescope_swipe_gestures(not suspended)
      return {"suspended": suspended}
  
@@ -201,7 +198,7 @@
  
  def action_get_device_env(request):
      return {"env": device_env()}
-@@ -499,11 +570,19 @@
+@@ -536,11 +609,19 @@
  
      if enabled:
          session_systemctl("enable", BOTTOM_SCREEN_SERVICE)
@@ -222,7 +219,7 @@
  
  
  def rgb_supported():
-@@ -521,14 +600,7 @@
+@@ -558,14 +639,7 @@
  
  
  def run_rgb(command):
@@ -238,7 +235,7 @@
      config = json.loads(output)
      if not isinstance(config, dict):
          raise RuntimeError("invalid armada-rgb response")
-@@ -548,28 +620,12 @@
+@@ -585,28 +659,12 @@
      enabled = request.get("enabled")
      if not isinstance(enabled, bool):
          raise ValueError("invalid RGB enabled state")
@@ -269,7 +266,7 @@
      valid_color = (
          isinstance(color, str)
          and len(color) == 6
-@@ -593,16 +649,7 @@
+@@ -630,16 +688,7 @@
      if not valid_brightness:
          raise ValueError("invalid RGB brightness")
  
@@ -287,7 +284,7 @@
      if saturation is not None:
          command.extend(["--saturation", str(saturation)])
      command.extend(["--brightness", str(brightness)])
-@@ -614,19 +661,6 @@
+@@ -651,19 +700,6 @@
      if mode not in INTERCEPT_MODES:
          raise ValueError("invalid intercept mode")
      run(["/usr/libexec/armada/inputplumber-intercept", mode], timeout=5)
@@ -307,9 +304,9 @@
      return {"ok": True}
  
  
-@@ -825,13 +859,16 @@
-     "get_swipe_gestures_enabled": action_get_swipe_gestures_enabled,
-     "set_swipe_gestures_enabled": action_set_swipe_gestures_enabled,
+@@ -864,13 +900,16 @@
+     "get_swipe_gestures_in_game_enabled": action_get_swipe_gestures_in_game_enabled,
+     "set_swipe_gestures_in_game_enabled": action_set_swipe_gestures_in_game_enabled,
      "suspend_swipe_gestures": action_suspend_swipe_gestures,
 +    "reload_input_ranges": action_reload_input_ranges,
      "set_controller_type": action_set_controller_type,
@@ -324,7 +321,7 @@
      "get_ssh_enabled": action_get_ssh_enabled,
      "get_mtp_enabled": action_get_mtp_enabled,
      "inputplumber_intercept": action_inputplumber_intercept,
-@@ -839,12 +876,12 @@
+@@ -878,12 +917,12 @@
      "set_mtp_enabled": action_set_mtp_enabled,
      "set_bottom_screen_enabled": action_set_bottom_screen_enabled,
      "set_bottom_screen_brightness": action_set_bottom_screen_brightness,

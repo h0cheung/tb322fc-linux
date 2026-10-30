@@ -383,7 +383,7 @@ for pkg_dir in packages/*/; do
         packages/mesa-y700-gen4-git/|packages/linux-freedom/|packages/als-bridge-dkms/|packages/kshim-freedom/) continue ;;
     esac
     mapfile -t info < <(sudo -u alarm bash -c \
-        "source '$pkg_dir/PKGBUILD' && _fv=\"\$pkgver-\$pkgrel\"; (( \${epoch:-0} > 0 )) && _fv=\"\$epoch:\$_fv\"; _dyn=0; declare -F pkgver >/dev/null && _dyn=1; printf '%s\n%s\n%s\n%s\n%s\n' \"\${pkgname[0]}\" \"\$_fv\" \"\${depends[*]} \${makedepends[*]}\" \"\${pkgname[*]}\" \"\$_dyn\"")
+        "source '$pkg_dir/PKGBUILD' && _fv=\"\$pkgver-\$pkgrel\"; (( \${epoch:-0} > 0 )) && _fv=\"\$epoch:\$_fv\"; _dyn=0; declare -F pkgver >/dev/null && _dyn=1; printf '%s\n%s\n%s\n%s\n%s\n' \"\${pkgname[0]}\" \"\$_fv\" \"\${depends[*]} \${makedepends[*]} \${checkdepends[*]}\" \"\${pkgname[*]}\" \"\$_dyn\"")
     pkgbase=${info[0]}
     pkg_paths[$pkgbase]=$pkg_dir
     pkg_fullver[$pkgbase]=${info[1]}

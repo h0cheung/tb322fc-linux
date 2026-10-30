@@ -1,14 +1,16 @@
 # Maintainer: h0cheung
 pkgname=kshim-freedom
 pkgver=20261024
-pkgrel=5
+pkgrel=6
 pkgdesc='Native kShim tools and atomic kernel deployment for Freedom on Elden'
 arch=(aarch64)
 license=(GPL-3.0-or-later)
 options=(!strip !debug !lto)
 depends=(python openssl dtc cpio gzip kmod util-linux zstd xz)
 makedepends=(git cmake ninja gcc make python-kconfiglib)
-_freedom_commit=244b74516d99d06cb0518609ce4b842ab278be8a
+_freedom_commit=9788014a0293dc26745b000d02854ad88ef73e88
+# Retain the validated launcher; later upstream enables native UFS settings I/O.
+_runtime_commit=244b74516d99d06cb0518609ce4b842ab278be8a
 source=("kshim-build-boot.py::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_freedom_commit/system_files/usr/libexec/armada/kshim-build-boot.py")
 sha256sums=('18e520f3f1204b24a3390833247307b75c1fb2e187f51cf282f8f7329e6b351f')
 if [[ -n ${KSHIM_TOOLS_BUNDLE:-} ]]; then
@@ -16,7 +18,7 @@ if [[ -n ${KSHIM_TOOLS_BUNDLE:-} ]]; then
   source+=("kshim-tools.tar.zst::file://$KSHIM_TOOLS_BUNDLE")
   sha256sums+=("$KSHIM_TOOLS_SHA256")
 else
-  source+=("armadaos-freedom::git+https://github.com/mydanyi/armadaos-freedom.git#commit=$_freedom_commit"
+  source+=("armadaos-freedom::git+https://github.com/mydanyi/armadaos-freedom.git#commit=$_runtime_commit"
            "CrDK-b6c3335.tar.gz::https://codeload.github.com/Project-Aloha/CrDK/tar.gz/b6c3335136b7f6b28271917de11e8f11982975fc"
            "picolibc::git+https://github.com/picolibc/picolibc#commit=f7edb0869e64b9d687f46961adeef7154921fe92"
            "lvgl::git+https://github.com/lvgl/lvgl#commit=7f07a129e8d77f4984fff8e623fd5be18ff42e74"
@@ -53,7 +55,7 @@ sha256sums+=(
   'ceb2971f7e88fc05e6da25aad6ee81555f1207cc2387de0fe0be9d4432d8e267'
   '32d7f02e81da49d97d1345c7fc5f83b4e25c1a1f7a048b0b9870b1f9c93e7cd8'
   'e168d527e3774a5cabee4bff1fda887940a41ccdbf4695bc27b6d90430fc438a'
-  'b1682eaf83d9cff117a9602747d86019cedb52618dc8926e2eb9630efa9af122'
+  'ff87a71c77831aa5b8602a08137ec43daa2589f6bbf9746fcbdd501d73309258'
   'dd47582dee94f757c9a4050f11a515b12114c9ac3e4215403db806fbf99f55cd'
   'd958b0a8790ab04525c958af20ecebb30734cce5f4d58701d1343deb6372881c'
   'e00d9e3aa3e183b4ecce1651df0ba9ac3ad76e36425cd5ee9361a7bb47fdb3a4'

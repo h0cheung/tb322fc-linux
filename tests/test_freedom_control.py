@@ -61,6 +61,19 @@ class ControlCompatibility(unittest.TestCase):
             self.assertEqual(command.call_args_list[1].args[0], ['/usr/bin/systemctl', 'start', 'armada-controller-type.service'])
 
     def test_swipe_rpc_rejects_non_boolean_values(self):
-        for name, key in [('set_swipe_gestures_enabled', 'enabled'), ('suspend_swipe_gestures', 'suspended')]:
+        for name, key in [('set_swipe_gestures_enabled', 'enabled'),
+                          ('set_swipe_gestures_in_game_enabled', 'enabled'),
+                          ('suspend_swipe_gestures', 'suspended')]:
             with self.subTest(name=name), self.assertRaises(ValueError):
                 self.control.ACTIONS[name]({key: 'false'})
+
+    def test_swipe_switches_preserve_each_other(self):
+        path = self.directory/'independent-swipes.conf'
+        inactive = subprocess.CompletedProcess([], 3)
+        with mock.patch.object(self.control, 'SWIPE_GESTURES_CONFIG', path), \
+             mock.patch.object(self.control, 'session_systemctl', return_value=inactive):
+            self.control.ACTIONS['set_swipe_gestures_enabled']({'enabled': False})
+            self.control.ACTIONS['set_swipe_gestures_in_game_enabled']({'enabled': False})
+            self.assertEqual(self.control.read_swipe_gestures_config(), {'enabled': False, 'in_game': False})
+            self.control.ACTIONS['set_swipe_gestures_enabled']({'enabled': True})
+            self.assertEqual(self.control.read_swipe_gestures_config(), {'enabled': True, 'in_game': False})

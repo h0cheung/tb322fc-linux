@@ -1,132 +1,146 @@
 #!/usr/bin/python3
-"""Publish net.hadess.SensorProxy light levels into the als-bridge IIO module.
+# SPDX-License-Identifier: GPL-2.0-or-later
+"""Mirror SensorProxy lux readings into the IIO interface Steam understands."""
 
-Steam reads /sys/bus/iio/devices/iio:deviceN/in_illuminance_raw directly and
-refuses to enable its adaptive-brightness switch unless a sysfs IIO light
-sensor exists. The real sensor is only reachable via the SSC, which
-iio-sensor-proxy (libssc) exposes over D-Bus - so this daemon claims the light
-sensor there and mirrors the lux value into the als-bridge module parameter,
-which is what the IIO device's in_illuminance_raw reports.
+import logging
+import math
+import subprocess
+from pathlib import Path
 
-The proxy must not claim the synthetic device itself (see
-90-als-bridge-proxy.rules): otherwise it serves this same value back and the
-loop stays at 0 lux.
-
-The claim is lost whenever iio-sensor-proxy restarts, and a missed
-PropertiesChanged signal would freeze the published value, so the daemon
-re-claims on the proxy's reappearance and re-reads the property every few
-seconds.
-"""
-
-import sys
-
-import gi
-gi.require_version("GLib", "2.0")
-from gi.repository import GLib, Gio
-
-SENSOR_BUS_NAME = "net.hadess.SensorProxy"
-SENSOR_OBJ_PATH = "/net/hadess/SensorProxy"
-SENSOR_IFACE = "net.hadess.SensorProxy"
-LUX_PARAM = "/sys/module/als_bridge/parameters/lux"
+LOG = logging.getLogger("armada-als-bridge")
+SENSOR_NAME = "net.hadess.SensorProxy"
+SENSOR_PATH = "/net/hadess/SensorProxy"
+LUX_PARAM = Path("/sys/module/als_bridge/parameters/lux")
 REFRESH_SECONDS = 5
+CALL_TIMEOUT_MS = 5000
 
 
-def publish(value):
+def lux_value(value):
+    """Keep invalid samples out of sysfs and within IIO_VAL_INT's range."""
     try:
-        with open(LUX_PARAM, "w") as f:
-            f.write(str(int(round(value))))
-    except OSError as err:
-        print(f"failed to publish lux: {err}", file=sys.stderr)
+        value = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not math.isfinite(value) or value < 0:
+        return None
+    return int(round(min(value, 2**31 - 1)))
 
 
-def get_props(bus):
-    return bus.call_sync(
-        SENSOR_BUS_NAME, SENSOR_OBJ_PATH,
-        "org.freedesktop.DBus.Properties", "GetAll",
-        GLib.Variant("(s)", (SENSOR_IFACE,)), None,
-        Gio.DBusCallFlags.NONE, -1, None,
-    ).unpack()[0]
+class LightBridge:
+    def __init__(self, sensor, parameter=LUX_PARAM, load_module=None):
+        self.sensor = sensor
+        self.parameter = parameter
+        self.load_module = load_module or self.modprobe
+        self.claimed = False
+        self.last_error = None
 
+    @staticmethod
+    def modprobe():
+        subprocess.run(["modprobe", "als-bridge"], check=True, timeout=10)
 
-def claim(bus):
-    bus.call_sync(
-        SENSOR_BUS_NAME, SENSOR_OBJ_PATH, SENSOR_IFACE, "ClaimLight",
-        None, None, Gio.DBusCallFlags.NONE, -1, None,
-    )
+    def refresh(self):
+        try:
+            props = self.sensor.properties()
+            if not props.get("HasAmbientLight"):
+                return True
+            if not self.claimed:
+                self.sensor.claim()
+                self.claimed = True
+                props = self.sensor.properties()
+            # Units may become available only after ClaimLight starts polling.
+            if not props.get("HasAmbientLight") or props.get("LightLevelUnit") != "lux":
+                return True
+            value = lux_value(props.get("LightLevel"))
+            if value is None:
+                return True
+            # Do not create an ALS on machines without a real light source.
+            if not self.parameter.exists():
+                self.load_module()
+            self.parameter.write_text(f"{value}\n")
+            self.last_error = None
+        except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+            if str(error) != self.last_error:
+                LOG.warning("Light sensor update unavailable: %s", error)
+                self.last_error = str(error)
+        return True
 
+    def owner_changed(self, owner):
+        self.claimed = False
+        if owner:
+            self.refresh()
 
-def publish_current(bus):
-    try:
-        publish(get_props(bus)["LightLevel"])
-    except GLib.Error:
-        pass
-
-
-def on_properties_changed(bus, sender, path, iface, signal, params):
-    _iface, changed, _invalidated = params.unpack()
-    if "LightLevel" in changed:
-        publish(changed["LightLevel"])
-
-
-def on_name_owner_changed(bus, sender, path, iface, signal, params):
-    name, _old, new_owner = params.unpack()
-    if name != SENSOR_BUS_NAME or not new_owner:
-        return
-    # iio-sensor-proxy (re)appeared: our previous claim is gone, take it again
-    # so the proxy keeps polling and publishing.
-    try:
-        claim(bus)
-    except GLib.Error as err:
-        print(f"failed to re-claim light sensor: {err}", file=sys.stderr)
-    publish_current(bus)
-
-
-def on_refresh(bus):
-    publish_current(bus)
-    return True
+    def close(self):
+        if self.claimed:
+            try:
+                self.sensor.release()
+            except RuntimeError:
+                pass
 
 
 def main():
+    # Import here so the state machine can be tested without a system bus or GI.
+    import gi
+
+    gi.require_version("Gio", "2.0")
+    from gi.repository import Gio, GLib
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
 
+    class SensorProxy:
+        def call(self, interface, method, parameters=None):
+            try:
+                return bus.call_sync(
+                    SENSOR_NAME, SENSOR_PATH, interface, method, parameters,
+                    None, Gio.DBusCallFlags.NONE, CALL_TIMEOUT_MS, None,
+                )
+            except GLib.Error as error:
+                raise RuntimeError(str(error)) from error
+
+        def properties(self):
+            return self.call(
+                "org.freedesktop.DBus.Properties", "GetAll",
+                GLib.Variant("(s)", (SENSOR_NAME,)),
+            ).unpack()[0]
+
+        def claim(self):
+            self.call(SENSOR_NAME, "ClaimLight")
+
+        def release(self):
+            self.call(SENSOR_NAME, "ReleaseLight")
+
+    bridge = LightBridge(SensorProxy(), parameter=LUX_PARAM)
+
+    def properties_changed(_bus, _sender, _path, _interface, _signal, params):
+        interface, changed, invalidated = params.unpack()
+        if interface == SENSOR_NAME and any(
+            key in changed or key in invalidated
+            for key in ("HasAmbientLight", "LightLevel", "LightLevelUnit")
+        ):
+            bridge.refresh()
+
+    def owner_changed(_bus, _sender, _path, _interface, _signal, params):
+        _name, _old, new = params.unpack()
+        bridge.owner_changed(new)
+
     bus.signal_subscribe(
-        "org.freedesktop.DBus", "org.freedesktop.DBus",
-        "NameOwnerChanged", "/org/freedesktop/DBus", None,
-        Gio.DBusSignalFlags.NONE, on_name_owner_changed,
+        SENSOR_NAME, "org.freedesktop.DBus.Properties", "PropertiesChanged",
+        SENSOR_PATH, SENSOR_NAME, Gio.DBusSignalFlags.NONE, properties_changed,
     )
     bus.signal_subscribe(
-        SENSOR_BUS_NAME, "org.freedesktop.DBus.Properties",
-        "PropertiesChanged", SENSOR_OBJ_PATH, None,
-        Gio.DBusSignalFlags.NONE, on_properties_changed,
+        "org.freedesktop.DBus", "org.freedesktop.DBus", "NameOwnerChanged",
+        "/org/freedesktop/DBus", SENSOR_NAME,
+        Gio.DBusSignalFlags.NONE, owner_changed,
     )
-
+    bridge.refresh()
+    GLib.timeout_add_seconds(REFRESH_SECONDS, bridge.refresh)
     try:
-        props = get_props(bus)
-    except GLib.Error as err:
-        print(f"waiting for SensorProxy: {err}", file=sys.stderr)
-        props = None
-
-    if props is not None:
-        if not props["HasAmbientLight"]:
-            print("SensorProxy reports no ambient light sensor", file=sys.stderr)
-            return 1
-        claim(bus)
-        publish(props["LightLevel"])
-
-    GLib.timeout_add_seconds(REFRESH_SECONDS, on_refresh, bus)
-    loop = GLib.MainLoop()
-    try:
-        loop.run()
+        GLib.MainLoop().run()
+    except KeyboardInterrupt:
+        pass
     finally:
-        try:
-            bus.call_sync(
-                SENSOR_BUS_NAME, SENSOR_OBJ_PATH, SENSOR_IFACE, "ReleaseLight",
-                None, None, Gio.DBusCallFlags.NONE, -1, None,
-            )
-        except GLib.Error:
-            pass
-    return 0
+        bridge.close()
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

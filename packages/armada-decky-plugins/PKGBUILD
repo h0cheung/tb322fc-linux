@@ -12,17 +12,17 @@
 # Control source: https://github.com/mydanyi/freedom-control
 # Store source: https://github.com/armada-os/armada (GPL-2.0-or-later)
 pkgname=armada-decky-plugins
-pkgver=20261024
+pkgver=20261029
 pkgrel=1
 pkgdesc="Freedom Control and Armada Store Decky plugins for Arch"
 arch=('aarch64')
 url="https://github.com/armada-os/armada"
 license=('GPL-2.0-or-later')
-depends=('armada-control>=20261024-1' 'decky-loader' 'python')
+depends=('armada-control>=20261029-1' 'decky-loader' 'python' 'xorg-xprop')
 makedepends=('nodejs' 'npm' 'git')
 install=armada-decky-plugins.install
 
-source=("freedom-control::git+https://github.com/mydanyi/freedom-control.git#commit=6681a477feb2c7f048ecd0789f41678c3c2dbe3e"
+source=("freedom-control::git+https://github.com/mydanyi/freedom-control.git#commit=61a8e9631c0ba597ff0f48bc91ae766eef20bf6a"
         arch-session-user.patch)
 sha256sums=(SKIP 'c1db4f387eb034c14cde1448e216a74bce009425ced5e3df351a0e32875b9435')
 prepare() {

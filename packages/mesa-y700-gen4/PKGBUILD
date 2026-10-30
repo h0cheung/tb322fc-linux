@@ -100,7 +100,7 @@ options=(
   # In general, upstream considers LTO to be broken until explicit notice.
   !lto
 )
-_freedom_commit=244b74516d99d06cb0518609ce4b842ab278be8a
+_freedom_commit=9788014a0293dc26745b000d02854ad88ef73e88
 source=(
   "https://archive.mesa3d.org/mesa-$_pkgver.tar.xz"{,.sig}
   "armadaos-freedom::git+https://github.com/mydanyi/armadaos-freedom.git#commit=$_freedom_commit"

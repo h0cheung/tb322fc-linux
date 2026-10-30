@@ -1,7 +1,7 @@
 # Mesa 稳定版（2026-10-24）
 
 恢复自本仓库 `16c5b1b` 的稳定版分包配方，版本由 26.2.3 更新为 26.2.4。
-对应 armadaos-freedom `244b74516d99d06cb0518609ce4b842ab278be8a`
+对应 armadaos-freedom `9788014a0293dc26745b000d02854ad88ef73e88`
 的 `packages/mesa/BASE.env` 与三个原样基础补丁。构建时从固定 Git 提交引用补丁，不在本仓库复制；不添加其 devel/winnative 变体补丁。
 本包沿用 Arch 的 Meson 选项和分包，不能称作 Fedora 二进制或工具链完全相同。
 

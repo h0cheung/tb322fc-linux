@@ -1,7 +1,7 @@
 # Maintainer: h0cheung <hcheunh@gmail.com>
 pkgname=gamescope-session-steam
 pkgver=20260919
-pkgrel=2
+pkgrel=3
 pkgdesc="Steam gaming session for gamescope (SDDM session entry, mode switching and helpers)"
 arch=('any')
 url="https://github.com/OpenGamingCollective/gamescope-session-steam"
@@ -34,7 +34,7 @@ sha256sums=(
     '174814446254fcdb4fb6cb3b04dd9d4cf675ade6145fdc2fa704ba700a98247d'
     '8acd789a983e36ca734b4fb3e506b26d831e56b34823b3d607c0dbfbab426f9d'
     '761c08fcb1c3838a243dd48162418b92f7a28d99a906ffc5ac3d0c89e2031e2c'
-    '381c1c338afe0a21744636eb4879ff836d54540c10870fa21bcedeea71c727a1'
+    '8e6cfa08b0462d863417c69c4ef73cc1712b8d9cf410ef827ff681d320c3b17e'
 )
 
 prepare() {

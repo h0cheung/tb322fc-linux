@@ -10,7 +10,7 @@
 # callers (armada-decky-sync, the sleep-debug hook).
 # Upstream: https://github.com/armada-os/armada (GPL-2.0-or-later, Copyright the Armada contributors)
 pkgname=armada-control
-pkgver=20261024
+pkgver=20261029
 pkgrel=1
 pkgdesc="Armada privileged settings daemon for the armada-control Decky plugin"
 arch=('aarch64')
@@ -21,20 +21,20 @@ makedepends=()
 backup=('etc/armada/game-tweaks.json')
 
 source=(
-    "armada-control.upstream::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/244b74516d99d06cb0518609ce4b842ab278be8a/system_files/usr/libexec/armada/armada-control"
-    "armada-game-launch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/244b74516d99d06cb0518609ce4b842ab278be8a/system_files/usr/libexec/armada/armada-game-launch"
-    "armada_game_tweaks.py::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/244b74516d99d06cb0518609ce4b842ab278be8a/system_files/usr/lib/armada/armada_game_tweaks.py"
-    "armada_turnip.py::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/244b74516d99d06cb0518609ce4b842ab278be8a/system_files/usr/lib/armada/armada_turnip.py"
-    "env-presets.json::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/244b74516d99d06cb0518609ce4b842ab278be8a/system_files/usr/share/armada/env-presets.json"
+    "armada-control.upstream::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/9788014a0293dc26745b000d02854ad88ef73e88/system_files/usr/libexec/armada/armada-control"
+    "armada-game-launch::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/9788014a0293dc26745b000d02854ad88ef73e88/system_files/usr/libexec/armada/armada-game-launch"
+    "armada_game_tweaks.py::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/9788014a0293dc26745b000d02854ad88ef73e88/system_files/usr/lib/armada/armada_game_tweaks.py"
+    "armada_turnip.py::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/9788014a0293dc26745b000d02854ad88ef73e88/system_files/usr/lib/armada/armada_turnip.py"
+    "env-presets.json::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/9788014a0293dc26745b000d02854ad88ef73e88/system_files/usr/share/armada/env-presets.json"
     arch-control-compat.patch
 )
 sha256sums=(
-    '836b1c8264b49812e92a6a875bb004f68234fab5c3e465f2421db58717ed75c5'
+    'b22e00c35ea576d00a21c9cb296d91dccef8e566c6110e21d613f8b9f7320939'
     '6f9131f9db3b340c5be2d2545d988072cb50ebeec9348431f13508ab27e703ca'
     'fef819d936e072fb6c71a0d2e2a139e5c2ff9ccc35e3b2ff8df789096e6f7443'
     'ca4d3ea19aeff9cda156a878d26328c60bc6f969d1ef4ff649bb6a327a8a4fc9'
     'f26d1b9cccbc65142f106c6c94d5e1814f43721b7b30e57817fea6242087c5cc'
-    'a12fe8a57d4179eb2196eb1fbde5d93bd1ca1c78a90fb9d8cb36ae9656ce95fd'
+    '96ef57deb5910ef5262d8e96d4b2f699c135923bab0115dac2f441512d2bbe10'
 )
 prepare() {
     cp "$srcdir/armada-control.upstream" "$srcdir/armada-control"

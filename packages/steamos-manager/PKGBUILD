@@ -10,7 +10,7 @@ depends=('glib2' 'systemd-libs' 'speech-dispatcher')
 makedepends=('rust' 'clang' 'git' 'pkgconf')
 # Fixed upstream commit; identical to the one ArmadaOS pins in packages/steamos-manager/BASE.env.
 _commit=8e2883d0d7e2fc3994e822ca9853c03561ca6eec
-_freedom_commit=244b74516d99d06cb0518609ce4b842ab278be8a
+_freedom_commit=9788014a0293dc26745b000d02854ad88ef73e88
 source=(
     "git+$url.git#commit=$_commit"
     "platform.toml::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_freedom_commit/packages/steamos-manager/platform.toml"

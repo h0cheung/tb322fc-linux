@@ -4,7 +4,7 @@
 
 ## 从源码构建
 
-先在系统源码仓库运行 `python scripts/sync-freedom-packaging.py`，同步共享配置、Wi-Fi 补丁和 ALS 源码的校验和。将本目录复制到 AArch64 构建环境，运行普通 `makepkg`。配方固定 Linux 7.2.6 和 Freedom commit，应用统一补丁及 Elden 扩展；本配方 release 为 `7.2.6-16-freedom`。升级通过 pkgver/pkgrel 和固定源码 commit 表达，不依赖工作目录的 dirty 标记。
+先在系统源码仓库运行 `python scripts/sync-freedom-packaging.py`，同步共享配置、Elden 兼容补丁和 ALS 源码的校验和。将本目录复制到 AArch64 构建环境，运行普通 `makepkg`。配方固定 Linux 7.2.6 和 Freedom commit，应用统一补丁及 Elden 扩展；本配方 release 为 `7.2.6-21-freedom`。升级通过 pkgver/pkgrel 和固定源码 commit 表达，不依赖工作目录的 dirty 标记。
 
 pkgrel 8 通过 Kbuild 的 `CONFIG_LTO_CLANG_THIN=y` 启用 ThinLTO；makepkg 的 `!lto` 保留，避免通用构建参数介入内核的 LTO 策略。配置合并和预编译输入打包均核对该选项，Image、模块和 headers 仍须使用同一次构建。ccache 继续缓存 Clang 的编译输出；完整 ThinLTO 构建和运行验证状态另行记录。
 
@@ -83,6 +83,7 @@ pkgrel 4 合并测试中，MCQ 并发直接读校验和 VFP 切换路径通过�
 
 本地非LTO内核13/14/15依次增加这三项，每版三次真实关屏恢复及20/60秒定时s2idle通过，各版测试期间boot ID不变、Wi-Fi恢复，未见DSI命令超时或ADSP fatal。最终留在15，画面/触控仍待用户实体确认；正式16保留ThinLTO，未构建或跑新CI。短时恢复通过不代表历史间歇性重启已根治。
 
+
 ## UFS 调频与管理命令死锁（pkgrel 19）
 
 回移上游 [Fix a deadlock between clock scaling and device commands](https://lore.kernel.org/all/20261016124608.46-1-26rote@gmail.com/)，见 [0015](../../patches/freedom/0015-ufs-fix-clock-scaling-command-deadlock.patch)。调频与暂停命令路径先取得 `clk_scaling_lock`，再 quiesce tagset，结束时按相反顺序恢复；调频路径保持 `wb_mutex` 在时钟锁之前。避免管理命令持有读锁却被已暂停的队列挡住，调频线程再等待写锁的循环等待。
@@ -92,3 +93,7 @@ pkgrel 4 合并测试中，MCQ 并发直接读校验和 VFP 切换路径通过�
 本地非 LTO 测试使用 `7.2.6-18-freedom`；正式配方使用更高的19并保留 ThinLTO，使后续仓库包可正常升级测试包。
 
 2026-10-25 本地18已安装并正常重启，Build ID `abc32eda…`；120秒四路文件校验与5910次UFS查询、35次实际调频通过，一次20秒s2idle同boot恢复。旧15回退保留。尚未覆盖长期负载与休眠。
+
+## 2026-10-29 上游同步
+
+Freedom 固定至 `9788014a0293dc26745b000d02854ad88ef73e88`，纳入 0224 的通用旋转拆分、资源重新分配、时钟计算修正以及 0531 的 ASoC 延迟恢复同步。SM8750 已由既有 0066 开启 inline rotation；DPU13 的寄存器变化仅作用于 DPU13，四代沿用 DPU12 路径。0188 已包含 Elden，因此不再重复应用本地 range-scan 扩展。

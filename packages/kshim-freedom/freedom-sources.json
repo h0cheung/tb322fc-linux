@@ -1,9 +1,13 @@
 {
   "freedom": {
     "url": "https://github.com/mydanyi/armadaos-freedom.git",
-    "commit": "244b74516d99d06cb0518609ce4b842ab278be8a",
+    "commit": "9788014a0293dc26745b000d02854ad88ef73e88",
     "kernel_base": "7.2.6",
     "kshim_builder_sha256": "18e520f3f1204b24a3390833247307b75c1fb2e187f51cf282f8f7329e6b351f"
+  },
+  "kshim_runtime": {
+    "commit": "244b74516d99d06cb0518609ce4b842ab278be8a",
+    "reason": "Keep the validated launcher; newer upstream enables native UFS settings I/O, outside the DPU test."
   },
   "compatibility_config": "configs/freedom-compat.config",
   "external_modules": [
@@ -40,12 +44,10 @@
     "known_working_boot_sha256": "75d5c11b9f1d9a41023b8a109144fcd73be93e807e21c6866e9f086d63237048",
     "evidence": "On this device and project key, stock259 payload with OS field0 fails temporary boot; same payload andAVB properties with503316904 boots. Stock vendor-signed image itself has0; not a universal Android requirement."
   },
-  "kernel_driver_compatibility_patches": [
-    "patches/freedom/0002-ath12k-enable-range-scans-on-elden.patch"
-  ],
+  "kernel_driver_compatibility_patches": [],
   "wifi_range_scan_validation": {
     "author_patch": "0188-wifi-ath12k-baldur-range-scans.patch",
-    "extension": "Keep WCN7860 hardware guards, also enable for lenovo,elden",
+    "extension": "Elden support is included upstream in 0188; the former local extension is retired",
     "baseline": "One boot1493s to connect, repeat no association before209s shutdown",
     "candidate": "Temporary boot5.630331s; persistent boot5.463111s",
     "full_scan_seconds": 25.422,

@@ -3,7 +3,7 @@
 pkgbase=linux-freedom
 pkgname=(linux-freedom linux-freedom-headers)
 pkgver=7.2.6
-pkgrel=19
+pkgrel=20
 pkgdesc='Linux with ArmadaOS Freedom hardware support'
 arch=(aarch64)
 url='https://github.com/mydanyi/armadaos-freedom'
@@ -12,7 +12,7 @@ makedepends=(bc binutils clang cpio dtc gcc git libelf lld llvm make openssl pah
 options=(!strip !debug !lto)
 validpgpkeys=(ABAF11C65A2970B130ABE3C479BE3E4300411886
               647F28654894E3BD457199BE38DBBDC86092693E)
-_freedom_commit=244b74516d99d06cb0518609ce4b842ab278be8a
+_freedom_commit=9788014a0293dc26745b000d02854ad88ef73e88
 _release="$pkgver-$pkgrel-freedom"
 _elden_patches=(elden-usb-suspend.patch
                 elden-display-state.patch
@@ -40,7 +40,7 @@ else
   source=("https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-$pkgver.tar.xz"
           "https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-$pkgver.tar.sign"
           "armadaos-freedom::git+https://github.com/mydanyi/armadaos-freedom.git#commit=$_freedom_commit"
-          freedom-compat.config elden-range-scans.patch
+          freedom-compat.config
           prepare-source.py export-kernel-input.py build-native-helpers.sh
           "q6v5-handover-one-shot.patch::https://github.com/torvalds/linux/commit/bb7c5d6f5b41d192fa81ce404e463f5d3ce70cb3.patch"
           q6v5-attach-keep-handover-masked.patch
@@ -54,7 +54,6 @@ else
               'SKIP'
               'SKIP'
               'aefdd1a2e8cac7e6fabb8e06207a965c046b3dfe8bd64fe03f58a634521c4d75'
-              'e413f0e0d26b2abbcb491d2810de1f60607f022f87be717071db74e487860c4e'
               'e6be1927bcb8391035cd8758fdae7b51d83b6624f8a828af92faac72b11f450f'
               '0c05888e65d911d0ddfb0fc88a078071c819c5eece4837880c1b9ce1ece853de'
               '5419db1ed39454c6dea165374ec936990c1a2520213e1b221cca2e51d2bbc724'
@@ -83,7 +82,7 @@ prepare() {
   [[ -n ${FREEDOM_PREBUILT_BUNDLE:-} ]] && return 0
   cd "$srcdir/linux-$pkgver"
   python "$srcdir/prepare-source.py" . "$srcdir/armadaos-freedom" \
-    "$srcdir/elden-range-scans.patch" "$srcdir/q6v5-handover-one-shot.patch" \
+    "$srcdir/q6v5-handover-one-shot.patch" \
     "$srcdir/q6v5-attach-keep-handover-masked.patch" "$srcdir/tools-u128-types.patch" \
     "$srcdir/elden-host-power-lost.patch" "${_elden_patches[@]/#/$srcdir/}" "$srcdir/ufs-internal-commands.patch" \
     "$srcdir/iris-psc-last.patch" "$srcdir/iris-deinit-irq.patch"

@@ -5,7 +5,7 @@
 # service unit and the modules-load.d entry.
 pkgname=als-bridge
 pkgver=20260929
-pkgrel=2
+pkgrel=3
 pkgdesc="Mirror SensorProxy ambient-light levels into the als-bridge sysfs IIO device so Steam can offer adaptive brightness"
 arch=('any')
 license=('GPL-2.0')
