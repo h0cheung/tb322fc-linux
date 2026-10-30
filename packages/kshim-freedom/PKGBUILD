@@ -1,7 +1,7 @@
 # Maintainer: h0cheung
 pkgname=kshim-freedom
 pkgver=20261024
-pkgrel=4
+pkgrel=5
 pkgdesc='Native kShim tools and atomic kernel deployment for Freedom on Elden'
 arch=(aarch64)
 license=(GPL-3.0-or-later)
@@ -56,7 +56,7 @@ sha256sums+=(
   'b1682eaf83d9cff117a9602747d86019cedb52618dc8926e2eb9630efa9af122'
   'dd47582dee94f757c9a4050f11a515b12114c9ac3e4215403db806fbf99f55cd'
   'd958b0a8790ab04525c958af20ecebb30734cce5f4d58701d1343deb6372881c'
-  '78e6328992ef45a1ef65af8576ae5a8497a5f350bced8346030b56e1a843ee3b'
+  'e00d9e3aa3e183b4ecce1651df0ba9ac3ad76e36425cd5ee9361a7bb47fdb3a4'
   '458851f4bd96ceceebf773bfd2fc6ebfe21c81d09073d64a5a2e618576b16b01'
   'bde08b7fb0909ca2e5f9fb389d0bf0c9898541c20bdbf50cb24645a64a6d8517'
   '3030fdebf5eb464bdf9ecbeda7d7a29ffbc6dd46d8fa8d4c9241fd0d8d8173bb'

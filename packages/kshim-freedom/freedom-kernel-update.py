@@ -147,6 +147,22 @@ def backup_kernel(release, modules, state):
     print('Saved kernel rollback files:', directory)
 
 
+def installed_kernel_releases(config, module_root=Path('/usr/lib/modules')):
+    """Ignore retained rollback trees when a module-only hook has no release."""
+    releases = set()
+    for path in module_root.glob('*/pkgbase'):
+        if path.read_text().strip() != config['pkgbase']:
+            continue
+        owner = subprocess.run(['pacman', '-Qqo', '--', str(path)],
+                               capture_output=True, text=True, timeout=10)
+        if owner.returncode == 1:  # Preserved module tree, no installed package.
+            continue
+        owner.check_returncode()
+        if owner.stdout.strip() == config['pkgbase']:
+            releases.add(path.parent.name)
+    return releases
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--kernel', help='Packaged kernel release; otherwise derive from hook targets')
@@ -182,8 +198,7 @@ def main():
         if m:
             releases.add(m[1])
     if not releases:
-        releases = {p.parent.name for p in Path('/usr/lib/modules').glob('*/pkgbase')
-                    if p.read_text().strip() == config['pkgbase']}
+        releases = installed_kernel_releases(config)
     if args.backup_hook:
         for release in releases:
             if not re.fullmatch(r'[A-Za-z0-9_.+\-]+', release):
