@@ -82,3 +82,13 @@ pkgrel 4 合并测试中，MCQ 并发直接读校验和 VFP 切换路径通过�
 - [0014](../../patches/freedom/0014-dsi-elden-stop-slave-first.patch)：适配固定 SunUEFI 0008，仅调整 Elden 从 DSI host 到主 host 的关闭顺序，不改 DPU 编码器顺序。
 
 本地非LTO内核13/14/15依次增加这三项，每版三次真实关屏恢复及20/60秒定时s2idle通过，各版测试期间boot ID不变、Wi-Fi恢复，未见DSI命令超时或ADSP fatal。最终留在15，画面/触控仍待用户实体确认；正式16保留ThinLTO，未构建或跑新CI。短时恢复通过不代表历史间歇性重启已根治。
+
+## UFS 调频与管理命令死锁（pkgrel 19）
+
+回移上游 [Fix a deadlock between clock scaling and device commands](https://lore.kernel.org/all/20261016124608.46-1-26rote@gmail.com/)，见 [0015](../../patches/freedom/0015-ufs-fix-clock-scaling-command-deadlock.patch)。调频与暂停命令路径先取得 `clk_scaling_lock`，再 quiesce tagset，结束时按相反顺序恢复；调频路径保持 `wb_mutex` 在时钟锁之前。避免管理命令持有读锁却被已暂停的队列挡住，调频线程再等待写锁的循环等待。
+
+2026-10-25 本地15版编译现场捕获到 UFS exception-event 线程等待 `blk_execute_rq()`、devfreq 线程等待时钟写锁，后续 F2FS 与用户进程一起阻塞，与上游报告高度吻合。原有 `b52d695d0620` 仅修复错误恢复路径，不能代替本次修正。修后负载对照见下文；高并发编译是触发条件线索，不据此认定文件系统损坏。
+
+本地非 LTO 测试使用 `7.2.6-18-freedom`；正式配方使用更高的19并保留 ThinLTO，使后续仓库包可正常升级测试包。
+
+2026-10-25 本地18已安装并正常重启，Build ID `abc32eda…`；120秒四路文件校验与5910次UFS查询、35次实际调频通过，一次20秒s2idle同boot恢复。旧15回退保留。尚未覆盖长期负载与休眠。

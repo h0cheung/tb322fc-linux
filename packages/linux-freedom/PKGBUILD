@@ -3,7 +3,7 @@
 pkgbase=linux-freedom
 pkgname=(linux-freedom linux-freedom-headers)
 pkgver=7.2.6
-pkgrel=16
+pkgrel=19
 pkgdesc='Linux with ArmadaOS Freedom hardware support'
 arch=(aarch64)
 url='https://github.com/mydanyi/armadaos-freedom'
@@ -24,7 +24,8 @@ _elden_patches=(elden-usb-suspend.patch
                 ath12k-scan-cancel.patch
                 dsi-keep-live-link-state.patch
                 dsi-restore-bonded-slave.patch
-                dsi-stop-slave-first.patch)
+                dsi-stop-slave-first.patch
+                ufs-clock-scaling.patch)
 export LOCALVERSION=
 export KBUILD_BUILD_USER=linux-freedom
 export KBUILD_BUILD_HOST=archlinux
@@ -72,6 +73,7 @@ else
               'ea5901823f99212c7f9e6c3ba786f71c2d1a9ad5d1efaef6ca46c8c2e566fa48'
               'c47ab1aad1a3a897e317451327de09cb5d5a0e5529333265a93f2560ed1c638e'
               '3cadbb4d41ee50a957db0200fba2c8fd33956c6aa5e97e9be35eeb3a358ea00a'
+              'cefd2c6c8b066f6bab4efe1f0c171dbcfda3ccb89ef8ab988c3fdb65564f246b'
               'fd6069f5ac61c642bd7d1b402a88d74cb00aab7f353802d22b953dc9a8aee8ee'
               'bb78efdb9ab3511afa27f1da87d10771655afd972a9521ef70ec2a89a94bd7b7'
               'c0080c1fa0365c8dbf05c588d5dc288b36d2739c1052e47ef463f27bdabc5095')

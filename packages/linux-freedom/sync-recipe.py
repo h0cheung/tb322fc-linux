@@ -21,6 +21,7 @@ inputs = [
     ('patches/freedom/0012-dsi-elden-keep-live-link-state.patch', 'dsi-keep-live-link-state.patch'),
     ('patches/freedom/0013-dsi-sm8750-restore-bonded-slave.patch', 'dsi-restore-bonded-slave.patch'),
     ('patches/freedom/0014-dsi-elden-stop-slave-first.patch', 'dsi-stop-slave-first.patch'),
+    ('patches/freedom/0015-ufs-fix-clock-scaling-command-deadlock.patch', 'ufs-clock-scaling.patch'),
 ]
 for source, name in inputs:
     shutil.copyfile(repo / source, here / name)
