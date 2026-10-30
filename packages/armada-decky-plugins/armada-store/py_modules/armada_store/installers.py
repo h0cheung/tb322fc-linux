@@ -493,7 +493,7 @@ def remove_decky_plugin(record):
 def restart_decky():
     subprocess.Popen(
         ["systemd-run", "--collect", "--no-block", "--on-active=5",
-         "systemctl", "restart", "plugin_loader.service"],
+         "systemctl", "restart", "decky-loader@" + paths.user_name() + ".service"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         env=clean_env(),
