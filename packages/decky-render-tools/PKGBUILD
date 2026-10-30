@@ -1,0 +1,95 @@
+# Maintainer: h0cheung <hcheunh@gmail.com>
+# UI and OptiScaler backend reference Kettle Linux at 91e3b5c; no full source copy.
+pkgname=decky-render-tools
+pkgver=1.0.0
+pkgrel=3
+pkgdesc='Optional OptiScaler and Kettle frame generation controls for Steam Game Mode'
+arch=(any)
+url='https://github.com/h0cheung/tb322fc-linux'
+license=(BSD-3-Clause)
+depends=(python decky-loader armada-control kettle-framegen-armada optiscaler-arm64ec-armada)
+makedepends=(nodejs npm)
+source=(
+    "upscaling.py::https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/kettle-decky-plugins/game-settings/py_modules/upscaling.py"
+    "upscaling.tsx::https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/kettle-decky-plugins/game-settings/src/upscaling.tsx"
+    "steamlib.py::https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/kettle-decky-plugins/shared/steamlib.py"
+    "GamePicker.tsx::https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/kettle-decky-plugins/shared/GamePicker.tsx"
+    "launchOptions.ts::https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/kettle-decky-plugins/shared/launchOptions.ts"
+    "LICENSE.upstream::https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/kettle-decky-plugins/LICENSE"
+    "Tabs.tsx::https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/kettle-decky-plugins/shared/Tabs.tsx"
+    main.py
+    index.tsx
+    launch.ts
+    plugin.json
+    package.json
+    package-lock.json
+    rollup.config.js
+    tsconfig.json
+    optional-render-tools.patch
+    render-tools-sync
+    render-tools.conf
+    test-launch.cjs
+)
+sha256sums=(
+    '57a2484945d6a8ed78ed7f5af3458fd0e3b1c11f67bf869ad53f2a5407ee18e3'
+    '49214de4e564521c155d04f05cc15702524664a119e853fda39e4ae9a28bcb0d'
+    'a7f7fe1f49a7d12b2e19d810bfe7fbfb2c24c58886b9cfe37831347c9ba1f5cf'
+    '7528df2b4e252413e4a02ca4e2cb1863d3f2bef3978f6e337d4912c8faa37916'
+    'ff2c650bab676552003f705c7b3fff87065c8b28090896eb36b8c8e60db1c362'
+    'cc0a7e5fc002449019b2c2978e75925ab723bf2b3f72810211952e5845182fa0'
+    '2dee99773b27ba93342e8087a16c775547501f3761f123982592a3350aa99d16'
+    '4d06a013b871f00307196124901414167a4b6f6247fa2ffb06fdd334702113a6'
+    '4b3b9dd60b61e841f0e32dd56e5b0d2e026357853a925632b2d42852350b0b76'
+    '11c97d709495822a8be2109301f6c84baddf458b972a38a642b63fe2de36506e'
+    '3877d630739ae65d4b8fb83c0216f863d84a544c4d842e89f8b2176811d6e1fd'
+    '1f65b6673494e30c5b747f283e373dfc0e7c7ff62427a3859084384c95bb01c5'
+    'ad091aa14943dcb89829c990d14afaa84ed7b0d4494f994c0d15e54b91f8e0e7'
+    '5a909c16783e199f060429635797fb84268943bdb4e9142dd38779361c71dc58'
+    '14d708fb0bebf5bda419198488de0fc21b6586998c4c57d52d6b4678db5b256f'
+    '19898dacea2942c77484014b95248c0ed42e69e1b6441f0668c2ea925d08a5f5'
+    '8398ef27c736114b080c4e4c2019dcb198010c98fcd881256ed376c37de9d033'
+    '92af2065c4296db5fa8f4688a5413520e53372716715cad5792aaf6d761c2174'
+    '232753248498f83e85db0327b7fa97a43c427d8373eaa19f62c4c68e4d869f1e'
+)
+
+prepare() {
+    for f in upscaling.py upscaling.tsx; do
+        install -m644 "$f" "$f.work"
+        mv "$f.work" "$f"
+    done
+    patch -Np1 --fuzz=0 -i optional-render-tools.patch
+    install -Dm644 package.json frontend/package.json
+    install -Dm644 package-lock.json frontend/package-lock.json
+    install -Dm644 plugin.json frontend/game-settings/plugin.json
+    install -Dm644 package.json frontend/game-settings/package.json
+    install -Dm644 rollup.config.js frontend/game-settings/rollup.config.js
+    install -Dm644 tsconfig.json frontend/game-settings/tsconfig.json
+    for f in index.tsx launch.ts upscaling.tsx; do
+        install -Dm644 "$f" "frontend/game-settings/src/$f"
+    done
+    for f in GamePicker.tsx launchOptions.ts Tabs.tsx; do
+        install -Dm644 "$f" "frontend/shared/$f"
+    done
+}
+
+build() {
+    cd frontend
+    npm ci --ignore-scripts --no-audit --no-fund
+    npm run typecheck
+    npm run build
+}
+
+check() {
+    NODE_PATH="$srcdir/frontend/node_modules" node test-launch.cjs launch.ts
+}
+
+package() {
+    local d="$pkgdir/usr/share/decky-plugins/decky-render-tools"
+    install -Dm644 main.py plugin.json package.json -t "$d"
+    install -Dm644 frontend/game-settings/dist/index.js "$d/dist/index.js"
+    install -Dm644 upscaling.py steamlib.py -t "$d/py_modules"
+    install -Dm644 LICENSE.upstream "$d/LICENSE"
+    install -Dm644 LICENSE.upstream "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    install -Dm755 render-tools-sync "$pkgdir/usr/lib/decky-loader/render-tools-sync"
+    install -Dm644 render-tools.conf "$pkgdir/usr/lib/systemd/system/decky-loader@.service.d/render-tools.conf"
+}

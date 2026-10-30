@@ -1,0 +1,249 @@
+From: h0cheung <hcheunh@gmail.com>
+Subject: [PATCH] isolate optional upscaling and persist disabled install choices
+
+Source: https://github.com/kettlelinux/kettlelinux/tree/91e3b5cfe90925d469430fc915101df5579b4e68/packages/kettle-decky-plugins
+---
+diff --git a/upscaling.py b/upscaling.py
+--- a/upscaling.py
++++ b/upscaling.py
+@@ -25,7 +25,7 @@
+ OPTI = "/usr/share/optiscaler"
+ MARKER = "kettle-optiscaler.json"
+ BAK = ".kettle-bak"
+-PARKED = os.path.join(os.path.dirname(decky.DECKY_PLUGIN_SETTINGS_DIR), "kettle-upscaling", "optiscaler")  # <appid>.ini, <appid>.json
++PARKED = os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "optiscaler")  # <appid>.ini, <appid>.json
+ PROXIES = ["dxgi.dll", "winmm.dll", "version.dll", "dbghelp.dll", "d3d12.dll", "wininet.dll", "winhttp.dll"]
+ LOGS = ["OptiScaler.log"]  # written next to the DLL; removed with it
+ AMD = os.path.join(decky.DECKY_USER_HOME, ".local", "share", "kettle", "components", "amd-fsr3")
+@@ -331,6 +331,19 @@
+             "settings": settings}
+ 
+ 
++def select_install(appid: int, exe_dir: str, proxy: str) -> dict:
++    """Persist the install choices while off, before the UI can be remounted."""
++    root = steamlib.install_dir(appid)
++    if not root or not os.path.isdir(exe_dir) or not _inside(root, exe_dir):
++        raise ValueError("folder is not inside the game's install directory")
++    if proxy not in PROXIES:
++        raise ValueError(f"unsupported proxy {proxy}")
++    if _find_install(appid, root):
++        raise ValueError("turn OptiScaler off before changing its folder or proxy")
++    _write_json(os.path.join(PARKED, f"{appid}.json"), {"dir": exe_dir, "proxy": proxy})
++    return get_game(appid)
++
++
+ def enable(appid: int, exe_dir: str, proxy: str) -> dict:
+     root = steamlib.install_dir(appid)
+     if not root or not os.path.isdir(exe_dir) or not _inside(root, exe_dir):
+diff --git a/upscaling.tsx b/upscaling.tsx
+--- a/upscaling.tsx
++++ b/upscaling.tsx
+@@ -3,108 +3,12 @@
+ import { ButtonItem, DropdownItem, PanelSection, PanelSectionRow, SliderField, ToggleField } from "@decky/ui";
+ import { callable, toaster } from "@decky/api";
+ import { useEffect, useState } from "react";
+-import { editLaunchOptions, getAppDetails, getFreshAppDetails, getPerfStore, withDllOverride } from "../../shared/launchOptions";
++import { editLaunchOptions, dllOverride, getLaunchOptions, getAppDetails, getFreshAppDetails, getPerfStore, withDllOverride } from "../../shared/launchOptions";
+ import { runningAppId } from "../../shared/GamePicker";
+ 
+ const small = { fontSize: "12px", lineHeight: "16px" };
+ 
+ 
+-// A lower render resolution: the game renders smaller, and the frame is scaled up to the panel
+-// (Steam accepts "Default", "Native" or "WxH"). With Steam's Linear filter the display hardware
+-// scales it on the way out (gamescope keeps direct scanout); Nearest and Sharp (SGSR, or FSR 1)
+-// are a GPU pass that composites every frame. Borderlands 2 on the Portal, GPU-bound at 1280x720:
+-// 144 fps with Linear, 83 with FSR, and 113 at native 1920x1080 (2026-10-14).
+-const RESOLUTIONS = [
+-  { data: "Default", label: "Default (Steam setting)" },
+-  { data: "Native", label: "Native 1920×1080" },
+-  { data: "1600x900", label: "Ultra quality 1600×900" },
+-  { data: "1280x720", label: "Quality 1280×720" },
+-  { data: "1152x648", label: "Balanced 1152×648" },
+-  { data: "960x540", label: "Performance 960×540" },
+-];
+-// Steam's split scaling filter enum (Quick Access › Performance › Scaling filter)
+-const FILTERS = [
+-  { data: 1, label: "Linear (fastest)" },
+-  { data: 2, label: "Nearest (GPU pass)" },
+-  { data: 3, label: "Sharp (GPU pass, slower)" },
+-];
+-
+-function GamescopeFsr({ appid }: { appid: number }) {
+-  const [res, setRes] = useState(getAppDetails(appid)?.strResolutionOverride || "Default");
+-  useEffect(() => {
+-    getFreshAppDetails(appid).then((d) => d && setRes(d.strResolutionOverride || "Default"));
+-  }, [appid]);
+-  // Steam's filter and sharpness are per game, but only settable for the running one
+-  const running = runningAppId() === appid;
+-  const perf = running ? getPerfStore() : null;
+-  const [filter, setFilter] = useState<number>(perf?.msgSettingsPerApp?.split_scaling_filter || 1);
+-  const [sharp, setSharp] = useState<number>(perf?.msgSettingsPerApp?.fsr_sharpness ?? 2);
+-
+-  return (
+-    <PanelSection title="Render resolution">
+-      <PanelSectionRow>
+-        <DropdownItem
+-          label="Render resolution"
+-          description="The game renders at this size and is scaled up to the screen. With the Linear filter that costs nothing. Applies on next launch."
+-          rgOptions={RESOLUTIONS}
+-          selectedOption={res}
+-          onChange={async (o) => {
+-            setRes(o.data);
+-            SteamClient.Apps.SetAppResolutionOverride(appid, o.data);
+-            // on the built-in screen Steam only honours the override with this flag set; it's a
+-            // toggle, so it has to be read fresh (the cached copy isn't updated by the toggle)
+-            if (o.data !== "Default" && o.data !== "Native" && !(await getFreshAppDetails(appid))?.bOverrideInternalResolution)
+-              SteamClient.Apps.ToggleOverrideResolutionForInternalDisplay(appid);
+-          }}
+-        />
+-      </PanelSectionRow>
+-      {perf ? (
+-        <>
+-          <PanelSectionRow>
+-            <DropdownItem
+-              label="Scaling filter"
+-              description={filter === 1
+-                ? "The display scales the frame up, at no cost."
+-                : "A GPU pass on every frame: sharper, but it can cost more than the lower resolution saves (Borderlands 2: 144 fps Linear, 83 Sharp)."}
+-              rgOptions={FILTERS}
+-              selectedOption={filter}
+-              onChange={(o) => {
+-                perf.SetSplitScalingFilter(o.data);
+-                setFilter(o.data);
+-              }}
+-            />
+-          </PanelSectionRow>
+-          {filter === 3 && (
+-            <PanelSectionRow>
+-              <SliderField
+-                label="FSR sharpness"
+-                description="0 is sharpest"
+-                value={sharp}
+-                min={0}
+-                max={8}
+-                step={1}
+-                showValue
+-                onChange={(v) => {
+-                  perf.SetFSRSharpness(v);
+-                  setSharp(v);
+-                }}
+-              />
+-            </PanelSectionRow>
+-          )}
+-        </>
+-      ) : (
+-        <PanelSectionRow>
+-          <div style={small}>
+-            {running
+-              ? 'Set the filter in Quick Access › Performance: Linear is the fastest.'
+-              : "Scaling filter and sharpness: start the game (Steam keeps them per game). Linear is the fastest."}
+-          </div>
+-        </PanelSectionRow>
+-      )}
+-    </PanelSection>
+-  );
+-}
+-
+ // ---------- OptiScaler (SGSR 2, Arm ASR, FSR 2.2): replaces the game's DLSS / FSR 2+ / XeSS ----------
+ 
+ type Settings = { upscaler: string; asr_quality: string; framegen: string; hudfix: boolean; sharpen: boolean; sharpness: number; ratio: string; spoof: boolean; menu_key: string };
+@@ -118,8 +22,12 @@
+   proxy?: string;
+   settings?: Settings;
+ };
++const ownedGet = callable<[number], {proxy:string;before:string|null}|null>("up_launch_get");
++const ownedSave = callable<[number,string,string|null], void>("up_launch_save");
++const ownedClear = callable<[number],void>("up_launch_clear");
+ const status = callable<[], Status>("up_status");
+ const getGame = callable<[appid: number], Game>("up_get_game");
++const selectInstall = callable<[appid: number, exe_dir: string, proxy: string], Game>("up_select_install");
+ const enable = callable<[appid: number, exe_dir: string, proxy: string], Game>("up_enable");
+ const disable = callable<[appid: number], Game>("up_disable");
+ const configure = callable<[appid: number, settings: Partial<Settings>], Game>("up_configure");
+@@ -165,11 +73,11 @@
+   const [proxy, setProxy] = useState("");
+   const [busy, setBusy] = useState(false);
+ 
+-  // While off, a folder and proxy the user picked survive a settings change
++  // Folder/proxy choices are saved by the backend even while OptiScaler is off.
+   const show = (g: Game) => {
+     setG(g);
+-    setDir((d) => (g.on ? g.dir ?? "" : d && g.candidates?.includes(d) ? d : g.candidates?.[0] ?? ""));
+-    setProxy((p) => (g.on || !p ? g.proxy ?? "dxgi.dll" : p));
++    setDir(g.on ? g.dir ?? "" : g.candidates?.[0] ?? "");
++    setProxy(g.proxy ?? "dxgi.dll");
+   };
+   const fail = (e: unknown) => toaster.toast({ title: "OptiScaler", body: String(e) });
+   useEffect(() => {
+@@ -197,7 +105,7 @@
+   const restartNote = () => (runningAppId() === appid ? ` Restart ${name} to apply.` : "");
+   const st = g.settings!;
+   // FSR 3.1 and frame generation need AMD's DLLs; a game already using them keeps its choice
+-  const amd = s.amd || st.upscaler === "fsr31" || st.framegen !== "off";
++  const amd = false; // This optional package ships only the open-source built-in upscalers.
+   const set = (patch: Partial<Settings>) => run(() => configure(appid, patch), g.on ? restartNote().trim() || undefined : undefined);
+ 
+   // On: OptiScaler is copied into the game folder and loaded through a DLL override in the
+@@ -205,13 +113,22 @@
+   const toggle = (on: boolean) =>
+     run(async () => {
+       if (on) {
++        const before = dllOverride(await getLaunchOptions(appid), dllName(proxy));
++        await ownedSave(appid, proxy, before);
+         const r = await enable(appid, dir, proxy);
+-        await editLaunchOptions(appid, (o) => withDllOverride(o, dllName(proxy), "n,b"));
++        try {
++          await editLaunchOptions(appid, (o) => withDllOverride(o, dllName(proxy), "n,b"));
++        } catch (e) {
++          await disable(appid);
++          throw e;
++        }
+         return r;
+       }
+       const was = g.proxy ?? "dxgi.dll";
++      const owned = await ownedGet(appid);
+       const r = await disable(appid);
+-      await editLaunchOptions(appid, (o) => withDllOverride(o, dllName(was), null));
++      await editLaunchOptions(appid, (o) => dllOverride(o, dllName(was)) === "n,b" ? withDllOverride(o, dllName(was), owned?.before ?? null) : o);
++      await ownedClear(appid);
+       return r;
+     }, (on ? "On." : "Off.") + restartNote());
+ 
+@@ -241,7 +158,8 @@
+               description="Where the game's exe is"
+               rgOptions={(g.candidates ?? []).map((d) => ({ data: d, label: short(d) }))}
+               selectedOption={dir}
+-              onChange={(o) => setDir(o.data)}
++              disabled={busy}
++              onChange={(o) => run(() => selectInstall(appid, o.data, proxy))}
+             />
+           </PanelSectionRow>
+           <PanelSectionRow>
+@@ -250,7 +168,8 @@
+               description="Try another name if the game crashes or OptiScaler doesn't appear"
+               rgOptions={s.proxies.map((p) => ({ data: p, label: p }))}
+               selectedOption={proxy}
+-              onChange={(o) => setProxy(o.data)}
++              disabled={busy}
++              onChange={(o) => run(() => selectInstall(appid, dir, o.data))}
+             />
+           </PanelSectionRow>
+         </>
+@@ -282,7 +201,7 @@
+         </>
+       ) : (
+         <PanelSectionRow>
+-          <div style={small}>FSR 3.1 and frame generation: install AMD FSR 3.1 in the Extras tab.</div>
++          <div style={small}>本包提供 SGSR2、Arm ASR 和 FSR2.2；通用插帧在“Kettle 插帧”页设置。</div>
+         </PanelSectionRow>
+       )}
+       <PanelSectionRow>
+@@ -339,7 +258,6 @@
+   if (!s) return null;
+   return (
+     <>
+-      <GamescopeFsr key={`fsr-${appid}`} appid={appid} />
+       <Sgsr key={`sgsr-${appid}`} appid={appid} name={name} s={s} />
+     </>
+   );

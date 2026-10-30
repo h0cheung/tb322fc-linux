@@ -1,0 +1,37 @@
+# Adapted from Kettle Linux 91e3b5cfe90925d469430fc915101df5579b4e68/packages/kettle-framegen/PKGBUILD.
+# Kettle Linux's own frame generation: an implicit Vulkan layer (VK_LAYER_KETTLE_framegen) that
+# interpolates frames on the game's own device. Developed in its own repo (url below). Off
+# unless KETTLE_FG=1, which the Game Settings plugin's Frame Gen tab sets per game.
+# Proton ARM64 games (x86 code via FEX inside Wine) use the native aarch64 Vulkan loader, so
+# this one layer covers them and native arm64 games.
+pkgname=kettle-framegen-armada
+_pkgname=kettle-framegen
+pkgver=0.2.0.r55.g4e736d0
+pkgrel=1
+pkgdesc='Kettle Linux frame generation Vulkan layer'
+arch=(aarch64)
+url='https://github.com/kettlelinux/kettle-framegen'
+license=(BSD-3-Clause)
+depends=(glibc vulkan-icd-loader python)
+makedepends=(git gcc make glslang vulkan-headers)
+# v0.2.0 plus main since (no tag yet): the halo fixes around swords, faster on Adreno, softer
+# where no motion fits, min_fps, recording; then (2026-10-11) the HUD held where the scene shows
+# through it and sliding HUD content and compass markers following their own motion, latency=low
+# with VK_KHR_present_wait2, multiplier=auto from Steam's frame limit, and swapchain, present and
+# fence fixes. Pinned by commit
+_commit=4e736d007e188661e695ddf58693dea56d0f9e3c
+source=("$_pkgname::git+$url.git#commit=$_commit" kettle-fg)
+sha256sums=('SKIP' 'e942a41f0e5fcc135a35ec6498c3adb1a1a4fd101fb016f3b7c47f9ed519a58a')
+
+build() {
+  make -C $_pkgname CC=gcc CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS"
+}
+
+package() {
+  make -C $_pkgname install DESTDIR="$pkgdir" PREFIX=/usr
+  install -Dm755 "$srcdir/kettle-fg" "$pkgdir/usr/bin/kettle-fg"
+  install -Dm644 $_pkgname/LICENSE -t "$pkgdir/usr/share/licenses/$pkgname"
+}
+
+provides=(kettle-framegen)
+conflicts=(kettle-framegen)

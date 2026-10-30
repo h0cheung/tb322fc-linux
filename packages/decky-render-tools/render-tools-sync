@@ -1,0 +1,20 @@
+#!/bin/bash
+set -euo pipefail
+session_user=$(/usr/libexec/armada/session-user)
+user_home=$(getent passwd "$session_user" | cut -d: -f6)
+[[ -n "$session_user" && -n "$user_home" ]]
+plugin_root="$user_home/.local/var/opt/decky-loader/plugins"
+source_dir=/usr/share/decky-plugins/decky-render-tools
+install -d -m0755 "$plugin_root"
+staging_dir=$(mktemp -d "$plugin_root/.decky-render-tools.XXXXXX")
+cp -a "$source_dir/." "$staging_dir/"
+chown -R "$session_user:$(id -gn "$session_user")" "$staging_dir"
+python3 - "$plugin_root/decky-render-tools" "$staging_dir" <<'PY'
+import os,sys,shutil
+from pathlib import Path
+old,new=map(Path,sys.argv[1:])
+assert old.name=='decky-render-tools' and new.name.startswith('.decky-render-tools.') and old.parent==new.parent
+if old.is_symlink():old.unlink()
+elif old.exists():shutil.rmtree(old)
+os.replace(new,old)
+PY

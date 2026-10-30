@@ -1,0 +1,61 @@
+# Adapted from Kettle Linux 91e3b5c packages/directx-shader-compiler.
+# Plain Release flags avoid the FSR2 shader assertion in the repository DXC build.
+pkgname=directx-shader-compiler-render
+pkgver=1.9.2609
+pkgrel=1
+pkgdesc='DirectX Shader Compiler for ARM64EC upscaler shader builds'
+arch=(aarch64 x86_64)
+url='https://github.com/microsoft/DirectXShaderCompiler'
+license=(LicenseRef-NCSA Apache-2.0)
+depends=(gcc-libs glibc)
+makedepends=(cmake ninja python)
+provides=(directx-shader-compiler)
+conflicts=(directx-shader-compiler)
+options=(!buildflags !lto !debug)
+source=(
+    "DirectXShaderCompiler.tar.gz::https://codeload.github.com/microsoft/DirectXShaderCompiler/tar.gz/01b62ad47db7dee3dd33f90e7339cf9e860b3f93"
+    "DirectX-Headers.tar.gz::https://codeload.github.com/microsoft/DirectX-Headers/tar.gz/980971e835876dc0cde415e8f9bc646e64667bf7"
+    "SPIRV-Headers.tar.gz::https://codeload.github.com/KhronosGroup/SPIRV-Headers/tar.gz/29981f65241605e08b0ede4cfeb999fe3b723c6a"
+    "SPIRV-Tools.tar.gz::https://codeload.github.com/KhronosGroup/SPIRV-Tools/tar.gz/b707790a898e44038547df54580022fc1cf89c3d"
+)
+sha256sums=(
+    'c48c223df13ba425fd9beda9843754defbcd379a3811a6a0e590110be57168c7'
+    'b5a4b6d8806ff7f29f19879f83d015dbe8740676d4ca0b48647a789cc7773c4e'
+    '232899f1ad4104fb5bc377b94596c7621575eee62ad9a9e8f929b63a7dd8a7ad'
+    '05d8af89737bde57571c48dbd36714c9f520a69623e14de72c3be6b600e277d6'
+)
+
+prepare() {
+    mv "DirectXShaderCompiler-01b62ad47db7dee3dd33f90e7339cf9e860b3f93" "DirectXShaderCompiler"
+    mv "DirectX-Headers-980971e835876dc0cde415e8f9bc646e64667bf7" "DirectX-Headers"
+    mv "SPIRV-Headers-29981f65241605e08b0ede4cfeb999fe3b723c6a" "SPIRV-Headers"
+    mv "SPIRV-Tools-b707790a898e44038547df54580022fc1cf89c3d" "SPIRV-Tools"
+    cp -a "DirectX-Headers/." "DirectXShaderCompiler/external/DirectX-Headers/"
+    cp -a "SPIRV-Headers/." "DirectXShaderCompiler/external/SPIRV-Headers/"
+    cp -a "SPIRV-Tools/." "DirectXShaderCompiler/external/SPIRV-Tools/"
+}
+
+build() {
+  # Not the repo's PredefinedParams.cmake: it overrides these
+  cmake -S DirectXShaderCompiler -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DLLVM_APPEND_VC_REV=OFF \
+    -DLLVM_DEFAULT_TARGET_TRIPLE=dxil-ms-dx \
+    -DLLVM_ENABLE_EH=ON -DLLVM_ENABLE_RTTI=ON \
+    -DLLVM_INCLUDE_DOCS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_OPTIMIZED_TABLEGEN=OFF \
+    -DLLVM_TARGETS_TO_BUILD=None -DLIBCLANG_BUILD_STATIC=ON \
+    -DCLANG_BUILD_EXAMPLES=OFF -DCLANG_CL=OFF -DCLANG_ENABLE_ARCMT=OFF \
+    -DCLANG_ENABLE_STATIC_ANALYZER=OFF -DLLVM_ENABLE_TERMINFO=OFF \
+    -DHLSL_DISABLE_SOURCE_GENERATION=ON \
+    -DHLSL_INCLUDE_TESTS=OFF -DENABLE_SPIRV_CODEGEN=ON -DSPIRV_WERROR=OFF -DSPIRV_BUILD_TESTS=OFF -DSPIRV_SKIP_TESTS=ON \
+    -DLLVM_INCLUDE_TESTS=OFF -DCLANG_INCLUDE_TESTS=OFF -DLLVM_BUILD_TESTS=OFF \
+    -DLLVM_ENABLE_ASSERTIONS=OFF
+  cmake --build build --target dxc --parallel 6
+}
+
+package() {
+  install -Dm755 build/bin/dxc -t "$pkgdir/usr/bin"
+  install -Dm755 build/lib/libdxcompiler.so* -t "$pkgdir/usr/lib"
+  install -Dm644 DirectXShaderCompiler/LICENSE.TXT -t "$pkgdir/usr/share/licenses/$pkgname"
+}

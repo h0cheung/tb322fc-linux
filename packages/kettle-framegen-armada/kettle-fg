@@ -1,0 +1,25 @@
+#!/usr/bin/python3
+"""Enable Kettle framegen for one command, after any existing game wrappers."""
+import os
+import json
+from pathlib import Path
+import sys
+
+if len(sys.argv) < 2:
+    raise SystemExit('Usage: kettle-fg COMMAND [ARG ...]')
+env = dict(os.environ)
+env.update(KETTLE_FG='1', DISABLE_LSFGVK='1', DISABLE_LSFG='1', LSFG_CLASSIC='0')
+appid = next((env[k] for k in ('SteamAppId', 'SteamGameId', 'STEAM_COMPAT_APP_ID')
+              if env.get(k, '').isdigit()), None)
+if appid:
+    settings = Path(env.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'kettle-framegen' / (appid + '.launcher.json')
+    try:
+        if json.loads(settings.read_text()).get('bypass_wsi') is True:
+            env['ENABLE_GAMESCOPE_WSI'] = '0'
+    except FileNotFoundError:
+        pass
+# An explicit layer list must not force the other frame generators back in.
+if 'VK_INSTANCE_LAYERS' in env:
+    env['VK_INSTANCE_LAYERS'] = ':'.join(x for x in env['VK_INSTANCE_LAYERS'].split(':')
+                                      if not x.startswith(('VK_LAYER_LSFG', 'VK_LAYER_LS_frame_generation')))
+os.execvpe(sys.argv[1], sys.argv[1:], env)

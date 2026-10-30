@@ -1,0 +1,30 @@
+{
+  "upscaling.py": {
+    "url": "https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/kettle-decky-plugins/game-settings/py_modules/upscaling.py",
+    "sha256": "57a2484945d6a8ed78ed7f5af3458fd0e3b1c11f67bf869ad53f2a5407ee18e3"
+  },
+  "upscaling.tsx": {
+    "url": "https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/kettle-decky-plugins/game-settings/src/upscaling.tsx",
+    "sha256": "49214de4e564521c155d04f05cc15702524664a119e853fda39e4ae9a28bcb0d"
+  },
+  "steamlib.py": {
+    "url": "https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/kettle-decky-plugins/shared/steamlib.py",
+    "sha256": "a7f7fe1f49a7d12b2e19d810bfe7fbfb2c24c58886b9cfe37831347c9ba1f5cf"
+  },
+  "GamePicker.tsx": {
+    "url": "https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/kettle-decky-plugins/shared/GamePicker.tsx",
+    "sha256": "7528df2b4e252413e4a02ca4e2cb1863d3f2bef3978f6e337d4912c8faa37916"
+  },
+  "launchOptions.ts": {
+    "url": "https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/kettle-decky-plugins/shared/launchOptions.ts",
+    "sha256": "ff2c650bab676552003f705c7b3fff87065c8b28090896eb36b8c8e60db1c362"
+  },
+  "LICENSE.upstream": {
+    "url": "https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/kettle-decky-plugins/LICENSE",
+    "sha256": "cc0a7e5fc002449019b2c2978e75925ab723bf2b3f72810211952e5845182fa0"
+  },
+  "Tabs.tsx": {
+    "url": "https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/kettle-decky-plugins/shared/Tabs.tsx",
+    "sha256": "2dee99773b27ba93342e8087a16c775547501f3761f123982592a3350aa99d16"
+  }
+}

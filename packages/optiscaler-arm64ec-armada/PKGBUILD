@@ -1,0 +1,184 @@
+# Adapted from Kettle Linux 91e3b5cfe90925d469430fc915101df5579b4e68/packages/optiscaler-arm64ec/PKGBUILD.
+# Patch payloads are referenced at that immutable commit; no source tree is vendored.
+# OptiScaler built as an ARM64EC PE DLL (Sloptiscaler's arm64ec-port fork), for the Kettle
+# Game Settings plugin's Upscaling tab, which copies it into a game's folder when the user turns it on.
+#
+# Upstream OptiScaler is x86-64 and its Detours hooks fault on Proton ARM64's ARM64EC
+# dxgi/DXVK/winevulkan. Built as ARM64EC it runs natively inside the FEX-emulated game and
+# hooks those DLLs correctly. The fork adds Qualcomm's Snapdragon Game Super Resolution 2
+# (temporal, tuned for Adreno) as a backend for DX12, DX11 (via 11-on-12) and Vulkan.
+# Built-in upscalers here: SGSR2 (default on Adreno), Arm ASR and FSR 2.2.1 (DX12, and DX11
+# via 11-on-12). FSR 3.1+ and XeSS are loaded from AMD's/Intel's own DLLs at runtime, which
+# this package doesn't ship; DLSS needs NVIDIA hardware.
+#
+# Kettle upstream reports these patch tests with Deep Rock Galactic (DX12 via DLSS):
+#   0001  SGSR2: guard the upscale kernel's weight sum: at some sub-pixel phases it cancels
+#         to ~0, which showed as moving vertical strips of black/white pixels while turning
+#         (tested)
+#   0002  SGSR2: display-resolution motion vectors (MVLowRes unset, UE's DLSS plugin default)
+#         are fetched at the display pixel (clamped to the texture) and scaled by the display
+#         size, as FSR2 does
+#   0003  Arm ASR (MIT, FSR2-derived, tuned for mobile GPUs): a D3D12 backend for its ffxm
+#   0004  API, DXIL built from its HLSL; upscaler=asr / asr_12, [ASR] ShaderQuality
+#         (quality|balanced|performance; performance is broken upstream in 25.06).
+#         Hands the game's inputs back in the state they came in, keeps typed sRGB
+#         views, frees a context that fails to build (and doesn't retry it every
+#         frame), frees a replaced context or output buffer a few frames later,
+#         falls back to auto exposure without an exposure texture as FSR2 does; menu: RCAS shown on for SGSR2/ASR, FSR camera settings for ASR
+#   0005  FSR2 2.2.1's DX12 shader permutations generated with Linux dxc instead of AMD's
+#         FidelityFX_SC.exe under Wine
+#   0006  SGSR2's Vulkan SPIR-V compiled with Linux dxc instead of dxc.exe under Wine; run in
+#         build() so the Vulkan path gets the same shaders as DX12/DX11 (0001, 0002)
+# dxc comes from our directx-shader-compiler package (build-time only, with SPIR-V codegen).
+#
+# Ships OptiScaler.dll/.ini only (GPL-3.0, source: the pinned fork commit below; SGSR2
+# shaders BSD-3-Clause). Statically linked: Detours (MIT), FreeType (FTL), spdlog, simpleini,
+# unordered_dense, magic_enum, Dear ImGui (MIT); nvapi, XeSS, FidelityFX and Vulkan are
+# headers only. Select the Linux host toolchain; the packaged DLL is ARM64EC
+# on either build host. CI builds natively in the aarch64 chroot.
+pkgname=optiscaler-arm64ec-armada
+pkgver=10.0.0.20260923
+pkgrel=6
+_commit=f80e4da339cd4624212fd0546922571fe01205c1
+_llvm_mingw=20260908
+_ffx=c6efa6bf7f2027b3ec94f28578bb5965eabb9e55   # FidelityFX-SDK: only ffx-api/include is used
+pkgdesc='OptiScaler (ARM64EC) with Snapdragon GSR 2, Arm ASR and FSR 2.2 for Proton ARM64 games'
+arch=(any)
+url='https://github.com/justradical/Sloptiscaler'
+license=(GPL-3.0-only BSD-3-Clause MIT FTL)
+makedepends=(git cmake ninja python directx-shader-compiler-render)
+options=(!strip !buildflags !lto)  # a Windows PE cross build: no host (ELF) flags
+case ${CARCH:-$(uname -m)} in
+  aarch64) _llvm_arch=aarch64; _llvm_sha256=c907dd2302a292b663add18752a55ce9d544ca0fd19cf33c086ca242d5994ea6 ;;
+  x86_64) _llvm_arch=x86_64; _llvm_sha256=2258c745e3155870c80793f3e8c80b28fbde11b9ff73c4c78783635b3440b092 ;;
+  *) printf 'Unsupported build host: %s\n' "${CARCH:-$(uname -m)}" >&2; return 1 ;;
+esac
+_llvm="llvm-mingw-$_llvm_mingw-ucrt-ubuntu-22.04-$_llvm_arch"
+source=("Sloptiscaler::git+$url.git#commit=$_commit"
+        # submodules the build uses (the FidelityFX SDKs are 670 MB; the headers are below)
+        "simpleini::git+https://github.com/brofield/simpleini.git#commit=6048871ea9ee0ec24be5bd099d161a10567d7dc2"
+        "unordered_dense::git+https://github.com/martinus/unordered_dense.git#commit=73f3cbb237e84d483afafc743f1f14ec53e12314"
+        "xess::git+https://github.com/intel/xess.git#commit=8fe81bdbbaf00b3c1b733fd0d830c333dc84e6f0"
+        "vulkan::git+https://github.com/KhronosGroup/Vulkan-Headers.git#commit=d64e9e156ac818c19b722ca142230b68e3daafe3"
+        "spdlog::git+https://github.com/gabime/spdlog.git#commit=faa0a7a9c5a3550ed5461fab7d8e31c37fd1a2ef"
+        "magic_enum::git+https://github.com/Neargye/magic_enum.git#commit=a733a2ea665ca5d72b7270f0334bf2e7b82bd0cc"
+        "nvapi::git+https://github.com/NVIDIA/nvapi.git#commit=9b181ea572f680327fe01a14a0f1f41c78034104"
+        # arm64ec/build.sh clones these at HEAD; pinned here
+        "DirectXMath::git+https://github.com/microsoft/DirectXMath.git#commit=b758b4a5669aca3542b4bf2b0cbc334696edd302"
+        "Detours::git+https://github.com/microsoft/Detours.git#commit=adb07604aa56508448b95bf037c2a6d0d3b6831a"
+        "freetype::git+https://gitlab.freedesktop.org/freetype/freetype.git#commit=42608f77f20749dd6ddc9e0536788eaad70ea4b5"  # VER-2-13-3
+        "https://github.com/mstorsjo/llvm-mingw/releases/download/$_llvm_mingw/$_llvm.tar.xz"
+        "0001-sgsr2-weight-guard.patch::https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/optiscaler-arm64ec/0001-sgsr2-weight-guard.patch"
+        "0002-sgsr2-display-res-motion-vectors.patch::https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/optiscaler-arm64ec/0002-sgsr2-display-res-motion-vectors.patch"
+        "0003-asr-d3d12-backend.patch::https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/optiscaler-arm64ec/0003-asr-d3d12-backend.patch"
+        "0004-asr-upscaler.patch::https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/optiscaler-arm64ec/0004-asr-upscaler.patch"
+        "0005-fsr2-shaders-with-linux-dxc.patch::https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/optiscaler-arm64ec/0005-fsr2-shaders-with-linux-dxc.patch"
+        "0006-sgsr2-spirv-with-linux-dxc.patch::https://raw.githubusercontent.com/kettlelinux/kettlelinux/91e3b5cfe90925d469430fc915101df5579b4e68/packages/optiscaler-arm64ec/0006-sgsr2-spirv-with-linux-dxc.patch"
+        # upscalers built in (their submodules aren't needed)
+        "asr::git+https://github.com/arm/accuracy-super-resolution-generic-library.git#commit=0501f490bd9946a2e1806b5363d7ab8a9a6a5e0a"  # 25.06
+        "FidelityFX-FSR2::git+https://github.com/GPUOpen-Effects/FidelityFX-FSR2.git#commit=1680d1edd5c034f88ebbbb793d8b88f8842cf804")  # v2.2.1
+_ffx_headers=(ffx_api.h ffx_api.hpp ffx_api_loader.h ffx_api_types.h ffx_framegeneration.h
+              ffx_framegeneration.hpp ffx_upscale.h ffx_upscale.hpp dx12/ffx_api_dx12.h
+              dx12/ffx_api_dx12.hpp vk/ffx_api_vk.h vk/ffx_api_vk.hpp)
+for _h in "${_ffx_headers[@]}"; do
+  source+=("ffx-${_h//\//-}::https://raw.githubusercontent.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/$_ffx/ffx-api/include/ffx_api/$_h")
+done
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP'
+            "$_llvm_sha256"
+            'ce46e7c303821ed685c0b1cb83fc2e70a0e7ebc5ff4a9aed3134da0244e6499e'
+            '16a3ec10d539cec58526286af0a0a45dca4b6523a012721778ab05f6788b4758'
+            'c5cb95cbd4b0ca00181d02e86e2e5dbbb2465591a3edc00b0b70313da5fef258'
+            '7a962fe0a6bcf95309c1b1d6863d8d5f6f12c02544d2c57a7b324309caa94426'
+            '1d58a3681595c43a6e92758cd06c154fbfd893062103e2b204468fb368d428ef'
+            '1543cfa8a9c49e225bb0c48f8a4d478c43aa0177ce5624b772ba201e2999288a'
+            'SKIP'
+            'SKIP'
+            '408b4203545e8299ed188fbb1d9ddfe0932b73ea6e8b14fe10edcf1f45771561'
+            '42470189c0241feca12eed959cf90ade15806bb9ecc578b65f8c20ca9365c34d'
+            '7be51b7bf1e640b84c0c7f22a9db50a6816debce3755b51224e56c89501659c3'
+            'dee2782813d22047c068e0fb27d1347324f8ce79d280a4672848b3b294cb12fe'
+            '344936dccf49267d4421d1d74dc6db617d0a83c5a9f5991841325e812a38f127'
+            '30225b7c0596cff734b7c1fc5217d5ac39ccc629bcccb3bcdeeadbcac317fbcd'
+            '1155bcdcea9c10e6a95507bc9422ca062a853ac84250f0b09a637a66836b3ac1'
+            '6451754c2539a7e991429a7bd8365bb848f51abebad1982715f345989cc0a234'
+            '215804fba316acb81d2c463b6bbce36c53cc63465c15b8c9858554c8111fae24'
+            'ab1cef2b97d2e3fb3294ed59d1e26ecf45d4d0483aa001ced37e7ddbd1be9dd6'
+            'a50a8d5ff5689a10a6ce378f2df5569fd880c89ec46e8356aaf35eb40512edd9'
+            'b4eab5ed043de7590c786c1904eba7064449ee8a8c9e302eb6363ccc7035172e')
+
+_submodules=(simpleini unordered_dense xess vulkan spdlog magic_enum nvapi)
+
+prepare() {
+  cd Sloptiscaler
+  for p in "$srcdir"/0*.patch; do
+    patch -Np1 --fuzz=0 -i "$p"
+  done
+  git submodule init "${_submodules[@]/#/external/}"
+  for s in "${_submodules[@]}"; do
+    git config "submodule.external/$s.url" "$srcdir/$s"
+  done
+  git -c protocol.file.allow=always submodule update "${_submodules[@]/#/external/}"
+
+  local ffx=external/FidelityFX-SDK/ffx-api/include/ffx_api
+  for h in "${_ffx_headers[@]}"; do
+    install -Dm644 "$srcdir/ffx-${h//\//-}" "$ffx/$h"
+  done
+
+  # Bound template-heavy C++ compilation on native and cross-build hosts.
+  python - <<'PYCODE'
+from pathlib import Path
+p = Path('arm64ec/build.sh')
+s = p.read_text()
+needle = 'xargs -P "$(nproc)"'
+assert s.count(needle) == 1
+p.write_text(s.replace(needle, 'xargs -P "${OPTISCALER_JOBS:-4}"'))
+PYCODE
+
+  # build.sh expects the x86-64 llvm-mingw and fetches missing deps; hand it ours
+  sed -i 's|^LLVM_MINGW=.*|LLVM_MINGW="${LLVM_MINGW:?}"|' arm64ec/build.sh
+  mkdir -p "$srcdir/deps"
+  for d in DirectXMath Detours freetype asr FidelityFX-FSR2; do
+    ln -sfn "$srcdir/$d" "$srcdir/deps/$d"
+  done
+}
+
+build() {
+  cd Sloptiscaler
+  local dxc=${DXC:-/usr/bin/dxc}
+  # the committed SGSR2 SPIR-V predates our shader patches
+  DXC="$dxc" ./arm64ec/gen_sgsr2_spirv.sh "$srcdir/deps"
+  # Fail before the DLL build if any FSR2 shader permutation fails.
+  DXC="$dxc" ./arm64ec/gen_fsr2_shaders.sh "$srcdir/deps"
+  LLVM_MINGW="$srcdir/$_llvm" DXC="$dxc" ./arm64ec/build.sh "$srcdir/deps"
+  # build.sh quietly falls back to stubs when dxc or the FSR2 library build fails;
+  # this package has to have both
+  [ -f "$srcdir/deps/asrgen/asr_dx12_shaders.h" ] || { echo "Arm ASR shaders missing (dxc)" >&2; return 1; }
+  [ -d "$srcdir/deps/fsr2gen/dx12" ] || { echo "FSR2 shaders missing (dxc)" >&2; return 1; }
+  [ -f "$srcdir/deps/fsr2gen/obj/libffx_fsr2_arm64ec.a" ] || { echo "FSR2 library build failed" >&2; return 1; }
+}
+
+package() {
+  cd Sloptiscaler
+  local d="$pkgdir/usr/share/optiscaler"
+  install -Dm644 "$srcdir/deps/build/OptiScaler.dll" OptiScaler.ini -t "$d"
+  echo "$pkgver-$pkgrel" >"$d/VERSION"
+  printf 'OptiScaler (ARM64EC, Sloptiscaler fork) is free software under the GPL-3.0.\nCorresponding source: %s/tree/%s\nplus the patches in Kettle Linux packages/optiscaler-arm64ec/\n' \
+    "$url" "$_commit" >"$d/SOURCE"
+
+  local l="$pkgdir/usr/share/licenses/$pkgname"
+  install -Dm644 LICENSE "$l/OptiScaler_LICENSE"
+  install -Dm644 LICENSES/BSD-3-Clause-Qualcomm.txt "$l/SGSR_LICENSE"
+  install -Dm644 LICENSES/MIT-Arm-ASR.txt "$l/ArmASR_LICENSE"
+  install -Dm644 "$srcdir/FidelityFX-FSR2/LICENSE.txt" "$l/FidelityFX-FSR2_LICENSE"
+  install -Dm644 OptiScaler/include/imgui/LICENSE.txt "$l/imgui_LICENSE"
+  install -Dm644 "$srcdir/Detours/LICENSE" "$l/Detours_LICENSE"
+  install -Dm644 "$srcdir/freetype/docs/FTL.TXT" "$l/FreeType_FTL.TXT"
+  install -Dm644 external/simpleini/LICENCE.txt "$l/simpleini_LICENSE"
+  install -Dm644 external/unordered_dense/LICENSE "$l/unordered_dense_LICENSE"
+  install -Dm644 external/spdlog/LICENSE "$l/spdlog_LICENSE"
+  install -Dm644 external/magic_enum/LICENSE "$l/magic_enum_LICENSE"
+  install -Dm644 external/nvapi/License.txt "$l/nvapi_LICENSE"
+}
+
+provides=(optiscaler-arm64ec)
+conflicts=(optiscaler-arm64ec)
