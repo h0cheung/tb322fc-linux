@@ -1,0 +1,66 @@
+From: h0cheung <hcheunh@gmail.com>
+Subject: [PATCH] drm/msm/dpu: check the pending bandwidth aggregate on Elden
+
+The checked plane bandwidth is already taken from the proposed state on
+Elden, but the final CRTC aggregate still reads committed new_perf. This
+admits an over-budget frame and then prevents even a lower-bandwidth
+fallback or refresh-rate transition from escaping that committed state.
+
+Use pending active CRTC states, with committed states only for CRTCs not
+in the transaction. Leave post-commit bus votes and other machines alone.
+Keep the hardware bandwidth limit unchanged.
+
+Signed-off-by: h0cheung <hcheunh@gmail.com>
+---
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c
+@@ -186,6 +186,37 @@
+ 	}
+ }
+ 
++/*
++ * Check the proposed transaction, including removal of an expensive layer.
++ * Aggregating committed new_perf here can admit an over-budget transaction,
++ * then reject every subsequent transaction that would reduce its bandwidth.
++ * Bus voting after commit must continue to use the committed states.
++ */
++static void dpu_core_perf_aggregate_atomic(struct drm_crtc *crtc,
++		struct drm_crtc_state *state,
++		struct dpu_core_perf_params *perf)
++{
++	enum dpu_crtc_client_type client_type = dpu_crtc_get_client_type(crtc);
++	struct drm_crtc *tmp_crtc;
++
++	drm_for_each_crtc(tmp_crtc, crtc->dev) {
++		struct drm_crtc_state *tmp_state;
++		struct dpu_crtc_state *dpu_cstate;
++
++		tmp_state = drm_atomic_get_new_crtc_state(state->state, tmp_crtc);
++		if (!tmp_state)
++			tmp_state = tmp_crtc->state;
++		if (!tmp_state->active ||
++		    client_type != dpu_crtc_get_client_type(tmp_crtc))
++			continue;
++
++		dpu_cstate = to_dpu_crtc_state(tmp_state);
++		perf->max_per_pipe_ib = max(perf->max_per_pipe_ib,
++					    dpu_cstate->new_perf.max_per_pipe_ib);
++		perf->bw_ctl += dpu_cstate->new_perf.bw_ctl;
++	}
++}
++
+ /**
+  * dpu_core_perf_crtc_check - validate performance of the given crtc state
+  * @crtc: Pointer to crtc
+@@ -216,7 +247,10 @@
+ 	/* obtain new values */
+ 	_dpu_core_perf_calc_crtc(&kms->perf, crtc, state, &dpu_cstate->new_perf);
+ 
+-	dpu_core_perf_aggregate(crtc->dev, dpu_crtc_get_client_type(crtc), &perf);
++	if (of_machine_is_compatible("lenovo,elden"))
++		dpu_core_perf_aggregate_atomic(crtc, state, &perf);
++	else
++		dpu_core_perf_aggregate(crtc->dev, dpu_crtc_get_client_type(crtc), &perf);
+ 
+ 	/* convert bandwidth to kb */
+ 	bw = DIV_ROUND_UP_ULL(perf.bw_ctl, 1000);

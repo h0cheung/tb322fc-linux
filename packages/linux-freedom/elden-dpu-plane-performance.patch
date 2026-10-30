@@ -1,0 +1,395 @@
+Subject: [PATCH] drm/msm/dpu: calculate Elden candidate performance before commit
+
+Atomic plane state copies retain plane_fetch_bw and plane_clk from the last
+atomic_update. Even after selecting pending CRTC/plane states, checking those
+cached values evaluates old geometry and refresh rates. Calculate Elden's
+candidate values directly from the allocated pipe rectangles and pending
+adjusted mode, without mutating committed plane states on CRTC-only updates.
+
+For Elden inline rotation, express the source dimensions in the destination
+scan direction. A 3040x952 slice rotated onto a 952x3040 destination consumes
+952 pixels per output scan line, not 3040. Keep fractional downscales in the
+bandwidth arithmetic. The existing prefill allowance, 120% bandwidth factor,
+minimum peak vote and 28.5 GB/s rejection limit remain in effect.
+
+This is a local Elden experiment. It does not change the other devices' cached
+performance path or their rotation bandwidth policy. The rotation throughput
+model still needs device validation; this is not copied from a vendor formula.
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.c
+@@ -1,253 +1,291 @@
+ // SPDX-License-Identifier: GPL-2.0-only
+ /*
+  * Copyright (C) 2014-2018 The Linux Foundation. All rights reserved.
+  * Copyright (C) 2013 Red Hat
+  * Author: Rob Clark <robdclark@gmail.com>
+  */
+ 
+ #define pr_fmt(fmt)	"[drm:%s:%d] " fmt, __func__, __LINE__
+ 
+ #include <linux/debugfs.h>
+ #include <linux/dma-buf.h>
++#include <linux/of.h>
+ 
+ #include <drm/drm_atomic.h>
+ #include <drm/drm_atomic_uapi.h>
+ #include <drm/drm_blend.h>
+ #include <drm/drm_colorop.h>
+ #include <drm/drm_damage_helper.h>
+ #include <drm/drm_framebuffer.h>
+ #include <drm/drm_gem_atomic_helper.h>
+ 
+ #include <linux/soc/qcom/ubwc.h>
+ 
+ #include "msm_drv.h"
+ #include "dpu_kms.h"
+ #include "dpu_hw_sspp.h"
+ #include "dpu_hw_util.h"
+ #include "dpu_trace.h"
+ #include "dpu_crtc.h"
+ #include "dpu_vbif.h"
+ #include "dpu_plane.h"
+ 
+ #define DPU_DEBUG_PLANE(pl, fmt, ...) DRM_DEBUG_ATOMIC("plane%d " fmt,\
+ 		(pl) ? (pl)->base.base.id : -1, ##__VA_ARGS__)
+ 
+ #define DPU_ERROR_PLANE(pl, fmt, ...) DPU_ERROR("plane%d " fmt,\
+ 		(pl) ? (pl)->base.base.id : -1, ##__VA_ARGS__)
+ 
+ #define DECIMATED_DIMENSION(dim, deci) (((dim) + ((1 << (deci)) - 1)) >> (deci))
+ #define PHASE_STEP_SHIFT	21
+ #define PHASE_STEP_UNIT_SCALE   ((int) (1 << PHASE_STEP_SHIFT))
+ #define PHASE_RESIDUAL		15
+ 
+ #define SHARP_STRENGTH_DEFAULT	32
+ #define SHARP_EDGE_THR_DEFAULT	112
+ #define SHARP_SMOOTH_THR_DEFAULT	8
+ #define SHARP_NOISE_THR_DEFAULT	2
+ 
+ #define DPU_PLANE_COLOR_FILL_FLAG	BIT(31)
+ #define DPU_ZPOS_MAX 255
+ 
+ /*
+  * Default Preload Values
+  */
+ #define DPU_QSEED3_DEFAULT_PRELOAD_H 0x4
+ #define DPU_QSEED3_DEFAULT_PRELOAD_V 0x3
+ #define DPU_QSEED4_DEFAULT_PRELOAD_V 0x2
+ #define DPU_QSEED4_DEFAULT_PRELOAD_H 0x4
+ 
+ #define DEFAULT_REFRESH_RATE	60
+ 
+ static const uint32_t qcom_compressed_supported_formats[] = {
+ 	DRM_FORMAT_ABGR8888,
+ 	DRM_FORMAT_ARGB8888,
+ 	DRM_FORMAT_XBGR8888,
+ 	DRM_FORMAT_XRGB8888,
+ 	DRM_FORMAT_ARGB2101010,
+ 	DRM_FORMAT_XRGB2101010,
+ 	DRM_FORMAT_ABGR2101010,
+ 	DRM_FORMAT_XBGR2101010,
+ 	DRM_FORMAT_BGR565,
+ 
+ 	DRM_FORMAT_NV12,
+ 	DRM_FORMAT_P010,
+ };
+ 
+ /*
+  * struct dpu_plane - local dpu plane structure
+  * @vm: address space pointer
+  * @csc_ptr: Points to dpu_csc_cfg structure to use for current
+  * @catalog: Points to dpu catalog structure
+  * @revalidate: force revalidation of all the plane properties
+  */
+ struct dpu_plane {
+ 	struct drm_plane base;
+ 
+ 	enum dpu_sspp pipe;
+ 
+ 	uint32_t color_fill;
+ 	bool is_error;
+ 	bool is_rt_pipe;
+ 	const struct dpu_mdss_cfg *catalog;
+ };
+ 
+ static const uint64_t supported_format_modifiers[] = {
+ 	DRM_FORMAT_MOD_QCOM_COMPRESSED,
+ 	DRM_FORMAT_MOD_LINEAR,
+ 	DRM_FORMAT_MOD_INVALID
+ };
+ 
+ #define to_dpu_plane(x) container_of(x, struct dpu_plane, base)
+ 
+ static struct dpu_kms *_dpu_plane_get_kms(struct drm_plane *plane)
+ {
+ 	struct msm_drm_private *priv = plane->dev->dev_private;
+ 
+ 	return to_dpu_kms(priv->kms);
+ }
+ 
+ /**
+  * _dpu_plane_calc_bw - calculate bandwidth required for a plane
+  * @catalog: Points to dpu catalog structure
+  * @fmt: Pointer to source buffer format
+  * @mode: Pointer to drm display mode
+  * @pipe_cfg: Pointer to pipe configuration
+  * Result: Updates calculated bandwidth in the plane state.
+  * BW Equation: src_w * src_h * bpp * fps * (v_total / v_dest)
+  * Prefill BW Equation: line src bytes * line_time
+  */
+ static u64 _dpu_plane_calc_bw(const struct dpu_mdss_cfg *catalog,
+ 	const struct msm_format *fmt,
+ 	const struct drm_display_mode *mode,
+-	struct dpu_sw_pipe_cfg *pipe_cfg)
++	const struct dpu_sw_pipe_cfg *pipe_cfg)
+ {
+ 	int src_width, src_height, dst_height, fps;
+ 	u64 plane_pixel_rate, plane_bit_rate;
+ 	u64 plane_prefill_bw;
+ 	u64 plane_bw;
+ 	u32 hw_latency_lines;
+ 	u64 scale_factor;
+ 	int vbp, vpw, vfp;
++	bool rotated = of_machine_is_compatible("lenovo,elden") &&
++		drm_rotation_90_or_270(pipe_cfg->rotation);
+ 
+ 	src_width = drm_rect_width(&pipe_cfg->src_rect);
+ 	src_height = drm_rect_height(&pipe_cfg->src_rect);
++	/* Destination scan lines are post-rotation, as in the clock estimate. */
++	if (rotated)
++		swap(src_width, src_height);
+ 	dst_height = drm_rect_height(&pipe_cfg->dst_rect);
+ 	fps = drm_mode_vrefresh(mode);
+ 	vbp = mode->vtotal - mode->vsync_end;
+ 	vpw = mode->vsync_end - mode->vsync_start;
+ 	vfp = mode->vsync_start - mode->vdisplay;
+ 	hw_latency_lines =  catalog->perf->min_prefill_lines;
+ 	scale_factor = src_height > dst_height ?
+ 		mult_frac(src_height, 1, dst_height) : 1;
+ 
+-	plane_pixel_rate = src_width * mode->vtotal * fps;
++	plane_pixel_rate = (u64)src_width * mode->vtotal * fps;
+ 	plane_bit_rate = plane_pixel_rate * fmt->bpp;
+ 
+ 	plane_bw = plane_bit_rate * scale_factor;
++	/* Do not round a rotated downscale ratio down before multiplying. */
++	if (rotated && src_height > dst_height)
++		plane_bw = mult_frac(plane_bit_rate, src_height, dst_height);
+ 
+ 	plane_prefill_bw = plane_bw * hw_latency_lines;
+ 
+ 	if ((vbp+vpw) > hw_latency_lines)
+ 		do_div(plane_prefill_bw, (vbp+vpw));
+ 	else if ((vbp+vpw+vfp) < hw_latency_lines)
+ 		do_div(plane_prefill_bw, (vbp+vpw+vfp));
+ 	else
+ 		do_div(plane_prefill_bw, hw_latency_lines);
+ 
+ 
+ 	return max(plane_bw, plane_prefill_bw);
+ }
+ 
+ /**
+  * _dpu_plane_calc_clk - calculate clock required for a plane
+  * @mode: Pointer to drm display mode
+  * @pipe_cfg: Pointer to pipe configuration
+  * Result: Updates calculated clock in the plane state.
+  * Clock equation: dst_w * v_total * fps * (src_h / dst_h)
+  */
+ static u64 _dpu_plane_calc_clk(const struct drm_display_mode *mode,
+-		struct dpu_sw_pipe_cfg *pipe_cfg)
++		const struct dpu_sw_pipe_cfg *pipe_cfg)
+ {
+ 	int dst_width, src_height, dst_height, fps;
+ 	u64 plane_clk;
+ 
+ 	src_height = drm_rotation_90_or_270(pipe_cfg->rotation) ?
+ 		drm_rect_width(&pipe_cfg->src_rect) : drm_rect_height(&pipe_cfg->src_rect);
+ 	dst_width = drm_rect_width(&pipe_cfg->dst_rect);
+ 	dst_height = drm_rect_height(&pipe_cfg->dst_rect);
+ 	fps = drm_mode_vrefresh(mode);
+ 
+ 	plane_clk =
+ 		dst_width * mode->vtotal * fps;
+ 
+ 	if (src_height > dst_height) {
+ 		plane_clk *= src_height;
+ 		do_div(plane_clk, dst_height);
+ 	}
+ 
+ 	return plane_clk;
++}
++
++/*
++ * Evaluate the candidate geometry without modifying a plane state. A CRTC-only
++ * update can include committed plane states, while changing its refresh rate.
++ * The cached fields are populated by atomic_update, too late for atomic_check.
++ */
++void dpu_plane_calc_perf(const struct drm_plane_state *state,
++		const struct drm_display_mode *mode, u64 *bw, u64 *clk)
++{
++	const struct dpu_plane_state *pstate = to_dpu_plane_state(state);
++	struct dpu_plane *pdpu = to_dpu_plane(state->plane);
++	const struct msm_format *fmt;
++	int i;
++
++	*bw = 0;
++	*clk = 0;
++	if (!state->visible || !state->fb)
++		return;
++
++	fmt = msm_framebuffer_format(state->fb);
++	for (i = 0; i < PIPES_PER_PLANE; i++) {
++		const struct dpu_sw_pipe_cfg *cfg = &pstate->pipe_cfg[i];
++
++		if (!drm_rect_width(&cfg->src_rect))
++			continue;
++		*bw += _dpu_plane_calc_bw(pdpu->catalog, fmt, mode, cfg);
++		*clk = max(*clk, _dpu_plane_calc_clk(mode, cfg));
++	}
+ }
+ 
+ /**
+  * _dpu_plane_calc_fill_level - calculate fill level of the given source format
+  * @plane:		Pointer to drm plane
+  * @pipe:		Pointer to software pipe
+  * @lut_usage:		LUT usecase
+  * @fmt:		Pointer to source buffer format
+  * @src_width:		width of source buffer
+  * Return: fill level corresponding to the source buffer/format or 0 if error
+  */
+ static int _dpu_plane_calc_fill_level(struct drm_plane *plane,
+ 		struct dpu_sw_pipe *pipe,
+ 		enum dpu_qos_lut_usage lut_usage,
+ 		const struct msm_format *fmt, u32 src_width)
+ {
+ 	struct dpu_plane *pdpu;
+ 	u32 fixed_buff_size;
+ 	u32 total_fl;
+ 
+ 	if (!fmt || !pipe || !src_width || !fmt->bpp) {
+ 		DPU_ERROR("invalid arguments\n");
+ 		return 0;
+ 	}
+ 
+ 	if (lut_usage == DPU_QOS_LUT_USAGE_NRT)
+ 		return 0;
+ 
+ 	pdpu = to_dpu_plane(plane);
+ 	fixed_buff_size = pdpu->catalog->caps->pixel_ram_size;
+ 
+ 	/* FIXME: in multirect case account for the src_width of all the planes */
+ 
+ 	if (fmt->fetch_type == MDP_PLANE_PSEUDO_PLANAR) {
+ 		if (fmt->chroma_sample == CHROMA_420) {
+ 			/* NV12 */
+ 			total_fl = (fixed_buff_size / 2) /
+ 				((src_width + 32) * fmt->bpp);
+ 		} else {
+ 			/* non NV12 */
+ 			total_fl = (fixed_buff_size / 2) * 2 /
+ 				((src_width + 32) * fmt->bpp);
+ 		}
+ 	} else {
+ 		if (pipe->multirect_mode == DPU_SSPP_MULTIRECT_PARALLEL) {
+ 			total_fl = (fixed_buff_size / 2) * 2 /
+ 				((src_width + 32) * fmt->bpp);
+ 		} else {
+ 			total_fl = (fixed_buff_size) * 2 /
+ 				((src_width + 32) * fmt->bpp);
+ 		}
+ 	}
+ 
+ 	DPU_DEBUG_PLANE(pdpu, "pnum:%d fmt: %p4cc w:%u fl:%u\n",
+ 			pipe->sspp->idx - SSPP_VIG0,
+ 			&fmt->pixel_format,
+ 			src_width, total_fl);
+ 
+ 	return total_fl;
+ }
+ 
+ /**
+  * _dpu_plane_set_qos_lut - set QoS LUT of the given plane
+  * @plane:		Pointer to drm plane
+  * @pipe:		Pointer to software pipe
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.h b/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.h
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_plane.h
+@@ -52,6 +52,9 @@
+ 
+ void dpu_plane_set_error(struct drm_plane *plane, bool error);
+ 
++void dpu_plane_calc_perf(const struct drm_plane_state *state,
++		const struct drm_display_mode *mode, u64 *bw, u64 *clk);
++
+ struct drm_plane *dpu_plane_init(struct drm_device *dev,
+ 		uint32_t pipe, enum drm_plane_type type,
+ 		unsigned long possible_crtcs);
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_core_perf.c
+@@ -17,6 +17,7 @@
+ #include "dpu_trace.h"
+ #include "dpu_crtc.h"
+ #include "dpu_core_perf.h"
++#include "dpu_plane.h"
+ 
+ /**
+  * enum dpu_perf_mode - performance tuning mode
+@@ -74,8 +75,7 @@
+ 	 * bandwidth of the frame being committed.  Other machines keep the
+ 	 * committed-plane aggregation.
+ 	 */
+-	if (of_machine_is_compatible("lenovo,baldur") ||
+-	    of_machine_is_compatible("lenovo,elden")) {
++	if (of_machine_is_compatible("lenovo,baldur")) {
+ 		drm_atomic_crtc_state_for_each_plane_state(plane, plane_state,
+ 							   state) {
+ 			pstate = to_dpu_plane_state(plane_state);
+@@ -140,6 +140,28 @@
+ 	return to_dpu_kms(priv->kms);
+ }
+ 
++static void dpu_core_perf_calc_atomic(const struct dpu_perf_cfg *cfg,
++		struct drm_crtc_state *state, struct dpu_core_perf_params *perf)
++{
++	const struct drm_display_mode *mode = &state->adjusted_mode;
++	const struct drm_plane_state *plane_state;
++	struct drm_plane *plane;
++	u64 bw, clk;
++	u64 mode_clk = (u64)mode->vtotal * mode->hdisplay * drm_mode_vrefresh(mode);
++
++	perf->bw_ctl = 0;
++	drm_atomic_crtc_state_for_each_plane_state(plane, plane_state, state) {
++		dpu_plane_calc_perf(plane_state, mode, &bw, &clk);
++		perf->bw_ctl += bw;
++		mode_clk = max(mode_clk, clk);
++	}
++	if (cfg->bw_inefficiency_factor) {
++		perf->bw_ctl *= cfg->bw_inefficiency_factor;
++		do_div(perf->bw_ctl, 100);
++	}
++	perf->core_clk_rate = dpu_core_perf_adjusted_mode_clk(mode_clk, cfg);
++}
++
+ static void _dpu_core_perf_calc_crtc(const struct dpu_core_perf *core_perf,
+ 				     struct drm_crtc *crtc,
+ 				     struct drm_crtc_state *state,
+@@ -152,9 +174,13 @@
+ 		return;
+ 	}
+ 
+-	perf->bw_ctl = _dpu_core_perf_calc_bw(perf_cfg, crtc, state);
++	if (of_machine_is_compatible("lenovo,elden")) {
++		dpu_core_perf_calc_atomic(perf_cfg, state, perf);
++	} else {
++		perf->bw_ctl = _dpu_core_perf_calc_bw(perf_cfg, crtc, state);
++		perf->core_clk_rate = _dpu_core_perf_calc_clk(perf_cfg, crtc, state);
++	}
+ 	perf->max_per_pipe_ib = perf_cfg->min_dram_ib;
+-	perf->core_clk_rate = _dpu_core_perf_calc_clk(perf_cfg, crtc, state);
+ 	DRM_DEBUG_ATOMIC(
+ 		"crtc=%d clk_rate=%llu core_ib=%u core_ab=%u\n",
+ 			crtc->base.id, perf->core_clk_rate,

@@ -1,16 +1,25 @@
 --- a/usr/share/gamescope-session-plus/device-quirks
 +++ b/usr/share/gamescope-session-plus/device-quirks
-@@ -225,6 +225,13 @@
+@@ -225,6 +225,8 @@
    # Enables the adaptive brightness toggle (Steam checks this env var in
    # addition to finding an ambient light sensor; see als-bridge).
    export STEAM_ENABLE_DYNAMIC_BACKLIGHT=1
-+  # Freedom's display stack uses composition rotation. The kernel suffix
-+  # also covers login before the modular battery driver has registered.
-+  if [[ $(uname -r) == *-freedom-compat* ||
-+        ( -e /sys/class/power_supply/battery/constant_charge_current &&
-+          ! -e /sys/class/power_supply/qcom-battmgr-bat/constant_charge_current ) ]]; then
-+    FORCE_COMPOSITION_ROTATION=1
-+  fi
++  # Select the tested GPU path or explicitly request updated DPU scanout.
++  source /usr/lib/gamescope-session/y700-rotation
  fi
  
  # Minisforum V3
+--- a/usr/share/gamescope-session-plus/gamescope-session-plus
++++ b/usr/share/gamescope-session-plus/gamescope-session-plus
+@@ -129,6 +129,11 @@
+ 	[[ -f "${i}" ]] && . "${i}"
+ done
+ set +a
++
++# Apply the Gen4 policy after system and user configuration overrides.
++if declare -F y700_rotation_policy >/dev/null; then
++    y700_rotation_policy
++fi
+ 
+ # Setup socket for gamescope
+ # Create run directory file for startup and stats sockets

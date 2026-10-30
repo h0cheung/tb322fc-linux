@@ -8,6 +8,9 @@ kernel package pins Linux 7.2.6 plus ArmadaOS Freedom hardware support, with loc
 configuration and compatibility patches. Kernel, headers, ALS DKMS and kShim are
 separate packages; upstream source is referenced at exact revisions.
 
+See the [2026-10-29 Freedom sync and Gen4 DPU rotation notes](docs/freedom-sync-20261029.md)
+for the imported changes, candidate switch and validation status.
+
 The device runs Plasma Mobile through SDDM, with ordinary Plasma and Steam
 sessions available. F2FS is supported by the packaged kernel. Historical direct
 kernel development remains in [tb322fc-linux-kernel](https://github.com/h0cheung/tb322fc-linux-kernel).

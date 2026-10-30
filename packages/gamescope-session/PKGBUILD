@@ -1,7 +1,7 @@
 # Maintainer: h0cheung <hcheunh@gmail.com>
 pkgname=gamescope-session
 pkgver=20260920
-pkgrel=2
+pkgrel=3
 pkgdesc="Base gamescope session machinery (gamescope-session-plus) used by the Steam gaming session"
 arch=('any')
 url="https://github.com/OpenGamingCollective/gamescope-session"
@@ -13,8 +13,9 @@ source=(
     "git+$url.git#commit=$_commit"
     '0001-lenovo-legion-y700-gen4-refresh-rates.patch'
     '0002-freedom-composition-rotation.patch'
+    'y700-rotation'
 )
-sha256sums=('SKIP' 'SKIP' 'SKIP')
+sha256sums=('SKIP' '477dc5d672660c77e8ee3fb461b940c814e1895f9ebd0e1741e1b8b79d89ae57' '4df70f3c81a68a66483f2a62be6c3d1693b2bb381a9011a0ec8865e0a2688097' '0f4b6210d8fdce7a4f60ad09760182f33b60a2d587f2377d1bdb042aed3a2855')
 
 prepare() {
     cd "$pkgname"
@@ -25,6 +26,7 @@ prepare() {
 }
 
 package() {
+    install -Dm644 "$srcdir/y700-rotation" "$pkgdir/usr/lib/gamescope-session/y700-rotation"
     cd "$pkgname"
     install -Dm755 usr/bin/export-gpu "$pkgdir/usr/bin/export-gpu"
     install -Dm755 usr/bin/gamescope-session-plus "$pkgdir/usr/bin/gamescope-session-plus"

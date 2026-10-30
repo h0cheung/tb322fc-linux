@@ -96,4 +96,10 @@ pkgrel 4 合并测试中，MCQ 并发直接读校验和 VFP 切换路径通过�
 
 ## 2026-10-29 上游同步
 
-Freedom 固定至 `9788014a0293dc26745b000d02854ad88ef73e88`，纳入 0224 的通用旋转拆分、资源重新分配、时钟计算修正以及 0531 的 ASoC 延迟恢复同步。SM8750 已由既有 0066 开启 inline rotation；DPU13 的寄存器变化仅作用于 DPU13，四代沿用 DPU12 路径。0188 已包含 Elden，因此不再重复应用本地 range-scan 扩展。
+Freedom 固定至 `9788014a0293dc26745b000d02854ad88ef73e88`，纳入 0224 的通用旋转拆分、资源重新分配、时钟计算修正以及 0531 的 ASoC 延迟恢复同步。SM8750 已由既有 0066 开启 inline rotation；DPU13 的寄存器变化仅作用于 DPU13，四代沿用 DPU12 路径。0188 已包含 Elden，因此不再重复应用本地 range-scan 扩展。包随匹配模块目录安装 `freedom-dpu-rotation` 能力文件，供会话核对显式 DPU 选项。
+
+启用方式、回退与实测边界见 [同步记录](../../docs/freedom-sync-20261029.md)。
+
+四代 DPU 实测发现最终带宽汇总仍使用已提交状态，导致高带宽双图层之后连降低带宽的提交也失败。本地 [0016](../../patches/freedom/0016-dpu-elden-check-pending-bandwidth.patch) 让 Elden 检查本次事务的新 CRTC 状态，保持原来的 28.5 GB/s 检查上限和提交后的总线投票。回归测试覆盖降带宽、拒绝超限首帧、DPMS 恢复、关闭以及多 CRTC 汇总。
+
+pkgrel 21 进一步加入 [0017](../../patches/freedom/0017-dpu-elden-candidate-plane-performance.patch)：按候选 plane 的实际几何和刷新率重算性能，解决缓存晚一帧更新的问题；Elden 旋转带宽按旋转后的扫描方向计算。原有硬件上限、prefill 和安全余量仍保留。生产 C 函数测试涵盖旋转方向、分数缩放、短消隐预取、图层删除和仅刷新率变化，实机结果见同步记录。

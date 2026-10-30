@@ -3,7 +3,7 @@
 pkgbase=linux-freedom
 pkgname=(linux-freedom linux-freedom-headers)
 pkgver=7.2.6
-pkgrel=20
+pkgrel=21
 pkgdesc='Linux with ArmadaOS Freedom hardware support'
 arch=(aarch64)
 url='https://github.com/mydanyi/armadaos-freedom'
@@ -25,7 +25,9 @@ _elden_patches=(elden-usb-suspend.patch
                 dsi-keep-live-link-state.patch
                 dsi-restore-bonded-slave.patch
                 dsi-stop-slave-first.patch
-                ufs-clock-scaling.patch)
+                ufs-clock-scaling.patch
+                elden-dpu-atomic-bandwidth.patch
+                elden-dpu-plane-performance.patch)
 export LOCALVERSION=
 export KBUILD_BUILD_USER=linux-freedom
 export KBUILD_BUILD_HOST=archlinux
@@ -73,6 +75,8 @@ else
               'c47ab1aad1a3a897e317451327de09cb5d5a0e5529333265a93f2560ed1c638e'
               '3cadbb4d41ee50a957db0200fba2c8fd33956c6aa5e97e9be35eeb3a358ea00a'
               'cefd2c6c8b066f6bab4efe1f0c171dbcfda3ccb89ef8ab988c3fdb65564f246b'
+              '2e6ad092cec46410fda8fd0e3b417f3a9888554a2d5536c74919ce36f6e62e96'
+              '3acd80aa7a1d416549469c063c7018c6ccc1c600bb5eacc3c3c06935ab96978d'
               'fd6069f5ac61c642bd7d1b402a88d74cb00aab7f353802d22b953dc9a8aee8ee'
               'bb78efdb9ab3511afa27f1da87d10771655afd972a9521ef70ec2a89a94bd7b7'
               'c0080c1fa0365c8dbf05c588d5dc288b36d2739c1052e47ef463f27bdabc5095')
@@ -143,6 +147,8 @@ package_linux-freedom() {
               'kshim-freedom: generate the device boot image')
   local modulesdir="$pkgdir/usr/lib/modules/$_release"
   install -d "$modulesdir"
+  # Used by the session to reject DPU opt-in on older, unpatched kernels.
+  printf '%s\n' 'SM8750 inline rotation: split, allocation and clock fixes (Freedom 0224)' > "$modulesdir/freedom-dpu-rotation"
   cp -a "$srcdir/kernel-input/modules/." "$modulesdir/"
   install -Dm644 "$srcdir/kernel-input/Image" "$modulesdir/vmlinuz"
   printf '%s\n' "$pkgbase" > "$modulesdir/pkgbase"
