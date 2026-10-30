@@ -3,7 +3,7 @@
 # identity 054c:0ce6 and is driven by the kernel hid-playstation driver. It
 # exposes the standard DualSense button/axis set plus FF_RUMBLE. The G9 firmware
 # reverses X/Y, so the DS-only capability map swaps West/North. Game rumble
-# reaches the pad itself; this is the only mode with rumble.
+# reaches the pad itself. HID vendor rumble is configured separately.
 #
 # The evdev name keeps the pad's own USB product string, so it cannot collide
 # with a real DualSense, and the tablet's own motion bridge (which also uses

@@ -1,0 +1,49 @@
+# Maintainer: h0cheung <hcheunh@gmail.com>
+# Upstream v0.83.0: 4ed1f50c7801e4f91fd17ce1a7b2b9d8d8b82e69.
+# Add G9 vendor rumble without modifying upstream device discovery/removal.
+pkgname=inputplumber-g9-2026
+pkgver=0.83.0
+pkgrel=1
+pkgdesc='Input router with Legion G9 2026 HID rumble'
+arch=('aarch64' 'x86_64')
+url='https://github.com/ShadowBlip/InputPlumber'
+license=('GPL-3.0-only')
+depends=('dbus' 'libgcc' 'glibc' 'libevdev' 'libiio' 'systemd-libs')
+makedepends=('rust' 'clang' 'cmake' 'git' 'pkgconf')
+provides=("inputplumber=$pkgver")
+conflicts=('inputplumber' 'inputplumber-udev-fix')
+options=('!debug' '!lto')
+source=("inputplumber-$pkgver.tar.gz::https://codeload.github.com/ShadowBlip/InputPlumber/tar.gz/refs/tags/v$pkgver"
+        '0001-add-legion-g9-rumble.patch'
+        'legion_g9.rs')
+sha256sums=('b2497a3837c9547b12200809e22601459d12747ddc4bfbd9b14c6ebe820d9376'
+            '2c9fb71fc3c8b6128c70f395426a7f9a1087b1a8870953980d9a4dd538a43dac'
+            '87e91888b1092c49c3a2034c82f17fb60ca9ffb21b7df8670b381539d00dbd56')
+
+prepare() {
+  cd "InputPlumber-$pkgver"
+  patch -Np1 -i "$srcdir/0001-add-legion-g9-rumble.patch"
+  install -m644 "$srcdir/legion_g9.rs" src/input/source/hidraw/legion_g9.rs
+  cargo fetch --locked
+}
+
+build() {
+  cd "InputPlumber-$pkgver"
+  CARGO_PROFILE_RELEASE_LTO=thin cargo build --frozen --release --bin inputplumber
+}
+
+check() {
+  cd "InputPlumber-$pkgver"
+  CARGO_PROFILE_RELEASE_LTO=thin cargo test --frozen --release --lib --bin inputplumber
+}
+
+package() {
+  cd "InputPlumber-$pkgver"
+  install -Dm755 target/release/inputplumber "$pkgdir/usr/bin/inputplumber"
+  cp -a rootfs/usr/lib "$pkgdir/usr/"
+  cp -a rootfs/usr/share "$pkgdir/usr/"
+  # This upstream activation file belongs to an unrelated example server.
+  rm "$pkgdir/usr/share/dbus-1/system-services/org.shadowblip.InputPlumber.service"
+  rmdir "$pkgdir/usr/share/dbus-1/system-services"
+  install -Dm644 "$startdir/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

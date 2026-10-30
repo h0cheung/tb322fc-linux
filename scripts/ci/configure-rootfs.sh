@@ -372,6 +372,7 @@ while read -r _repo _name _ver _rest; do
     repo_versions[$_name]=$_ver
 done < <(pacman -Sl tb322fc 2>/dev/null || true)
 
+declare -A pkg_virtual_providers=([inputplumber]=inputplumber-g9-2026)
 declare -A pkg_paths=()
 declare -A pkg_deps=()
 declare -A pkg_fullver=()
@@ -480,7 +481,8 @@ for _pass in 1 2 3; do
         has_unmet_repo_dep=0
         for dep in "${pkg_missing[@]}"; do
             dep_name=${dep%%[\<\>\=]*}
-            if [[ -n "${pkg_paths[$dep_name]:-}" ]]; then
+            provider=${pkg_virtual_providers[$dep_name]:-$dep_name}
+            if [[ -n "${pkg_paths[$provider]:-}" ]]; then
                 has_unmet_repo_dep=1
             else
                 install_list+=("$dep")

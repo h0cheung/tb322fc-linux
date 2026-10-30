@@ -1,4 +1,14 @@
-# G9 2026：按键、DS 模式震动与快捷菜单
+# G9 2026：HID 背键、M 与震动
+
+当前 `1.2.0-2` 配合 `inputplumber-g9-2026 >= 0.83.0-1`，为 0.14 固件的 HID 模式
+映射四个背键和 M，并通过独立的厂商 HID 输出源把游戏震动送到握把。
+完整配置、测试和安装说明见 [HID.md](HID.md)，驱动实现在
+[inputplumber-g9-2026](../inputplumber-g9-2026/README.md)。
+
+以下保留 1.1.0 的移植记录，其中“仅 DS 支持震动”和 HID 双击映射已被 1.2.0 取代。
+`1.2.0-2` 改为依赖仅含 G9 驱动的新包；旧 udev 修复暂不纳入，断开重连行为待单独验证。
+
+## 1.1.0 历史记录
 
 针对设备树型号 `Lenovo Legion Y700 Gen4` 和 G9 2026 手柄。基础按键映射移植自 [mydanyi/armadaos-freedom](https://github.com/mydanyi/armadaos-freedom/tree/2c8c433e806e5bc0a0e7195f450af305c1bca460/system_files/usr/share/inputplumber)，上游映射又参考 [enij90/armada-tb321fu](https://github.com/enij90/armada-tb321fu/tree/62076530bf1ff34295d671016658965e54e597f1)。本移植使用发行版 InputPlumber 0.82.0，不要求 Freedom 的 0.81 共享原始输入补丁。
 

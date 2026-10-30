@@ -4,11 +4,11 @@
 # are matched; DS mode (054c:0ce6) has its own config in
 # 06-lenovo-y700-gen4-g9-ds.yaml.
 #
-# This identity has no hardware force feedback, so games do not rumble in this
-# mode. Since 2026-10-18 the tablet motors are deliberately NOT claimed here:
-# a source that exists in every mode would keep a composite alive across mode
-# switches and would also receive rumble in DS mode, where the pad rumbles
-# itself. Game rumble therefore requires the controller's PS5/DS mode.
+# The patched 0.14 HID firmware exposes five independent buttons and 16-bit
+# stick axes. The vendor motor command also works with stock firmware.
+# inputplumber-g9-2026 adds an output-only driver for vendor interface 4;
+# both rumble and input disappear together on unplug or switching modes.
+# Tablet motors remain outside this composite.
 # Tablet sensors are deliberately absent: the existing sensor bridge is shared
 # with iio-sensor-proxy and must retain its current readers and units.
 version: 1
@@ -31,13 +31,27 @@ source_devices:
       product_id: "1136"
       handler: event*
     capability_map_id: lenovo_legion_g9_2026
-  - group: consumer
+  - group: keyboard
+    blocked: true
     evdev:
       name: GameSir Legion Gaming Controller G9 2026 Consumer Control
       vendor_id: "3537"
       product_id: "1136"
       handler: event*
-    capability_map_id: y700_g9_consumer
+  # Leave the vendor node available to the existing armada-rgb service.
+  - group: gamepad
+    passthrough: true
+    hidraw:
+      vendor_id: 0x3537
+      product_id: 0x1136
+      interface_num: 4
+  # Prevent Steam/SDL from also reading the physical gamepad through hidraw.
+  - group: gamepad
+    blocked: true
+    hidraw:
+      vendor_id: 0x3537
+      product_id: 0x1136
+      interface_num: 3
 target_devices:
   - deck-uhid
   - keyboard

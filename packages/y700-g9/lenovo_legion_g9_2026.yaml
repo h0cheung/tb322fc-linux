@@ -1,18 +1,14 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/ShadowBlip/InputPlumber/main/rootfs/usr/share/inputplumber/schema/capability_map_v2.json
 # Lenovo Legion G9 2026 (GameSir, 3537:1136) on the Lenovo Legion Tab Y700
-# 5th Gen / TB323FU. The ordinary mapping below is reused as-is from the
+# 4th Gen / TB322FC. The ordinary mapping below is reused as-is from the
 # upstream Legion G9 3537:1134 map (lenovo_legion_g9), including its event axis
 # assignments: right stick on ABS_Z/ABS_RZ, triggers on ABS_BRAKE/ABS_GAS and
 # d-pad on ABS_HAT0X/Y.
 #
-# Checked 1136 evdev capabilities: ABS_X/Y/Z/RZ are 0..255, ABS_GAS/BRAKE are
-# 0..255, ABS_HAT0X/Y are -1..1, and BTN_MODE with BTN_C/BTN_Z exist. Those
-# capabilities are confirmed for this PID, and the basic keys, sticks, triggers
-# and d-pad were user tested on 2026-10-11/12.
-#
-# BTN_C maps to RightPaddle1 and BTN_Z to LeftPaddle1, but those reported
-# mappings do not imply four independent back keys. Independent back-button
-# support has not been confirmed by user testing.
+# Firmware 0.14: ABS_X/Y/Z/RZ use 0..65535; ABS_GAS/BRAKE remain 0..255.
+# InputPlumber obtains ranges from evdev; this map does not truncate to 8 bits.
+# BTN_TRIGGER_HAPPY1..5 are the four paddles and M; their physical order was
+# verified on 2026-10-29. Leave paddles unmapped in the Android app.
 #
 # The 3537:1134 profile's firmware-timing observations have not been verified
 # on the 3537:1136 G9 2026 and are not relied on here.
@@ -135,25 +131,55 @@ mapping:
       gamepad:
         button: LeftBumper
 
-  - name: Right Paddle
+  - name: Right top paddle
     source_events:
       - evdev:
           event_type: KEY
-          event_code: BTN_C
+          event_code: BTN_TRIGGER_HAPPY2
           value_type: button
     target_event:
       gamepad:
         button: RightPaddle1
 
-  - name: Left Paddle
+  - name: Left top paddle
     source_events:
       - evdev:
           event_type: KEY
-          event_code: BTN_Z
+          event_code: BTN_TRIGGER_HAPPY1
           value_type: button
     target_event:
       gamepad:
         button: LeftPaddle1
+
+  - name: Left bottom paddle
+    source_events:
+      - evdev:
+          event_type: KEY
+          event_code: BTN_TRIGGER_HAPPY3
+          value_type: button
+    target_event:
+      gamepad:
+        button: LeftPaddle2
+
+  - name: Right bottom paddle
+    source_events:
+      - evdev:
+          event_type: KEY
+          event_code: BTN_TRIGGER_HAPPY4
+          value_type: button
+    target_event:
+      gamepad:
+        button: RightPaddle2
+
+  - name: M
+    source_events:
+      - evdev:
+          event_type: KEY
+          event_code: BTN_TRIGGER_HAPPY5
+          value_type: button
+    target_event:
+      gamepad:
+        button: QuickAccess
 
   - name: Right Stick
     source_events:
