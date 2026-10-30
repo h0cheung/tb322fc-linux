@@ -1,0 +1,42 @@
+# Maintainer: h0cheung
+pkgname=freedom-steam-power
+pkgver=20261025
+pkgrel=2
+pkgdesc='Steam power-key coordination and post-suspend input reader recovery'
+arch=(any)
+url='https://github.com/mydanyi/armadaos-freedom'
+license=(GPL-2.0-or-later)
+depends=(bash coreutils procps-ng systemd evtest gamescope-session-steam)
+_commit=9788014a0293dc26745b000d02854ad88ef73e88
+source=(
+    "powerbuttond::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_commit/system_files/usr/libexec/armada/powerbuttond"
+    "input-lib::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_commit/system_files/usr/lib/armada/input-lib"
+    "armada-powerbuttond.service::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_commit/system_files/usr/lib/systemd/user/armada-powerbuttond.service"
+    "10-armada-powerbuttond.conf::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_commit/system_files/usr/lib/systemd/user/gamescope-session-plus@steam.service.d/10-armada-powerbuttond.conf"
+    "50-armada-powerbutton-suspend::https://raw.githubusercontent.com/mydanyi/armadaos-freedom/$_commit/system_files/usr/lib/systemd/system-sleep/50-armada-powerbutton-suspend"
+    arch-session-and-resume.patch
+)
+sha256sums=(
+    'b2bf19cb612d227329d0a7cad9434d7fa5abe5a98dfcd6b5291d626c2848f8ff'
+    '0985d4da6b591487f60e5f10d8ac6209cd38de8c1c3329085f69074708700bb5'
+    'a69221da35df649960d4424231f3ca51dd0d9506822c118a29668082e9a8e73a'
+    '67304c55aa69d414f90f71ecfade2cb1c8e0dd844e72dc5a6e11160d971f47a7'
+    'a0dcbd7210472a02d013c8c36fbbe29dd430baf29453ca02d5e6fc9de6fdb18d'
+    '4db910b22ed07a37573129b02d4f32cb3ddc5b14540666a19900e207e688edd5'
+)
+
+prepare() {
+    for file in powerbuttond 50-armada-powerbutton-suspend; do
+        cp -- "$srcdir/$file" "$srcdir/$file.regular"
+        mv -f -- "$srcdir/$file.regular" "$srcdir/$file"
+    done
+    patch --batch --fuzz=0 -Np1 -i "$srcdir/arch-session-and-resume.patch"
+}
+
+package() {
+    install -Dm755 "$srcdir/powerbuttond" "$pkgdir/usr/libexec/armada/powerbuttond"
+    install -Dm644 "$srcdir/input-lib" "$pkgdir/usr/lib/armada/input-lib"
+    install -Dm644 "$srcdir/armada-powerbuttond.service" "$pkgdir/usr/lib/systemd/user/armada-powerbuttond.service"
+    install -Dm644 "$srcdir/10-armada-powerbuttond.conf" "$pkgdir/usr/lib/systemd/user/gamescope-session-plus@steam.service.d/10-armada-powerbuttond.conf"
+    install -Dm755 "$srcdir/50-armada-powerbutton-suspend" "$pkgdir/usr/lib/systemd/system-sleep/50-freedom-steam-input-resume"
+}
