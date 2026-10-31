@@ -26,7 +26,7 @@ _pkgname=gamescope
 _commit=afd6eac6e1b5045119831b63854bad68ec4fd92c # tag 3.16.31-ogc1
 pkgname=gamescope-armada
 pkgver=3.16.31.ogc1
-pkgrel=5
+pkgrel=6
 pkgdesc="SteamOS session compositing window manager (OGC fork, ArmadaOS patches)"
 arch=('aarch64')
 url="https://github.com/OpenGamingCollective/gamescope"
@@ -132,6 +132,8 @@ source=(
     0038-steamcompmgr-steamui-refresh-ceiling.patch
     0039-wlserver-allow-in-game-touch-gestures.patch
     0042-steamcompmgr-skip-redundant-steam-placeholder.patch
+    # Local recovery of inactive colorop state after suspend.
+    0043-drm-restore-colorops-when-reenabling-plane-pipeline.patch
     # Local EDID range extension for the Gen4 panel.
     0031-edid-widen-display-range-limits.patch
     # Device profile: HDR static metadata for the Y700 Gen4 internal panel.
@@ -182,6 +184,7 @@ sha256sums=(
     '9e8c80a75ee318249611c19b1fabb96cf894627b38b5e3d48fc6e42e73ac7044'
     '0c33b247413b7d275788831d5f12f9cc01b1b1befe0f5af6a8e21fb3204b7d33'
     '5a19899f265046ee576a15f6ae01b292b62946c93929ca182449211d3729e7a0'
+    'ddd2d99b9693dee8c6e0031771be6d5f287c7ac1bd21914497536c7bdedcb3a8'
     'dcf954cec741f19e7dd678cd46c48fc00b97d231bb0b444e46684382ff4ccc64'
     'dfd3c52ac25bb09b8201ef095388fb98db6e59b032f2224825ec1cc2a3f13e15'
 )
@@ -237,6 +240,7 @@ check() {
     python3 tests/test_in_game_swipes.py
     python3 tests/test_steam_menu_dispatch.py
     python3 tests/test_steam_overlay_placeholder.py
+    python3 tests/test_plane_lut_resume.py
 }
 
 package() {

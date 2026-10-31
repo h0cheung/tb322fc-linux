@@ -1,0 +1,234 @@
+Subject: [PATCH] drm: restore colorop state when re-enabling a plane pipeline
+
+The kernel suspend helper resets inactive colorops while Gamescope retains
+their property cache. Re-send DATA and BYPASS on pipeline activation so
+returning from GPU composition after suspend restores per-plane night mode.
+Use the committed pipeline selection; liftoff clears the pending selection
+for allocation tests on every frame. Unchanged active pipelines keep caching.
+
+--- a/src/Backends/DRMBackend.cpp
++++ b/src/Backends/DRMBackend.cpp
+@@ -2899,11 +2899,17 @@
+ 			return -EAGAIN;
+ 
+ 		auto &props = pPlane->GetProperties();
++		// Suspend/resume can reset colorops of an inactive pipeline without
++		// invalidating our property cache. Restore the whole pipeline when it
++		// becomes active again, including unchanged blob IDs and bypass flags.
++		// Use the committed value: liftoff temporarily clears the pending one
++		// for its allocation tests on every frame.
++		const bool bReenable = props.COLOR_PIPELINE->GetCurrentValue() != pPlane->GetLutPipeline();
+ 		props.COLOR_PIPELINE->SetPendingValue( drm->req, pPlane->GetLutPipeline(), false );
+-		props.IGC_DATA->SetPendingValue( drm->req, drm->pending.shaperlut_id[ uEOTF ]->GetBlobValue(), false );
+-		props.IGC_BYPASS->SetPendingValue( drm->req, 0, false );
+-		props.LUT3D_DATA->SetPendingValue( drm->req, drm->pending.lut3d_id[ uEOTF ]->GetBlobValue(), false );
+-		props.LUT3D_BYPASS->SetPendingValue( drm->req, 0, false );
++		props.IGC_DATA->SetPendingValue( drm->req, drm->pending.shaperlut_id[ uEOTF ]->GetBlobValue(), bReenable );
++		props.IGC_BYPASS->SetPendingValue( drm->req, 0, bReenable );
++		props.LUT3D_DATA->SetPendingValue( drm->req, drm->pending.lut3d_id[ uEOTF ]->GetBlobValue(), bReenable );
++		props.LUT3D_BYPASS->SetPendingValue( drm->req, 0, bReenable );
+ 	}
+ 
+ 	return drmModeAtomicCommit( drm->fd, drm->req,
+--- /dev/null
++++ b/tests/test_plane_lut_resume.py
+@@ -0,0 +1,199 @@
++"""Run the production LUT submission and atomic-cache methods against fake DRM.
++
++The fake kernel can lose inactive colorop state while userspace keeps its cache,
++matching the suspend/resume failure observed on the Y700. Hardware regression
++still needs a real suspend with GPU composition followed by direct scanout.
++"""
++import os
++from pathlib import Path
++import subprocess
++import tempfile
++import unittest
++
++SOURCE = Path(os.environ.get('DRM_BACKEND_SOURCE',
++    Path(__file__).resolve().parents[1] / 'src/Backends/DRMBackend.cpp'))
++
++
++def function(source, signature):
++    start = source.index(signature)
++    opening = source.index('{', start)
++    depth, end = 1, opening + 1
++    while depth:
++        depth += (source[end] == '{') - (source[end] == '}')
++        end += 1
++    return source[start:end]
++
++
++HARNESS = r'''
++#include <array>
++#include <cerrno>
++#include <cstdint>
++#include <iostream>
++#include <map>
++#include <memory>
++#include <optional>
++#include <stdexcept>
++#include <string>
++#include <tuple>
++#include <vector>
++using Key = std::pair<uint32_t, uint32_t>;
++using State = std::map<Key, uint64_t>;
++struct drmModeAtomicReq { State values; };
++State kernel;
++int test_result = 0;
++constexpr uint32_t DRM_MODE_PAGE_FLIP_EVENT = 1, DRM_MODE_ATOMIC_TEST_ONLY = 2;
++int drmModeAtomicAddProperty(drmModeAtomicReq *req, uint32_t obj, uint32_t prop, uint64_t value) {
++    req->values[{obj, prop}] = value;
++    return req->values.size();
++}
++int drmModeAtomicCommit(int, drmModeAtomicReq *, uint32_t flags, void *) {
++    if (!(flags & DRM_MODE_ATOMIC_TEST_ONLY)) throw std::runtime_error("not TEST_ONLY");
++    return test_result;
++}
++namespace gamescope {
++struct CDRMAtomicObject {
++    uint32_t id;
++    uint32_t GetObjectId() const { return id; }
++};
++class CDRMAtomicProperty {
++public:
++    CDRMAtomicProperty(CDRMAtomicObject *obj, uint32_t prop, uint64_t value)
++        : m_pObject(obj), m_uPropertyId(prop), m_ulPendingValue(value), m_ulCurrentValue(value) {}
++    uint64_t GetCurrentValue() const { return m_ulCurrentValue; }
++    int SetPendingValue(drmModeAtomicReq *, uint64_t, bool);
++    void OnCommit();
++    void Rollback();
++private:
++    CDRMAtomicObject *m_pObject;
++    uint32_t m_uPropertyId;
++    uint64_t m_ulPendingValue, m_ulCurrentValue;
++};
++// CACHE_METHODS
++struct CDRMPlane : CDRMAtomicObject {
++    CDRMAtomicObject igc{73}, lut{80};
++    struct Properties {
++        std::optional<CDRMAtomicProperty> COLOR_PIPELINE, IGC_DATA, IGC_BYPASS, LUT3D_DATA, LUT3D_BYPASS;
++    } props;
++    CDRMPlane() : CDRMAtomicObject{67}, props{
++        CDRMAtomicProperty(this, 1, 0), CDRMAtomicProperty(&igc, 2, 0),
++        CDRMAtomicProperty(&igc, 3, 1), CDRMAtomicProperty(&lut, 2, 0), CDRMAtomicProperty(&lut, 3, 1)} {}
++    uint64_t GetLutPipeline() const { return 73; }
++    Properties &GetProperties() { return props; }
++    auto properties() { return std::array{&*props.COLOR_PIPELINE, &*props.IGC_DATA,
++        &*props.IGC_BYPASS, &*props.LUT3D_DATA, &*props.LUT3D_BYPASS}; }
++};
++}
++struct liftoff_plane { uint32_t id; } assignment{67};
++struct liftoff_layer { liftoff_plane *plane = &assignment; } layer;
++liftoff_plane *liftoff_layer_get_plane(liftoff_layer *l) { return l->plane; }
++uint32_t liftoff_plane_get_id(liftoff_plane *p) { return p->id; }
++struct FrameInfo_t {
++    struct Layer_t { bool applyColorMgmt = true; uint32_t colorspace = 0; };
++    struct { Layer_t item; int count() const { return 1; }
++        const Layer_t &get(int) const { return item; } } layers;
++};
++uint32_t ColorSpaceToEOTFIndex(uint32_t space) { return space; }
++struct Blob { uint64_t id; uint64_t GetBlobValue() const { return id; } } shaper{271}, lut3d{282};
++struct drm_t {
++    std::vector<std::unique_ptr<gamescope::CDRMPlane>> planes;
++    liftoff_layer *lo_layers[1] = {&layer};
++    struct { Blob *shaperlut_id[1] = {&shaper}, *lut3d_id[1] = {&lut3d}; } pending;
++    drmModeAtomicReq *req;
++    int fd = 0;
++    uint32_t flags = DRM_MODE_PAGE_FLIP_EVENT;
++};
++// LUT_FUNCTION
++void check(bool condition, const char *message) {
++    if (!condition) throw std::runtime_error(message);
++}
++int main(int argc, char **argv) {
++    try {
++        check(argc == 2, "scenario required");
++        const std::string scenario = argv[1];
++        drmModeAtomicReq req;
++        drm_t drm; drm.req = &req;
++        drm.planes.push_back(std::make_unique<gamescope::CDRMPlane>());
++        auto &plane = *drm.planes[0];
++        auto &props = plane.GetProperties();
++        FrameInfo_t frame;
++        auto begin = [&] { req.values.clear(); props.COLOR_PIPELINE->SetPendingValue(&req, 0, false); };
++        auto commit = [&] {
++            for (auto [key, value] : req.values) kernel[key] = value;
++            for (auto *prop : plane.properties()) prop->OnCommit();
++        };
++        auto valid = [&] {
++            check(kernel[{67, 1}] == 73, "pipeline not selected");
++            check(kernel[{73, 2}] == shaper.id && kernel[{80, 2}] == lut3d.id, "lost LUT data");
++            check(kernel[{73, 3}] == 0 && kernel[{80, 3}] == 0, "colorops still bypassed");
++        };
++        auto colorop_writes = [&] {
++            int count = 0;
++            for (auto [key, value] : req.values) count += key.first != 67;
++            return count;
++        };
++        begin(); check(drm_set_plane_luts(&drm, &frame) == 0, "initial test"); commit(); valid();
++        if (scenario == "initial") return 0;
++        if (scenario == "steady") {
++            begin(); check(drm_set_plane_luts(&drm, &frame) == 0, "steady test");
++            check(colorop_writes() == 0, "unchanged LUTs submitted every frame"); commit(); valid();
++        } else if (scenario == "changed") {
++            shaper.id = 300; lut3d.id = 301;
++            begin(); check(drm_set_plane_luts(&drm, &frame) == 0, "changed test");
++            check(colorop_writes() == 2, "changed LUT data missing or bypass needlessly resent"); commit(); valid();
++        } else if (scenario == "unmanaged" || scenario == "unassigned" || scenario == "missing") {
++            begin();
++            if (scenario == "unmanaged") frame.layers.item.applyColorMgmt = false;
++            if (scenario == "unassigned") layer.plane = nullptr;
++            if (scenario == "missing") drm.pending.lut3d_id[0] = nullptr;
++            check(drm_set_plane_luts(&drm, &frame) == (scenario == "missing" ? -EAGAIN : 0), "skip/fallback");
++            check(colorop_writes() == 0, "unused pipeline touched");
++        } else {
++            check(scenario == "resume" || scenario == "retry", "unknown scenario");
++            // GPU frame disables the pipeline but retains the userspace LUT cache.
++            begin(); commit();
++            // Kernel resume resets inactive colorops, including their bypass flags.
++            kernel[{73, 2}] = kernel[{80, 2}] = 0;
++            kernel[{73, 3}] = kernel[{80, 3}] = 1;
++            if (scenario == "retry") {
++                begin(); test_result = -EINVAL;
++                check(drm_set_plane_luts(&drm, &frame) == -EINVAL, "expected rejected TEST_ONLY");
++                for (auto *prop : plane.properties()) prop->Rollback();
++                check(kernel[{73, 2}] == 0, "test changed kernel state");
++                test_result = 0;
++            }
++            begin(); check(drm_set_plane_luts(&drm, &frame) == 0, "resume test"); commit(); valid();
++        }
++        return 0;
++    } catch (const std::exception &e) { std::cerr << e.what() << '\n'; return 1; }
++}
++'''
++
++
++class PlaneLutResumeTest(unittest.TestCase):
++    @classmethod
++    def setUpClass(cls):
++        cls.temp = tempfile.TemporaryDirectory(prefix='plane-lut-resume-')
++        cls.addClassCleanup(cls.temp.cleanup)
++        source = SOURCE.read_text()
++        methods = '\n'.join(function(source, signature) for signature in (
++            'int CDRMAtomicProperty::SetPendingValue(',
++            'void CDRMAtomicProperty::OnCommit()',
++            'void CDRMAtomicProperty::Rollback()'))
++        harness = HARNESS.replace('// CACHE_METHODS', methods).replace(
++            '// LUT_FUNCTION', function(source, 'static int drm_set_plane_luts('))
++        cpp = Path(cls.temp.name) / 'resume.cpp'
++        cls.binary = Path(cls.temp.name) / 'resume'
++        cpp.write_text(harness)
++        subprocess.run([os.environ.get('CXX', 'c++'), '-std=c++20', '-O0',
++                        str(cpp), '-o', str(cls.binary)], check=True)
++
++    def test_pipeline_state(self):
++        for scenario in ('initial', 'steady', 'changed', 'unmanaged', 'unassigned',
++                         'missing', 'resume', 'retry'):
++            with self.subTest(scenario=scenario):
++                result = subprocess.run([str(self.binary), scenario], capture_output=True, text=True)
++                self.assertEqual(result.returncode, 0, result.stderr)
++
++
++if __name__ == '__main__':
++    unittest.main()
