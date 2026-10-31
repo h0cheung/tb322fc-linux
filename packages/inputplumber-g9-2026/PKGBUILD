@@ -3,7 +3,7 @@
 # Add G9 vendor rumble without modifying upstream device discovery/removal.
 pkgname=inputplumber-g9-2026
 pkgver=0.83.0
-pkgrel=1
+pkgrel=2
 pkgdesc='Input router with Legion G9 2026 HID rumble'
 arch=('aarch64' 'x86_64')
 url='https://github.com/ShadowBlip/InputPlumber'
@@ -15,14 +15,17 @@ conflicts=('inputplumber' 'inputplumber-udev-fix')
 options=('!debug' '!lto')
 source=("inputplumber-$pkgver.tar.gz::https://codeload.github.com/ShadowBlip/InputPlumber/tar.gz/refs/tags/v$pkgver"
         '0001-add-legion-g9-rumble.patch'
+        '0002-scope-hidraw-hide-rules-to-device-path.patch'
         'legion_g9.rs')
 sha256sums=('b2497a3837c9547b12200809e22601459d12747ddc4bfbd9b14c6ebe820d9376'
             '2c9fb71fc3c8b6128c70f395426a7f9a1087b1a8870953980d9a4dd538a43dac'
+            'e7046abea6906110af53da6fe3628769ddf19b8a47e6463fbedf9b3cf7baebf2'
             '87e91888b1092c49c3a2034c82f17fb60ca9ffb21b7df8670b381539d00dbd56')
 
 prepare() {
   cd "InputPlumber-$pkgver"
   patch -Np1 -i "$srcdir/0001-add-legion-g9-rumble.patch"
+  patch -Np1 --fuzz=0 -i "$srcdir/0002-scope-hidraw-hide-rules-to-device-path.patch"
   install -m644 "$srcdir/legion_g9.rs" src/input/source/hidraw/legion_g9.rs
   cargo fetch --locked
 }

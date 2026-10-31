@@ -1,10 +1,17 @@
 # InputPlumber：G9 2026 HID 震动
 
-`inputplumber-g9-2026 0.83.0-1` 基于官方 `v0.83.0` /
-`4ed1f50c7801e4f91fd17ce1a7b2b9d8d8b82e69`，仅增加 G9 厂商 HID 输出源。
+`inputplumber-g9-2026 0.83.0-2` 基于官方 `v0.83.0` /
+`4ed1f50c7801e4f91fd17ce1a7b2b9d8d8b82e69`，增加 G9 厂商 HID 输出源，
+并防止残留的 hidraw 隐藏规则误伤复用设备编号的虚拟手柄。
 
 `0001-add-legion-g9-rumble.patch` 注册驱动，`legion_g9.rs` 由 `prepare()` 安装到源码树。
-原 `inputplumber-udev-fix` 的设备发现/移除补丁暂不包含；断开重连和休眠恢复仍需单独验证。
+原 `inputplumber-udev-fix` 的设备发现/移除补丁不包含。
+
+`0002-scope-hidraw-hide-rules-to-device-path.patch` 只修改 hidraw 隐藏规则的匹配条件：
+除节点编号外，还必须匹配原设备的 `DEVPATH`。休眠后物理手柄与虚拟 Steam Deck
+可能交换 hidraw 编号；原规则只匹配 `hidrawN`，会把虚拟手柄设成 0000 权限，
+导致 Steam 报 `Unable to open local device`。新规则不会跟随复用的编号匹配其他设备。
+该补丁不更改 Manager 的设备发现、移除或 Composite 生命周期。
 
 G9 驱动只接受 USB `3537:1136` 的 interface 4，并检查完整厂商报告描述符。
 输入继续由普通 evdev 源处理，不需要复制按键/轴解析，不修改耳机、RGB 或内核驱动。
@@ -23,10 +30,10 @@ evdev 效果包含延迟、时长、重复、更新、删除、独立停止、�
 
 ```sh
 makepkg -s
-sudo pacman -U inputplumber-g9-2026-0.83.0-1-aarch64.pkg.tar.*
+sudo pacman -U inputplumber-g9-2026-0.83.0-2-aarch64.pkg.tar.*
 ```
 
-`check()` 运行上游库/主程序测试，包括新增报文、定时和效果混合测试。
+`check()` 运行上游库/主程序测试，包括新增报文、定时、效果混合以及 hidraw 编号复用测试。
 与 `y700-g9 >= 1.2.0-2` 一起安装后重启 InputPlumber。游戏仍使用原来的虚拟 Steam Deck；
 新驱动作为相同 composite 的输出源接收震动，不创建额外虚拟手柄。
 
