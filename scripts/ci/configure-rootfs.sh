@@ -59,7 +59,7 @@ runtime_packages=(
     alsa-ucm-conf alsa-utils pipewire pipewire-audio pipewire-alsa pipewire-pulse wireplumber
     noto-fonts noto-fonts-cjk ibus ibus-libpinyin
     libqmi protobuf-c glib2 libgudev polkit libyaml libevent qt6-base python python-gobject
-    scx-scheds
+    scx-scheds thermald
 )
 build_packages=(
     base-devel linux-api-headers meson ninja git python pkgconf clang llvm llvm-libs ccache
@@ -207,8 +207,8 @@ install -Dm644 overlay/power/vpower.conf /etc/tmpfiles.d/vpower.conf
 install -d -m 700 /var/lib/hexagonrpc /var/lib/hexagonrpc/sensors
 ln -s /sys/devices/soc0 /var/lib/hexagonrpc/socinfo
 
-# Device thermal policy.  Both files are written by the overlay, not owned by
-# the thermald package, so a future Ports thermald package cannot drop them.
+# Device thermal policy is maintained by the overlay independently of the
+# Arch Linux Ports thermald package installed above.
 # The config must be root-owned and not group/world-writable, or thermald's
 # open_validated_xml_file() refuses it with EPERM; regenerate it with
 # rootfs/thermald/gen_thermal_conf.py when the policy changes.  The drop-in
